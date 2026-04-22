@@ -25,15 +25,40 @@ from .forms import (
 )
 
 
-class TenantAdminRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
-    """View access guard for tenant-admin-only pages."""
+class TenantRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """Guard: user must be signed in AND have an active tenant context."""
     raise_exception = False
 
     def test_func(self):
         u = self.request.user
-        return u.is_authenticated and (u.is_tenant_admin or u.is_superuser)
+        if not u.is_authenticated:
+            return False
+        return getattr(self.request, 'tenant', None) is not None
 
     def handle_no_permission(self):
+        if self.request.user.is_authenticated and getattr(self.request, 'tenant', None) is None:
+            messages.warning(
+                self.request,
+                'You are signed in as a user without a tenant (likely the Django superuser). '
+                'Log in as a tenant admin (e.g. admin_acme) to access this page.'
+            )
+            return redirect('dashboard')
+        return super().handle_no_permission()
+
+
+class TenantAdminRequiredMixin(TenantRequiredMixin):
+    """Guard: user must be a tenant admin (or superuser with a tenant)."""
+
+    def test_func(self):
+        if not super().test_func():
+            return False
+        u = self.request.user
+        return u.is_tenant_admin or u.is_superuser
+
+    def handle_no_permission(self):
+        # If rejected purely for lack of tenant, defer to parent's friendly message.
+        if self.request.user.is_authenticated and getattr(self.request, 'tenant', None) is None:
+            return super().handle_no_permission()
         if self.request.user.is_authenticated:
             messages.error(self.request, 'Only tenant administrators can access that page.')
             return redirect('dashboard')
