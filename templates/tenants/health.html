@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Tenant Health{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Tenant Health Monitoring</h4>
+        <div class="text-muted small">Resource usage, performance, and alerts.</div>
+    </div>
+</div>
+
+{% if latest %}
+<div class="row g-3 mb-1">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body">
+            <div class="stat-label">Health Score</div>
+            <div class="stat-value">{{ latest.health_score }}</div>
+            <div class="small text-muted">/ 100</div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body">
+            <div class="stat-label">Active Users</div>
+            <div class="stat-value">{{ latest.active_users }}</div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body">
+            <div class="stat-label">Storage (MB)</div>
+            <div class="stat-value">{{ latest.storage_mb }}</div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body">
+            <div class="stat-label">API Calls (24h)</div>
+            <div class="stat-value">{{ latest.api_calls_24h }}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-8"><div class="card"><div class="card-header"><strong>Health Score Trend</strong></div><div class="card-body"><div id="health-chart" style="height:320px;"></div></div></div></div>
+    <div class="col-xl-4">
+        <div class="card h-100">
+            <div class="card-header"><strong>Active Alerts</strong></div>
+            <div class="list-group list-group-flush">
+                {% for a in alerts %}
+                <div class="list-group-item">
+                    <div class="fw-semibold">{{ a.get_kind_display }}</div>
+                    <div class="small text-muted">{{ a.message|default:a.kind }}</div>
+                    <div class="small">Threshold: {{ a.threshold }} · {{ a.get_channel_display }}</div>
+                </div>
+                {% empty %}
+                <div class="list-group-item text-muted text-center py-4">No alerts configured.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">No health snapshots yet. Run <code>python manage.py capture_health</code> to generate one.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('health-chart');
+    if (!el || typeof ApexCharts === 'undefined') return;
+    new ApexCharts(el, {
+        chart: { type: 'area', height: 320, toolbar: { show: false } },
+        series: [
+            { name: 'Health', data: {{ scores|default:"[]"|safe }} },
+            { name: 'API Calls', data: {{ api_calls|default:"[]"|safe }} },
+            { name: 'Avg Response (ms)', data: {{ response_times|default:"[]"|safe }} }
+        ],
+        stroke: { curve: 'smooth', width: 3 },
+        xaxis: { categories: {{ dates|default:"[]"|safe }} },
+        colors: ['#3b5de7', '#0ab39c', '#f7b84b'],
+        dataLabels: { enabled: false },
+        fill: { type: 'gradient', gradient: { opacityFrom: 0.45, opacityTo: 0.05 } },
+        legend: { position: 'top' }
+    }).render();
+});
+</script>
+{% endblock %}
