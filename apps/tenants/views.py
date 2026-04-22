@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 
-from apps.accounts.views import TenantAdminRequiredMixin
+from apps.accounts.views import TenantAdminRequiredMixin, TenantRequiredMixin
 
 from .forms import BrandingForm, EmailTemplateForm, TenantOrgForm
 from .models import (
@@ -23,7 +23,7 @@ from .services.billing import (
 
 # ----- Onboarding wizard (single page with step param) -----
 
-class OnboardingWizardView(LoginRequiredMixin, View):
+class OnboardingWizardView(TenantRequiredMixin, View):
     template_name = 'tenants/onboarding_wizard.html'
 
     def get(self, request):
@@ -80,7 +80,7 @@ class OnboardingWizardView(LoginRequiredMixin, View):
 
 # ----- Plans & Subscription -----
 
-class PlansView(LoginRequiredMixin, View):
+class PlansView(TenantRequiredMixin, View):
     def get(self, request):
         plans = Plan.objects.filter(is_active=True)
         current = Subscription.objects.filter(tenant=request.tenant).select_related('plan').first()
@@ -89,7 +89,7 @@ class PlansView(LoginRequiredMixin, View):
         })
 
 
-class SubscriptionView(LoginRequiredMixin, View):
+class SubscriptionView(TenantRequiredMixin, View):
     def get(self, request):
         sub = Subscription.objects.filter(tenant=request.tenant).select_related('plan').first()
         recent_invoices = Invoice.objects.filter(tenant=request.tenant).order_by('-issue_date')[:5]
@@ -140,7 +140,7 @@ class SubscriptionResumeView(TenantAdminRequiredMixin, View):
 
 # ----- Invoices -----
 
-class InvoiceListView(LoginRequiredMixin, ListView):
+class InvoiceListView(TenantRequiredMixin, ListView):
     model = Invoice
     template_name = 'tenants/invoices.html'
     context_object_name = 'invoices'
@@ -163,7 +163,7 @@ class InvoiceListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class InvoiceDetailView(LoginRequiredMixin, DetailView):
+class InvoiceDetailView(TenantRequiredMixin, DetailView):
     model = Invoice
     template_name = 'tenants/invoice_detail.html'
     context_object_name = 'invoice'
@@ -229,7 +229,7 @@ class EmailTemplateEditView(TenantAdminRequiredMixin, View):
 
 # ----- Health monitoring -----
 
-class HealthView(LoginRequiredMixin, View):
+class HealthView(TenantRequiredMixin, View):
     def get(self, request):
         snapshots = list(
             TenantHealthSnapshot.objects.filter(tenant=request.tenant).order_by('-captured_at')[:30]
