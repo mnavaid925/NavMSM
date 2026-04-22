@@ -1,0 +1,59 @@
+{% extends 'auth/auth_base.html' %}
+{% block title %}Create Account{% endblock %}
+{% block form %}
+<h1 class="form-title">Create your account</h1>
+<p class="form-subtitle">Start your 14-day free trial. No credit card required.</p>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Company / Organization Name</label>
+        <input type="text" name="company_name" class="form-control" required value="{{ form.company_name.value|default:'' }}">
+        {% if form.company_name.errors %}<div class="text-danger small mt-1">{{ form.company_name.errors|first }}</div>{% endif %}
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">First Name</label>
+            <input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default:'' }}">
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Last Name</label>
+            <input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default:'' }}">
+        </div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-control" required value="{{ form.username.value|default:'' }}">
+        {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors|first }}</div>{% endif %}
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Work Email</label>
+        <input type="email" name="email" class="form-control" required value="{{ form.email.value|default:'' }}">
+        {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|first }}</div>{% endif %}
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" name="password1" class="form-control" required>
+            {% if form.password1.errors %}<div class="text-danger small mt-1">{{ form.password1.errors|first }}</div>{% endif %}
+        </div>
+        <div class="col-md-6 mb-3">
+            <label class="form-label">Confirm Password</label>
+            <input type="password" name="password2" class="form-control" required>
+            {% if form.password2.errors %}<div class="text-danger small mt-1">{{ form.password2.errors|first }}</div>{% endif %}
+        </div>
+    </div>
+    <div class="form-check mb-3">
+        <input type="checkbox" name="terms" class="form-check-input" id="terms" required>
+        <label for="terms" class="form-check-label small">
+            I agree to the Terms of Service and Privacy Policy.
+        </label>
+        {% if form.terms.errors %}<div class="text-danger small mt-1">{{ form.terms.errors|first }}</div>{% endif %}
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Create Account</button>
+</form>
+
+<div class="text-center mt-4 small">
+    Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a>
+</div>
+{% endblock %}
