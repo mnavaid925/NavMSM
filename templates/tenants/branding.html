@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Branding{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Branding</h4>
+        <div class="text-muted small">White-label colors, logos, emails, and footer text.</div>
+    </div>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card"><div class="card-body">{{ form|crispy }}</div></div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header"><strong>Preview</strong></div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        {% if branding.logo_light %}<img src="{{ branding.logo_light.url }}" alt="" height="28" class="me-2">{% endif %}
+                        <strong>{{ current_tenant.name }}</strong>
+                    </div>
+                    <div class="p-3 rounded" style="background: {{ branding.primary_color|default:'#3b5de7' }}; color: #fff;">
+                        Primary color preview
+                    </div>
+                    <div class="p-3 rounded mt-2" style="background: {{ branding.secondary_color|default:'#6c757d' }}; color: #fff;">
+                        Secondary color preview
+                    </div>
+                    <div class="p-3 rounded mt-2 border" style="background: {{ branding.sidebar_color|default:'#ffffff' }};">
+                        Sidebar color preview
+                    </div>
+                    <div class="p-3 rounded mt-2 border" style="background: {{ branding.topbar_color|default:'#ffffff' }};">
+                        Topbar color preview
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mt-2">
+        <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save Branding</button>
+    </div>
+</form>
+{% endblock %}
