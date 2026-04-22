@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>My Profile</h4>
+        <div class="text-muted small">Your account &amp; preferences.</div>
+    </div>
+    <a href="{% url 'accounts:profile_edit' %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit Profile</a>
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                {% if user.avatar %}
+                    <img src="{{ user.avatar.url }}" class="avatar-lg rounded-circle mb-3" alt="">
+                {% else %}
+                    <span class="avatar-initials avatar-lg rounded-circle bg-primary text-white mx-auto mb-3">{{ user.get_initials }}</span>
+                {% endif %}
+                <h5 class="mb-1">{{ user.get_full_name|default:user.username }}</h5>
+                <div class="text-muted">{{ user.get_role_display }}</div>
+                <div class="text-muted small mt-1">{{ user.email }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><strong>Theme preferences</strong></div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 text-muted">Theme</dt><dd class="col-sm-8">{{ profile.get_theme_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Layout</dt><dd class="col-sm-8">{{ profile.get_layout_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Sidebar size</dt><dd class="col-sm-8">{{ profile.get_sidebar_size_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Sidebar color</dt><dd class="col-sm-8">{{ profile.get_sidebar_color_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Topbar</dt><dd class="col-sm-8">{{ profile.topbar_color }}</dd>
+                    <dt class="col-sm-4 text-muted">Layout width</dt><dd class="col-sm-8">{{ profile.get_layout_width_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Layout position</dt><dd class="col-sm-8">{{ profile.get_layout_position_display }}</dd>
+                    <dt class="col-sm-4 text-muted">Direction</dt><dd class="col-sm-8">{{ profile.get_direction_display }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
