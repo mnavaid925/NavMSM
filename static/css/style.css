@@ -175,11 +175,34 @@ html[data-layout-position="scrollable"] #page-topbar { position: absolute; }
 .navbar-brand-box {
     width: var(--sidebar-width);
     padding: 0 1rem;
-    display: flex; align-items: center;
+    display: flex; align-items: center; justify-content: flex-start;
     transition: width var(--transition-base);
 }
-.navbar-brand-box .logo-lg { display: inline-block; }
+.navbar-brand-box .logo-lg { display: inline-flex; }
 .navbar-brand-box .logo-sm { display: none; }
+
+/* Show dark-colored logo on light backgrounds, light-colored logo on dark/brand. */
+.app-menu a.logo.logo-light,
+#page-topbar a.logo.logo-light { display: none; }
+.app-menu a.logo.logo-dark,
+#page-topbar a.logo.logo-dark { display: inline-flex; align-items: center; }
+
+html[data-sidebar="dark"] .app-menu a.logo.logo-dark,
+html[data-sidebar="brand"] .app-menu a.logo.logo-dark,
+html[data-theme="dark"] .app-menu a.logo.logo-dark { display: none; }
+html[data-sidebar="dark"] .app-menu a.logo.logo-light,
+html[data-sidebar="brand"] .app-menu a.logo.logo-light,
+html[data-theme="dark"] .app-menu a.logo.logo-light { display: inline-flex; align-items: center; }
+
+html[data-topbar="dark"] #page-topbar a.logo.logo-dark,
+html[data-theme="dark"] #page-topbar a.logo.logo-dark { display: none; }
+html[data-topbar="dark"] #page-topbar a.logo.logo-light,
+html[data-theme="dark"] #page-topbar a.logo.logo-light { display: inline-flex; align-items: center; }
+
+/* The small "rail indicator" button only fits in default sidebar mode. */
+#vertical-hover { color: var(--sidebar-menu-title); }
+html[data-sidebar-size="small"] #vertical-hover,
+html[data-sidebar-size="hover"] #vertical-hover { display: none; }
 .app-search .form-control {
     padding-left: 2.5rem; border-radius: 999px; background: var(--body-bg); border: 1px solid transparent;
     min-width: 220px;
@@ -259,9 +282,14 @@ html[data-sidebar-size="small"] { --sidebar-width: var(--sidebar-small-width); }
 html[data-sidebar-size="small"] .menu-link span,
 html[data-sidebar-size="small"] .menu-title,
 html[data-sidebar-size="small"] .nav-sm,
-html[data-sidebar-size="small"] .app-search,
-html[data-sidebar-size="small"] .navbar-brand-box .logo-lg { display: none; }
-html[data-sidebar-size="small"] .navbar-brand-box .logo-sm { display: inline-block; }
+html[data-sidebar-size="small"] .app-search { display: none; }
+html[data-sidebar-size="small"] .app-menu a.logo.logo-dark .logo-lg,
+html[data-sidebar-size="small"] .app-menu a.logo.logo-light .logo-lg { display: none; }
+html[data-sidebar-size="small"] .app-menu a.logo.logo-dark .logo-sm,
+html[data-sidebar-size="small"] .app-menu a.logo.logo-light .logo-sm { display: inline-flex; align-items: center; justify-content: center; }
+html[data-sidebar-size="small"] .app-menu .navbar-brand-box {
+    padding: 0; justify-content: center;
+}
 html[data-sidebar-size="small"] .menu-link { justify-content: center; padding: 0.65rem 0.35rem; margin: 0.1rem 0.35rem; }
 
 /* Sidebar size: hover */
