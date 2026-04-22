@@ -28,7 +28,9 @@ TENANT_FIXTURES = [
 
 
 def _mk_user(tenant, username, email, first, last, role, is_admin=False, password='Welcome@123'):
-    u, created = User.objects.get_or_create(
+    """Idempotent upsert of a demo user. Always resets password + tenant + role
+    so re-running the seeder produces a predictable login."""
+    u, _created = User.objects.get_or_create(
         username=username,
         defaults={
             'email': email, 'first_name': first, 'last_name': last,
@@ -36,10 +38,16 @@ def _mk_user(tenant, username, email, first, last, role, is_admin=False, passwor
             'is_active': True,
         },
     )
-    if created:
-        u.set_password(password)
-        u.save()
-        UserProfile.objects.get_or_create(user=u)
+    u.email = email
+    u.first_name = first
+    u.last_name = last
+    u.tenant = tenant
+    u.role = role
+    u.is_tenant_admin = is_admin
+    u.is_active = True
+    u.set_password(password)
+    u.save()
+    UserProfile.objects.get_or_create(user=u)
     return u
 
 
