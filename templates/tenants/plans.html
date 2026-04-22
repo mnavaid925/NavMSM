@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Plans{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Plans</h4>
+        <div class="text-muted small">Pick a plan that fits how you operate.</div>
+    </div>
+    <a href="{% url 'tenants:subscription' %}" class="btn btn-light">Back to Subscription</a>
+</div>
+
+<div class="row g-3">
+    {% for p in plans %}
+    <div class="col-xl-3 col-md-6">
+        <div class="card h-100 {% if p.is_featured %}border-primary{% endif %}">
+            <div class="card-body">
+                {% if p.is_featured %}<span class="badge bg-primary float-end">Popular</span>{% endif %}
+                <h4 class="mb-1">{{ p.name }}</h4>
+                <div class="text-muted small mb-3">{{ p.description|default:"" }}</div>
+                <div class="h2 text-primary mb-0">${{ p.price_monthly }}<span class="text-muted fs-14">/mo</span></div>
+                <div class="small text-muted mb-3">or ${{ p.price_yearly }}/yr</div>
+                <ul class="list-unstyled small">
+                    <li><i class="ri-check-line text-success me-1"></i> {{ p.max_users }} users</li>
+                    <li><i class="ri-check-line text-success me-1"></i> {{ p.max_production_orders|default:"—" }} production orders</li>
+                    <li><i class="ri-check-line text-success me-1"></i> {{ p.max_storage_mb }} MB storage</li>
+                    {% for f in p.features %}<li><i class="ri-check-line text-success me-1"></i> {{ f }}</li>{% endfor %}
+                </ul>
+                {% if current_subscription and current_subscription.plan_id == p.pk %}
+                    <button class="btn btn-outline-success w-100 mt-3" disabled><i class="ri-check-line me-1"></i> Current Plan</button>
+                {% else %}
+                    <form method="post" action="{% url 'tenants:subscription_change' p.slug %}">
+                        {% csrf_token %}
+                        <button class="btn btn-primary w-100 mt-3">Switch to {{ p.name }}</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12"><div class="alert alert-info">No plans configured yet.</div></div>
+    {% endfor %}
+</div>
+{% endblock %}
