@@ -120,6 +120,25 @@
             });
         }
 
+        // When sidebar is collapsed (small), clicking a menu item with a submenu
+        // should expand the sidebar back to "default" and then open that submenu.
+        document.querySelectorAll('.menu-link[data-bs-toggle="collapse"]').forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                if (html.getAttribute('data-sidebar-size') !== 'small') return;
+                e.preventDefault();
+                e.stopPropagation();
+                setAttr('data-sidebar-size', 'default');
+                syncSettingsPanel();
+                var href = link.getAttribute('href');
+                var target = href && document.querySelector(href);
+                if (target && window.bootstrap && bootstrap.Collapse) {
+                    setTimeout(function () {
+                        bootstrap.Collapse.getOrCreateInstance(target, { toggle: false }).show();
+                    }, 60);
+                }
+            });
+        });
+
         // Tap overlay to close mobile sidebar
         document.querySelectorAll('.vertical-overlay').forEach(function (o) {
             o.addEventListener('click', function () { document.body.classList.remove('sidebar-enable'); });
