@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Dashboard</h4>
+        <div class="text-muted small">{% if current_tenant %}{{ current_tenant.name }}{% else %}No tenant selected{% endif %}</div>
+    </div>
+    <nav class="breadcrumb mb-0">
+        <a class="breadcrumb-item text-muted" href="{% url 'dashboard' %}">NavMSM</a>
+        <span class="breadcrumb-item active">Dashboard</span>
+    </nav>
+</div>
+
+{% if no_tenant %}
+<div class="alert alert-warning">
+    <strong>Heads up:</strong> You're signed in as a user without a tenant (likely the Django superuser).
+    Log in as a tenant admin (e.g. <code>admin_acme</code>) to see tenant-scoped data.
+</div>
+{% else %}
+
+<!-- KPI Stat Cards -->
+<div class="row g-3 mb-1">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <div class="stat-label">Plan</div>
+                <div class="stat-value">{% if subscription %}{{ subscription.plan.name }}{% else %}&mdash;{% endif %}</div>
+                <div class="small mt-1">
+                    {% if subscription %}<span class="badge soft-primary">{{ subscription.get_status_display }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="stat-icon"><i class="ri-vip-crown-line"></i></div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <div class="stat-label">Active Users</div>
+                <div class="stat-value">{{ active_users }}</div>
+                <div class="small mt-1 text-muted">{{ pending_invites }} pending invite{{ pending_invites|pluralize }}</div>
+            </div>
+            <div class="stat-icon"><i class="ri-team-line"></i></div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <div class="stat-label">Open Invoices</div>
+                <div class="stat-value">{{ open_invoices_count }}</div>
+                <div class="small mt-1 text-muted">Outstanding: ${{ outstanding_balance|floatformat:2|intcomma }}</div>
+            </div>
+            <div class="stat-icon"><i class="ri-bill-line"></i></div>
+        </div></div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card stat-card h-100"><div class="card-body d-flex align-items-center justify-content-between">
+            <div>
+                <div class="stat-label">Tenant Health</div>
+                <div class="stat-value">{% if latest_health %}{{ latest_health.health_score }}{% else %}&mdash;{% endif %}</div>
+                <div class="small mt-1 text-muted">{% if latest_health %}As of {{ latest_health.captured_at|date:"M j" }}{% else %}No snapshots yet{% endif %}</div>
+            </div>
+            <div class="stat-icon"><i class="ri-heart-pulse-line"></i></div>
+        </div></div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between">
+                <strong>Tenant Health (last 30 snapshots)</strong>
+                <a href="{% url 'tenants:health' %}" class="small">View all</a>
+            </div>
+            <div class="card-body">
+                <div id="chart-health" style="height: 280px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card h-100">
+            <div class="card-header"><strong>Subscription</strong></div>
+            <div class="card-body">
+                {% if subscription %}
+                <div class="mb-3">
+                    <div class="text-muted small">Current plan</div>
+                    <div class="fw-semibold">{{ subscription.plan.name }} ({{ subscription.get_interval_display }})</div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted small">Renews</div>
+                    <div>{{ subscription.current_period_end|date:"F j, Y" }}</div>
+                </div>
+                <div class="mb-3">
+                    <div class="text-muted small">Outstanding</div>
+                    <div class="fw-semibold">${{ outstanding_balance|floatformat:2|intcomma }}</div>
+                </div>
+                {% if last_payment %}
+                <div class="mb-3">
+                    <div class="text-muted small">Last payment</div>
+                    <div>${{ last_payment.total|floatformat:2|intcomma }} on {{ last_payment.paid_at|date:"M j" }}</div>
+                </div>
+                {% endif %}
+                <a href="{% url 'tenants:subscription' %}" class="btn btn-primary btn-sm w-100">Manage Subscription</a>
+                {% else %}
+                <p class="text-muted">No active subscription. <a href="{% url 'tenants:plans' %}">Choose a plan</a>.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity + Quick Actions -->
+<div class="row g-3 mt-1">
+    <div class="col-xl-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <strong>Recent Activity</strong>
+                <a href="{% url 'tenants:audit_log' %}" class="small">View all</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Action</th><th>Target</th><th>User</th><th>When</th></tr></thead>
+                    <tbody>
+                    {% for log in recent_activity %}
+                        <tr>
+                            <td><span class="badge soft-primary">{{ log.action }}</span></td>
+                            <td class="text-muted small">{{ log.target_type }} #{{ log.target_id }}</td>
+                            <td>{% if log.user %}{{ log.user.get_full_name|default:log.user.username }}{% else %}&mdash;{% endif %}</td>
+                            <td class="small text-muted">{{ log.timestamp|date:"M j, H:i" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No activity yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card">
+            <div class="card-header"><strong>Quick Actions</strong></div>
+            <div class="card-body d-grid gap-2">
+                <a href="{% url 'accounts:invite_send' %}" class="btn btn-primary"><i class="ri-user-add-line me-1"></i> Invite a user</a>
+                <a href="{% url 'tenants:plans' %}" class="btn btn-outline-primary"><i class="ri-price-tag-3-line me-1"></i> Change plan</a>
+                <a href="{% url 'tenants:branding' %}" class="btn btn-outline-primary"><i class="ri-palette-line me-1"></i> Update branding</a>
+                <a href="{% url 'tenants:health' %}" class="btn btn-outline-primary"><i class="ri-heart-pulse-line me-1"></i> View health</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('chart-health');
+    if (!el || typeof ApexCharts === 'undefined') return;
+    var dates = {{ health_dates|default:"[]"|safe }};
+    var scores = {{ health_scores|default:"[]"|safe }};
+    var apiCalls = {{ api_calls|default:"[]"|safe }};
+    var chart = new ApexCharts(el, {
+        chart: { type: 'area', height: 280, toolbar: { show: false } },
+        series: [
+            { name: 'Health Score', type: 'line', data: scores },
+            { name: 'API Calls', type: 'column', data: apiCalls }
+        ],
+        stroke: { curve: 'smooth', width: [3, 0] },
+        xaxis: { categories: dates, labels: { style: { fontSize: '11px' } } },
+        yaxis: [{ title: { text: 'Score' }, max: 100 }, { opposite: true, title: { text: 'API' } }],
+        colors: ['#3b5de7', '#0ab39c'],
+        fill: { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.45, opacityTo: 0.05 } },
+        legend: { position: 'top' },
+        dataLabels: { enabled: false },
+        tooltip: { shared: true }
+    });
+    chart.render();
+});
+</script>
+{% endblock %}
