@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Invitations{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Invitations</h4>
+        <div class="text-muted small">People you've invited to your tenant.</div>
+    </div>
+    <a href="{% url 'accounts:invite_send' %}" class="btn btn-primary"><i class="ri-mail-send-line me-1"></i> Send Invite</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}
+                        <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Invited By</th><th>Expires</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for inv in invites %}
+                    <tr>
+                        <td>{{ inv.email }}</td>
+                        <td><span class="badge soft-secondary">{{ inv.get_role_display }}</span></td>
+                        <td>
+                            {% if inv.status == 'pending' %}<span class="badge soft-warning">Pending</span>
+                            {% elif inv.status == 'accepted' %}<span class="badge soft-success">Accepted</span>
+                            {% elif inv.status == 'expired' %}<span class="badge soft-danger">Expired</span>
+                            {% else %}<span class="badge soft-secondary">{{ inv.get_status_display }}</span>{% endif %}
+                        </td>
+                        <td>{{ inv.invited_by.get_full_name|default:inv.invited_by.username }}</td>
+                        <td class="small text-muted">{{ inv.expires_at|date:"M j, Y" }}</td>
+                        <td class="text-end">
+                            {% if inv.status == 'pending' %}
+                            <form method="post" action="{% url 'accounts:invite_resend' inv.pk %}" style="display:inline">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-ghost-secondary" title="Resend"><i class="ri-mail-send-line"></i></button>
+                            </form>
+                            <form method="post" action="{% url 'accounts:invite_cancel' inv.pk %}" style="display:inline" onsubmit="return confirm('Cancel this invitation?');">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-ghost-danger" title="Cancel"><i class="ri-close-line"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No invitations.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
