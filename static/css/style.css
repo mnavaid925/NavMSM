@@ -175,17 +175,19 @@ html[data-layout-position="scrollable"] #page-topbar { position: absolute; }
 .navbar-brand-box {
     width: var(--sidebar-width);
     padding: 0 1rem;
-    display: flex; align-items: center; justify-content: flex-start;
-    transition: width var(--transition-base);
+    display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem;
+    transition: width var(--transition-base), padding var(--transition-base);
 }
-.navbar-brand-box .logo-lg { display: inline-flex; }
-.navbar-brand-box .logo-sm { display: none; }
 
-/* Show dark-colored logo on light backgrounds, light-colored logo on dark/brand. */
-.app-menu a.logo.logo-light,
-#page-topbar a.logo.logo-light { display: none; }
-.app-menu a.logo.logo-dark,
-#page-topbar a.logo.logo-dark { display: inline-flex; align-items: center; }
+/* Inside a logo anchor: default sidebar size shows only the full-width "lg" mark. */
+.navbar-brand-box .logo-lg { display: inline-flex; align-items: center; }
+.navbar-brand-box .logo-sm { display: none; align-items: center; justify-content: center; }
+.navbar-brand-box .logo-lg img,
+.navbar-brand-box .logo-sm img { max-height: 28px; width: auto; }
+
+/* Pick the dark-text logo on light backgrounds, the light-text logo on dark/brand. */
+.navbar-brand-box a.logo.logo-light { display: none; }
+.navbar-brand-box a.logo.logo-dark { display: inline-flex; align-items: center; }
 
 html[data-sidebar="dark"] .app-menu a.logo.logo-dark,
 html[data-sidebar="brand"] .app-menu a.logo.logo-dark,
@@ -200,7 +202,7 @@ html[data-topbar="dark"] #page-topbar a.logo.logo-light,
 html[data-theme="dark"] #page-topbar a.logo.logo-light { display: inline-flex; align-items: center; }
 
 /* The small "rail indicator" button only fits in default sidebar mode. */
-#vertical-hover { color: var(--sidebar-menu-title); }
+#vertical-hover { color: var(--sidebar-menu-title); background: transparent; }
 html[data-sidebar-size="small"] #vertical-hover,
 html[data-sidebar-size="hover"] #vertical-hover { display: none; }
 .app-search .form-control {
@@ -283,12 +285,13 @@ html[data-sidebar-size="small"] .menu-link span,
 html[data-sidebar-size="small"] .menu-title,
 html[data-sidebar-size="small"] .nav-sm,
 html[data-sidebar-size="small"] .app-search { display: none; }
-html[data-sidebar-size="small"] .app-menu a.logo.logo-dark .logo-lg,
-html[data-sidebar-size="small"] .app-menu a.logo.logo-light .logo-lg { display: none; }
-html[data-sidebar-size="small"] .app-menu a.logo.logo-dark .logo-sm,
-html[data-sidebar-size="small"] .app-menu a.logo.logo-light .logo-sm { display: inline-flex; align-items: center; justify-content: center; }
-html[data-sidebar-size="small"] .app-menu .navbar-brand-box {
-    padding: 0; justify-content: center;
+html[data-sidebar-size="small"] .navbar-brand-box { padding: 0; justify-content: center; gap: 0; }
+html[data-sidebar-size="small"] .navbar-brand-box .logo-lg { display: none; }
+html[data-sidebar-size="small"] .navbar-brand-box a.logo.logo-dark,
+html[data-sidebar-size="small"] .navbar-brand-box a.logo.logo-light { justify-content: center; }
+html[data-sidebar-size="small"] .navbar-brand-box a.logo.logo-dark .logo-sm,
+html[data-sidebar-size="small"] .navbar-brand-box a.logo.logo-light .logo-sm {
+    display: inline-flex; align-items: center; justify-content: center;
 }
 html[data-sidebar-size="small"] .menu-link { justify-content: center; padding: 0.65rem 0.35rem; margin: 0.1rem 0.35rem; }
 
@@ -299,6 +302,9 @@ html[data-sidebar-size="hover"] .menu-link span,
 html[data-sidebar-size="hover"] .menu-title { opacity: 0; transition: opacity 0.15s ease; }
 html[data-sidebar-size="hover"] .app-menu:hover .menu-link span,
 html[data-sidebar-size="hover"] .app-menu:hover .menu-title { opacity: 1; }
+html[data-sidebar-size="hover"] .navbar-brand-box { padding: 0; justify-content: center; gap: 0; }
+html[data-sidebar-size="hover"] .navbar-brand-box .logo-lg { display: none; }
+html[data-sidebar-size="hover"] .navbar-brand-box .logo-sm { display: inline-flex; align-items: center; justify-content: center; }
 
 /* ----- Horizontal layout ----- */
 html[data-layout="horizontal"] .app-menu {
