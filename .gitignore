@@ -201,6 +201,14 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Claude Code
+.claude/
+
+# Project-specific
+staticfiles/
+media/
+*.sqlite3
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
