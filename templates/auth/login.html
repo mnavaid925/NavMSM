@@ -1,0 +1,32 @@
+{% extends 'auth/auth_base.html' %}
+{% block title %}Sign In{% endblock %}
+{% block form %}
+<h1 class="form-title">Welcome back</h1>
+<p class="form-subtitle">Sign in to continue to your dashboard.</p>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Username or Email</label>
+        <input type="text" name="username" class="form-control" placeholder="Enter username or email" required autofocus value="{{ form.username.value|default:'' }}">
+        {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors|first }}</div>{% endif %}
+    </div>
+    <div class="mb-3">
+        <div class="d-flex justify-content-between">
+            <label class="form-label">Password</label>
+            <a href="{% url 'accounts:forgot_password' %}" class="small">Forgot?</a>
+        </div>
+        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+        {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors|first }}</div>{% endif %}
+    </div>
+    <div class="form-check mb-3">
+        <input type="checkbox" name="remember_me" class="form-check-input" id="rememberMe" checked>
+        <label for="rememberMe" class="form-check-label">Remember me</label>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Sign In</button>
+</form>
+
+<div class="text-center mt-4 small">
+    Don't have an account? <a href="{% url 'accounts:register' %}">Create one</a>
+</div>
+{% endblock %}
