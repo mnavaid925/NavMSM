@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Invoices{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Invoices</h4>
+        <div class="text-muted small">Outstanding: <strong class="text-danger">${{ outstanding|floatformat:2|intcomma }}</strong></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Number</th><th>Issued</th><th>Due</th><th>Status</th><th class="text-end">Total</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for inv in invoices %}
+                    <tr>
+                        <td class="fw-semibold">{{ inv.number }}</td>
+                        <td class="small">{{ inv.issue_date|date:"M j, Y" }}</td>
+                        <td class="small">{{ inv.due_date|date:"M j, Y" }}</td>
+                        <td>
+                            {% if inv.status == 'paid' %}<span class="badge soft-success">Paid</span>
+                            {% elif inv.status == 'open' %}<span class="badge soft-warning">Open</span>
+                            {% elif inv.status == 'void' %}<span class="badge soft-secondary">Void</span>
+                            {% else %}<span class="badge soft-secondary">{{ inv.get_status_display }}</span>{% endif %}
+                        </td>
+                        <td class="text-end">${{ inv.total|floatformat:2|intcomma }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'tenants:invoice_detail' inv.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line me-1"></i> View</a>
+                            {% if inv.status == 'open' %}
+                            <form method="post" action="{% url 'tenants:invoice_pay' inv.pk %}" style="display:inline" onsubmit="return confirm('Pay this invoice now via mock gateway?');">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-primary"><i class="ri-bank-card-line me-1"></i> Pay</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No invoices yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
