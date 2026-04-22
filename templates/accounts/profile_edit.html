@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Edit Profile</h4>
+        <div class="text-muted small">Update your personal info and UI preferences.</div>
+    </div>
+    <a href="{% url 'accounts:profile' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><strong>Account</strong></div>
+                <div class="card-body">{{ user_form|crispy }}</div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><strong>Personal &amp; UI preferences</strong></div>
+                <div class="card-body">{{ profile_form|crispy }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="mt-2">
+        <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save Changes</button>
+        <a href="{% url 'accounts:profile' %}" class="btn btn-light">Cancel</a>
+    </div>
+</form>
+{% endblock %}
