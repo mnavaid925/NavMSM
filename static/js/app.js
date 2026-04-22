@@ -52,46 +52,71 @@
         });
     }
 
+    // Sync the topbar moon/sun icons to the current theme.
+    function syncThemeIcons() {
+        var theme = html.getAttribute('data-theme') || 'light';
+        // Moon (theme-icon-dark) shows when we're in LIGHT mode (click to go dark).
+        // Sun  (theme-icon-light) shows when we're in DARK mode (click to go light).
+        document.querySelectorAll('.theme-icon-dark').forEach(function (el) {
+            el.classList.toggle('d-none', theme === 'dark');
+        });
+        document.querySelectorAll('.theme-icon-light').forEach(function (el) {
+            el.classList.toggle('d-none', theme === 'light');
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         syncSettingsPanel();
+        syncThemeIcons();
 
         // Wire each radio to apply+persist.
         Object.keys(defaults).forEach(function (k) {
             document.querySelectorAll('input[name="' + k + '"]').forEach(function (r) {
                 r.addEventListener('change', function () {
-                    if (r.checked) setAttr(k, r.value);
+                    if (r.checked) {
+                        setAttr(k, r.value);
+                        if (k === 'data-theme') syncThemeIcons();
+                    }
                 });
             });
         });
 
+        // Re-sync the panel radios whenever the offcanvas opens (in case
+        // something else updated the data-* attributes in the meantime).
+        var offcanvas = document.getElementById('theme-settings-offcanvas');
+        if (offcanvas) {
+            offcanvas.addEventListener('show.bs.offcanvas', function () {
+                syncSettingsPanel();
+            });
+        }
+
         // Light/dark quick toggle in topbar
         document.querySelectorAll('.light-dark-mode').forEach(function (btn) {
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
                 var cur = html.getAttribute('data-theme') || 'light';
                 var next = (cur === 'light') ? 'dark' : 'light';
                 setAttr('data-theme', next);
                 syncSettingsPanel();
-                document.querySelectorAll('.theme-icon-light').forEach(function (el) {
-                    el.classList.toggle('d-none', next === 'light');
-                });
-                document.querySelectorAll('.theme-icon-dark').forEach(function (el) {
-                    el.classList.toggle('d-none', next === 'dark');
-                });
+                syncThemeIcons();
             });
         });
 
-        // Sidebar toggle (mobile + desktop)
+        // Sidebar toggle: mobile opens a drawer, desktop toggles default <-> small.
         var hamburger = document.getElementById('topnav-hamburger-icon');
         if (hamburger) {
-            hamburger.addEventListener('click', function () {
+            hamburger.addEventListener('click', function (e) {
+                e.preventDefault();
                 if (window.innerWidth < 992) {
                     document.body.classList.toggle('sidebar-enable');
-                } else {
-                    var cur = html.getAttribute('data-sidebar-size') || 'default';
-                    var next = (cur === 'default') ? 'small' : 'default';
-                    setAttr('data-sidebar-size', next);
-                    syncSettingsPanel();
+                    return;
                 }
+                // Horizontal layout: ignore size cycling (no vertical sidebar).
+                if (html.getAttribute('data-layout') === 'horizontal') return;
+                var cur = html.getAttribute('data-sidebar-size') || 'default';
+                var next = (cur === 'default') ? 'small' : 'default';
+                setAttr('data-sidebar-size', next);
+                syncSettingsPanel();
             });
         }
 
