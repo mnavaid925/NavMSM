@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Invoice {{ invoice.number }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Invoice {{ invoice.number }}</h4>
+        <div class="text-muted small">{{ invoice.issue_date|date:"F j, Y" }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if invoice.status == 'open' %}
+        <form method="post" action="{% url 'tenants:invoice_pay' invoice.pk %}" onsubmit="return confirm('Pay this invoice now via mock gateway?');">
+            {% csrf_token %}
+            <button class="btn btn-primary"><i class="ri-bank-card-line me-1"></i> Pay Now</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'tenants:invoice_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-4">
+                    <div>
+                        <div class="text-muted small">Invoice for</div>
+                        <h5 class="mb-0">{{ current_tenant.name }}</h5>
+                        <div class="small text-muted">{{ current_tenant.email }}</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="text-muted small">Status</div>
+                        {% if invoice.status == 'paid' %}<span class="badge soft-success fs-13">Paid</span>
+                        {% elif invoice.status == 'open' %}<span class="badge soft-warning fs-13">Open</span>
+                        {% else %}<span class="badge soft-secondary fs-13">{{ invoice.get_status_display }}</span>{% endif %}
+                        <div class="small text-muted mt-1">Due {{ invoice.due_date|date:"M j, Y" }}</div>
+                    </div>
+                </div>
+                <table class="table">
+                    <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Amount</th></tr></thead>
+                    <tbody>
+                    {% for li in invoice.line_items.all %}
+                        <tr><td>{{ li.description }}</td><td class="text-end">{{ li.quantity }}</td><td class="text-end">${{ li.unit_price|floatformat:2|intcomma }}</td><td class="text-end">${{ li.amount|floatformat:2|intcomma }}</td></tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-muted text-center">No line items.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr><td colspan="3" class="text-end text-muted">Subtotal</td><td class="text-end">${{ invoice.subtotal|floatformat:2|intcomma }}</td></tr>
+                        <tr><td colspan="3" class="text-end text-muted">Tax</td><td class="text-end">${{ invoice.tax|floatformat:2|intcomma }}</td></tr>
+                        <tr><td colspan="3" class="text-end fw-bold">Total</td><td class="text-end fw-bold">${{ invoice.total|floatformat:2|intcomma }}</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><strong>Payments</strong></div>
+            <div class="list-group list-group-flush">
+                {% for p in invoice.payments.all %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="fw-semibold">${{ p.amount|floatformat:2|intcomma }} {{ p.currency }}</div>
+                            <div class="small text-muted">{{ p.gateway }} · {{ p.gateway_ref }}</div>
+                        </div>
+                        <div class="text-end">
+                            {% if p.status == 'succeeded' %}<span class="badge soft-success">Succeeded</span>
+                            {% elif p.status == 'failed' %}<span class="badge soft-danger">Failed</span>
+                            {% else %}<span class="badge soft-secondary">{{ p.get_status_display }}</span>{% endif %}
+                            <div class="small text-muted">{{ p.created_at|date:"M j, H:i" }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="list-group-item text-muted text-center py-4">No payments yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
