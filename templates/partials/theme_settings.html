@@ -1,0 +1,91 @@
+{% load static %}
+<div class="offcanvas offcanvas-end border-0" tabindex="-1" id="theme-settings-offcanvas">
+    <div class="d-flex align-items-center bg-primary bg-gradient p-3 offcanvas-header">
+        <h5 class="m-0 me-2 text-white">Theme Customizer</h5>
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <div data-simplebar class="h-100">
+            <div class="p-4">
+
+                <h6 class="mb-0 fw-semibold text-uppercase">Layout</h6>
+                <p class="text-muted fs-12">Choose your layout</p>
+                <div class="row">
+                    <div class="col-4">
+                        <label class="card layout-radio" for="layout-vertical">
+                            <input type="radio" name="data-layout" id="layout-vertical" value="vertical">
+                            <span class="layout-check"></span>
+                            <span class="small">Vertical</span>
+                        </label>
+                    </div>
+                    <div class="col-4">
+                        <label class="card layout-radio" for="layout-horizontal">
+                            <input type="radio" name="data-layout" id="layout-horizontal" value="horizontal">
+                            <span class="layout-check"></span>
+                            <span class="small">Horizontal</span>
+                        </label>
+                    </div>
+                    <div class="col-4">
+                        <label class="card layout-radio" for="layout-detached">
+                            <input type="radio" name="data-layout" id="layout-detached" value="detached">
+                            <span class="layout-check"></span>
+                            <span class="small">Detached</span>
+                        </label>
+                    </div>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Color Scheme</h6>
+                <p class="text-muted fs-12">Choose light or dark</p>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1">
+                        <input type="radio" name="data-theme" value="light" class="form-check-input"> Light
+                    </label>
+                    <label class="form-check flex-grow-1">
+                        <input type="radio" name="data-theme" value="dark" class="form-check-input"> Dark
+                    </label>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Layout Width</h6>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-layout-width" value="fluid" class="form-check-input"> Fluid</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-layout-width" value="boxed" class="form-check-input"> Boxed</label>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Layout Position</h6>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-layout-position" value="fixed" class="form-check-input"> Fixed</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-layout-position" value="scrollable" class="form-check-input"> Scrollable</label>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Topbar Color</h6>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-topbar" value="light" class="form-check-input"> Light</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-topbar" value="dark" class="form-check-input"> Dark</label>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Sidebar Size</h6>
+                <div class="row g-2">
+                    <div class="col-6"><label class="form-check"><input type="radio" name="data-sidebar-size" value="default" class="form-check-input"> Default</label></div>
+                    <div class="col-6"><label class="form-check"><input type="radio" name="data-sidebar-size" value="compact" class="form-check-input"> Compact</label></div>
+                    <div class="col-6"><label class="form-check"><input type="radio" name="data-sidebar-size" value="small" class="form-check-input"> Small</label></div>
+                    <div class="col-6"><label class="form-check"><input type="radio" name="data-sidebar-size" value="hover" class="form-check-input"> Hover</label></div>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Sidebar Color</h6>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-sidebar" value="light" class="form-check-input"> Light</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-sidebar" value="dark" class="form-check-input"> Dark</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="data-sidebar" value="brand" class="form-check-input"> Brand</label>
+                </div>
+
+                <h6 class="mt-4 fw-semibold text-uppercase">Direction</h6>
+                <div class="d-flex gap-2">
+                    <label class="form-check flex-grow-1"><input type="radio" name="dir" value="ltr" class="form-check-input"> LTR</label>
+                    <label class="form-check flex-grow-1"><input type="radio" name="dir" value="rtl" class="form-check-input"> RTL</label>
+                </div>
+
+                <button id="reset-layout" class="btn btn-light w-100 mt-4">Reset to Default</button>
+            </div>
+        </div>
+    </div>
+</div>
