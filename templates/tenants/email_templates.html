@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Email Templates{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <div>
+        <h4>Email Templates</h4>
+        <div class="text-muted small">Per-tenant email bodies for transactional messages.</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Code</th><th>Subject</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for t in templates %}
+                <tr>
+                    <td><span class="badge soft-primary">{{ t.get_code_display }}</span></td>
+                    <td>{{ t.subject }}</td>
+                    <td>{% if t.is_active %}<span class="badge soft-success">Active</span>{% else %}<span class="badge soft-secondary">Disabled</span>{% endif %}</td>
+                    <td class="text-end"><a href="{% url 'tenants:email_template_edit' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-4">No templates yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
