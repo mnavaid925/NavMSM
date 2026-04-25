@@ -4,13 +4,25 @@ Every view filters by request.tenant. Edit/Delete on workflow models
 (ECOs) is gated by status (draft only). All list views accept search +
 status/type filters and pass the relevant choice tuples / FK querysets
 to their template context.
+
+# SECURITY — production hardening required for media uploads.
+# The auth-gated download views below (cad_version_download, eco_attachment_download,
+# compliance_certificate_download) protect PLM-uploaded files via tenant
+# isolation. In production, the `static(MEDIA_URL, ...)` mount in
+# config/urls.py must be removed and the web server (Nginx/Apache) configured
+# to serve `MEDIA_ROOT/plm/*` ONLY via X-Accel-Redirect/X-Sendfile from these
+# views (see Nginx `internal;` directive). In DEBUG mode the raw /media/...
+# URLs are still reachable but the application never produces them — only
+# the gated URLs are linked from templates.
 """
+import re
 from datetime import timedelta
 
 from django.contrib import messages
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
 from django.db.models.deletion import ProtectedError
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
@@ -36,16 +48,43 @@ from .models import (
 # Helpers
 # ============================================================================
 
+_SEQ_RE = re.compile(r'^[A-Z]+-(\d+)$')
+
+
 def _next_sequence_number(qs, field, prefix, width=5):
-    """Returns next padded number like ECO-00007 across the queryset."""
+    """Return next padded number like ECO-00007.
+
+    Parses the trailing digit run of the current Max() value. If the max
+    value doesn't match `^[A-Z]+-\\d+$` (e.g. someone imported legacy
+    `ECO-Q1-00001`), falls back to `count() + 1` rather than silently
+    truncating — fixes D-07.
+    """
     last = qs.aggregate(Max(field))[f'{field}__max']
     next_num = 1
     if last:
-        try:
-            next_num = int(str(last).split('-')[-1]) + 1
-        except (ValueError, IndexError):
-            next_num = qs.count() + 1
+        m = _SEQ_RE.match(str(last))
+        next_num = int(m.group(1)) + 1 if m else qs.count() + 1
     return f'{prefix}-{next_num:0{width}d}'
+
+
+def _save_with_unique_number(make_obj, max_attempts=5):
+    """Run a create that allocates a unique `number` field, retrying on
+    IntegrityError caused by races on the auto-numbering — fixes D-04.
+
+    `make_obj` is a callable that, on each attempt, re-reads the next
+    sequence number, sets it on the instance, and saves inside the
+    surrounding atomic block. Returns the saved instance, or re-raises
+    the last IntegrityError after `max_attempts`.
+    """
+    last_err = None
+    for _ in range(max_attempts):
+        try:
+            with transaction.atomic():
+                return make_obj()
+        except IntegrityError as e:
+            last_err = e
+            continue
+    raise last_err
 
 
 # ============================================================================
@@ -390,7 +429,7 @@ class ECOCreateView(TenantRequiredMixin, View):
     def post(self, request):
         form = ECOForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
+            def _make():
                 eco = form.save(commit=False)
                 eco.tenant = request.tenant
                 eco.requested_by = request.user
@@ -399,6 +438,8 @@ class ECOCreateView(TenantRequiredMixin, View):
                     'number', 'ECO',
                 )
                 eco.save()
+                return eco
+            eco = _save_with_unique_number(_make)
             messages.success(request, f'ECO {eco.number} created.')
             return redirect('plm:eco_detail', pk=eco.pk)
         return render(request, 'plm/eco/form.html', {'form': form})
@@ -453,65 +494,78 @@ class ECODeleteView(TenantRequiredMixin, View):
         return redirect('plm:eco_list')
 
 
+def _atomic_eco_transition(eco, request, from_states, to_state, stamp_field=None):
+    """Atomic, race-safe ECO status transition (D-05).
+
+    Uses a conditional UPDATE that only fires if the row is still in one
+    of `from_states`. Returns True on success, False if another writer
+    already advanced the status.
+    """
+    fields = {'status': to_state}
+    if stamp_field:
+        fields[stamp_field] = timezone.now()
+    with transaction.atomic():
+        rowcount = EngineeringChangeOrder.objects.filter(
+            pk=eco.pk, tenant=request.tenant, status__in=from_states,
+        ).update(**fields)
+        if not rowcount:
+            return False
+        # Refresh in-memory copy so signals + audit log see new state.
+        eco.refresh_from_db()
+    return True
+
+
 class ECOSubmitView(TenantRequiredMixin, View):
     def post(self, request, pk):
         eco = get_object_or_404(EngineeringChangeOrder, pk=pk, tenant=request.tenant)
-        if eco.status != 'draft':
-            messages.warning(request, 'Only Draft ECOs can be submitted.')
-        else:
-            eco.status = 'submitted'
-            eco.submitted_at = timezone.now()
-            eco.save(update_fields=['status', 'submitted_at'])
+        if _atomic_eco_transition(eco, request, ['draft'], 'submitted', 'submitted_at'):
             messages.success(request, f'ECO {eco.number} submitted for review.')
+        else:
+            messages.warning(request, 'Only Draft ECOs can be submitted (or it was already submitted by someone else).')
         return redirect('plm:eco_detail', pk=pk)
 
 
 class ECOApproveView(TenantRequiredMixin, View):
     def post(self, request, pk):
         eco = get_object_or_404(EngineeringChangeOrder, pk=pk, tenant=request.tenant)
-        if eco.status not in ('submitted', 'under_review'):
-            messages.warning(request, 'ECO must be Submitted or Under Review to approve.')
-            return redirect('plm:eco_detail', pk=pk)
-        # Record an approval row + flip ECO status.
-        ECOApproval.objects.create(
-            tenant=request.tenant, eco=eco, approver=request.user,
-            decision='approved', comment=request.POST.get('comment', ''),
-            decided_at=timezone.now(),
-        )
-        eco.status = 'approved'
-        eco.approved_at = timezone.now()
-        eco.save(update_fields=['status', 'approved_at'])
-        messages.success(request, f'ECO {eco.number} approved.')
+        if _atomic_eco_transition(
+            eco, request, ['submitted', 'under_review'], 'approved', 'approved_at',
+        ):
+            ECOApproval.objects.create(
+                tenant=request.tenant, eco=eco, approver=request.user,
+                decision='approved', comment=request.POST.get('comment', ''),
+                decided_at=timezone.now(),
+            )
+            messages.success(request, f'ECO {eco.number} approved.')
+        else:
+            messages.warning(request, 'ECO is no longer in a reviewable state — another reviewer may have actioned it.')
         return redirect('plm:eco_detail', pk=pk)
 
 
 class ECORejectView(TenantRequiredMixin, View):
     def post(self, request, pk):
         eco = get_object_or_404(EngineeringChangeOrder, pk=pk, tenant=request.tenant)
-        if eco.status not in ('submitted', 'under_review'):
-            messages.warning(request, 'ECO must be Submitted or Under Review to reject.')
-            return redirect('plm:eco_detail', pk=pk)
-        ECOApproval.objects.create(
-            tenant=request.tenant, eco=eco, approver=request.user,
-            decision='rejected', comment=request.POST.get('comment', ''),
-            decided_at=timezone.now(),
-        )
-        eco.status = 'rejected'
-        eco.save(update_fields=['status'])
-        messages.info(request, f'ECO {eco.number} rejected.')
+        if _atomic_eco_transition(
+            eco, request, ['submitted', 'under_review'], 'rejected',
+        ):
+            ECOApproval.objects.create(
+                tenant=request.tenant, eco=eco, approver=request.user,
+                decision='rejected', comment=request.POST.get('comment', ''),
+                decided_at=timezone.now(),
+            )
+            messages.info(request, f'ECO {eco.number} rejected.')
+        else:
+            messages.warning(request, 'ECO is no longer in a reviewable state.')
         return redirect('plm:eco_detail', pk=pk)
 
 
 class ECOImplementView(TenantRequiredMixin, View):
     def post(self, request, pk):
         eco = get_object_or_404(EngineeringChangeOrder, pk=pk, tenant=request.tenant)
-        if eco.status != 'approved':
+        if _atomic_eco_transition(eco, request, ['approved'], 'implemented', 'implemented_at'):
+            messages.success(request, f'ECO {eco.number} marked Implemented.')
+        else:
             messages.warning(request, 'Only Approved ECOs can be marked Implemented.')
-            return redirect('plm:eco_detail', pk=pk)
-        eco.status = 'implemented'
-        eco.implemented_at = timezone.now()
-        eco.save(update_fields=['status', 'implemented_at'])
-        messages.success(request, f'ECO {eco.number} marked Implemented.')
         return redirect('plm:eco_detail', pk=pk)
 
 
@@ -842,19 +896,20 @@ class NPICreateView(TenantRequiredMixin, View):
     def post(self, request):
         form = NPIProjectForm(request.POST, tenant=request.tenant)
         if form.is_valid():
-            with transaction.atomic():
+            def _make():
                 p = form.save(commit=False)
                 p.tenant = request.tenant
                 p.code = _next_sequence_number(
                     NPIProject.objects.filter(tenant=request.tenant), 'code', 'NPI',
                 )
                 p.save()
-                # Pre-populate stages.
                 for seq, (stage_code, _) in enumerate(NPIProject.STAGE_CHOICES, start=1):
                     NPIStage.objects.create(
                         tenant=request.tenant, project=p,
                         stage=stage_code, sequence=seq,
                     )
+                return p
+            p = _save_with_unique_number(_make)
             messages.success(request, f'NPI project {p.code} created.')
             return redirect('plm:npi_detail', pk=p.pk)
         return render(request, 'plm/npi/form.html', {'form': form})
@@ -977,3 +1032,45 @@ class NPIDeliverableDeleteView(TenantRequiredMixin, View):
         d.delete()
         messages.success(request, 'Deliverable deleted.')
         return redirect('plm:npi_detail', pk=project_id)
+
+
+# ============================================================================
+# AUTH-GATED FILE DOWNLOAD VIEWS (D-03)
+# ============================================================================
+# These replace direct linking to MEDIA_URL for PLM uploads. Templates use
+# {% url 'plm:cad_version_download' v.pk %} etc., which routes through these
+# views — they verify auth + tenant ownership before streaming the file.
+# Production must additionally remove the static() MEDIA mount in
+# config/urls.py and let the web server serve files via X-Accel-Redirect.
+
+def _stream_file(file_field):
+    """Helper: returns FileResponse with as_attachment=True. Raises 404 if
+    the file is missing on disk."""
+    if not file_field:
+        raise Http404('File not available.')
+    try:
+        return FileResponse(
+            file_field.open('rb'),
+            as_attachment=True,
+            filename=file_field.name.rsplit('/', 1)[-1],
+        )
+    except FileNotFoundError as e:
+        raise Http404('File missing on server.') from e
+
+
+class CADVersionDownloadView(TenantRequiredMixin, View):
+    def get(self, request, pk):
+        v = get_object_or_404(CADDocumentVersion, pk=pk, tenant=request.tenant)
+        return _stream_file(v.file)
+
+
+class ECOAttachmentDownloadView(TenantRequiredMixin, View):
+    def get(self, request, pk):
+        a = get_object_or_404(ECOAttachment, pk=pk, tenant=request.tenant)
+        return _stream_file(a.file)
+
+
+class ComplianceCertificateDownloadView(TenantRequiredMixin, View):
+    def get(self, request, pk):
+        rec = get_object_or_404(ProductCompliance, pk=pk, tenant=request.tenant)
+        return _stream_file(rec.certificate_file)
