@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if record %}Edit{% else %}New{% endif %} Compliance Record{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if record %}Edit Compliance Record{% else %}New Compliance Record{% endif %}</h4>
+    <a href="{% url 'plm:compliance_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+                {% if record %}<a href="{% url 'plm:compliance_detail' record.pk %}" class="btn btn-light">Cancel</a>
+                {% else %}<a href="{% url 'plm:compliance_list' %}" class="btn btn-light">Cancel</a>{% endif %}
+            </div>
+        </form>
+        <p class="text-muted small mt-3 mb-0">Certificate uploads: pdf, png, jpg, zip. Max 25 MB.</p>
+    </div>
+</div>
+{% endblock %}
