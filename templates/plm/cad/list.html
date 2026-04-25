@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}CAD / Drawing Repository{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">CAD / Drawing Repository</h4>
+        <div class="text-muted small">Version-controlled storage for technical drawings, schematics, and 3D models.</div>
+    </div>
+    <a href="{% url 'plm:cad_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Drawing</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search drawing # or title..."></div>
+            <div class="col-md-3">
+                <select name="doc_type" class="form-select">
+                    <option value="">Any type</option>
+                    {% for val, label in doc_type_choices %}<option value="{{ val }}" {% if request.GET.doc_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="active" class="form-select">
+                    <option value="">Any status</option>
+                    <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Drawing #</th><th>Title</th><th>Type</th><th>Linked Product</th><th>Current Version</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for d in documents %}
+                    <tr>
+                        <td class="fw-semibold"><a href="{% url 'plm:cad_detail' d.pk %}">{{ d.drawing_number }}</a></td>
+                        <td>{{ d.title|truncatechars:50 }}</td>
+                        <td><span class="badge bg-info-subtle text-info">{{ d.get_doc_type_display }}</span></td>
+                        <td class="small">{% if d.product %}<a href="{% url 'plm:product_detail' d.product.pk %}">{{ d.product.sku }}</a>{% else %}—{% endif %}</td>
+                        <td>
+                            {% if d.current_version %}
+                                <span class="badge bg-primary-subtle text-primary">v{{ d.current_version.version }}</span>
+                            {% else %}<span class="text-muted small">—</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if d.is_active %}<span class="badge bg-success-subtle text-success">Active</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'plm:cad_detail' d.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            <a href="{% url 'plm:cad_edit' d.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'plm:cad_delete' d.pk %}" style="display:inline" onsubmit="return confirm('Delete drawing {{ d.drawing_number }} and all its versions?');">
+                                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No drawings yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
