@@ -15,8 +15,11 @@ from .models import (
 # ---------------- File validation ----------------
 
 CAD_ALLOWED_EXTS = {
+    # NOTE D-02: .svg deliberately excluded — SVG is XML and may carry
+    # <script>/event-handler payloads → stored XSS via direct file URL.
+    # Use PNG/JPG instead for image previews of CAD assets.
     '.pdf', '.dwg', '.dxf', '.step', '.stp', '.iges', '.igs',
-    '.png', '.jpg', '.jpeg', '.svg', '.zip',
+    '.png', '.jpg', '.jpeg', '.zip',
 }
 ECO_ATTACH_ALLOWED_EXTS = CAD_ALLOWED_EXTS | {'.docx', '.xlsx', '.txt', '.csv'}
 COMPLIANCE_ALLOWED_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.zip'}
@@ -153,6 +156,20 @@ class ECOImpactedItemForm(forms.ModelForm):
             self.fields['after_revision'].queryset = ProductRevision.objects.filter(tenant=tenant)
             self.fields['before_revision'].required = False
             self.fields['after_revision'].required = False
+
+    def clean(self):
+        """D-01: a revision picked here MUST belong to the chosen product;
+        otherwise the ECO's audit trail of impact is corrupt."""
+        cleaned = super().clean()
+        product = cleaned.get('product')
+        for field_name in ('before_revision', 'after_revision'):
+            rev = cleaned.get(field_name)
+            if rev and product and rev.product_id != product.pk:
+                self.add_error(
+                    field_name,
+                    f'Selected revision belongs to {rev.product.sku}, not {product.sku}.',
+                )
+        return cleaned
 
 
 class ECOApprovalForm(forms.ModelForm):
