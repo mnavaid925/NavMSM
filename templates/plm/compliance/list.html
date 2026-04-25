@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Product Compliance{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Product Compliance Tracking</h4>
+        <div class="text-muted small">
+            Regulatory standards, certifications, and expiry monitoring.
+            {% if expiring_soon_count %}<span class="badge bg-warning ms-2">{{ expiring_soon_count }} expiring within 30 days</span>{% endif %}
+        </div>
+    </div>
+    <a href="{% url 'plm:compliance_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Record</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search product or cert #..."></div>
+            <div class="col-md-3">
+                <select name="standard" class="form-select">
+                    <option value="">Any standard</option>
+                    {% for s in standards %}
+                    <option value="{{ s.pk }}" {% if request.GET.standard == s.pk|stringformat:"d" %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Product</th><th>Standard</th><th>Cert #</th><th>Status</th><th>Issued</th><th>Expires</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for r in records %}
+                    <tr>
+                        <td><a href="{% url 'plm:product_detail' r.product.pk %}">{{ r.product.sku }}</a> <span class="small text-muted">— {{ r.product.name|truncatechars:30 }}</span></td>
+                        <td><span class="badge bg-info-subtle text-info">{{ r.standard.code }}</span></td>
+                        <td class="small">{{ r.certification_number|default:"—" }}</td>
+                        <td>
+                            {% if r.status == 'compliant' %}<span class="badge bg-success-subtle text-success">Compliant</span>
+                            {% elif r.status == 'non_compliant' %}<span class="badge bg-danger-subtle text-danger">Non-Compliant</span>
+                            {% elif r.status == 'expired' %}<span class="badge bg-warning-subtle text-warning">Expired</span>
+                            {% elif r.status == 'in_progress' %}<span class="badge bg-info-subtle text-info">In Progress</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">Pending</span>{% endif %}
+                        </td>
+                        <td class="small">{{ r.issued_date|date:"M j, Y"|default:"—" }}</td>
+                        <td class="small">
+                            {{ r.expiry_date|date:"M j, Y"|default:"—" }}
+                            {% if r.is_expiring_soon %}<i class="ri-alarm-warning-line text-warning ms-1" title="Expiring within 30 days"></i>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'plm:compliance_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            <a href="{% url 'plm:compliance_edit' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'plm:compliance_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete compliance record?');">
+                                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">No compliance records yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
