@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**. The remaining 21 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management** and **Module 2 — Product Lifecycle Management (PLM)**. The remaining 20 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -20,7 +20,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 10. [Multi-Tenancy Model](#multi-tenancy-model)
 11. [Authentication & User Management](#authentication--user-management)
 12. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
-13. [UI / Theme Customization](#ui--theme-customization)
+13. [Module 2 — Product Lifecycle Management (PLM)](#module-2--product-lifecycle-management-plm)
+14. [UI / Theme Customization](#ui--theme-customization)
 14. [Management Commands](#management-commands)
 15. [Payment Gateway Integration](#payment-gateway-integration)
 16. [Security Notes](#security-notes)
@@ -36,6 +37,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Full authentication suite** — login (username *or* email), registration (provisions tenant + admin user + trial subscription atomically), forgot / reset password with token links, and token-based invite acceptance.
 - **Complete user management** — list with search/filter, create, edit, detail, delete, toggle-active; per-user profile with UI theme preferences.
 - **Module 1 in full** — tenant onboarding wizard, plans & subscriptions, invoices & payments (mock gateway), custom branding, email templates, tenant audit log, and health monitoring with charts.
+- **Module 2 — Product Lifecycle Management (PLM)** — product master data with revisions, specs and variants; engineering change orders with submit/approve/reject/implement workflow; CAD/drawing repository with version control; product compliance tracking against global regulatory standards (ISO, RoHS, REACH, CE, UL, FCC, IPC); NPI/Stage-Gate project management with 7-stage gate reviews and deliverables.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -80,6 +82,18 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/tenants/email-templates/` | Per-tenant transactional email templates (welcome, invite, reset, …) |
 | `/tenants/health/` | Tenant health dashboard: score, users, storage, API calls + ApexCharts trends |
 | `/tenants/audit/` | Immutable audit log of tenant-level actions |
+| `/plm/` | PLM dashboard — KPI cards (products, open ECOs, CAD docs, compliant records), recent ECOs and active NPI projects |
+| `/plm/products/` | Product master data list with category/type/status filters; create, edit, delete |
+| `/plm/products/<pk>/` | Product detail with tabs for Specifications, Revisions, Variants, CAD, and Compliance |
+| `/plm/categories/` | Hierarchical product category list with self-FK parent |
+| `/plm/eco/` | Engineering Change Order list filterable by status, priority, change type |
+| `/plm/eco/<pk>/` | ECO detail — tabs for Impacted Items, Approvals, Attachments, plus submit / approve / reject / implement actions |
+| `/plm/cad/` | CAD / drawing repository list with type filter (2D, 3D, schematic, PCB, assembly) |
+| `/plm/cad/<pk>/` | CAD detail with version history, upload form, and release action |
+| `/plm/compliance/` | Product compliance tracker with expiry-soon flag and standard/status filters |
+| `/plm/compliance/<pk>/` | Compliance record detail with immutable audit trail |
+| `/plm/npi/` | NPI / Stage-Gate project list filterable by status and current stage |
+| `/plm/npi/<pk>/` | NPI detail with 7-stage accordion (Concept → Launch), gate decisions, and per-stage deliverables |
 
 ---
 
@@ -118,24 +132,38 @@ NavMSM/
 │   │   ├── urls.py
 │   │   └── admin.py
 │   │
-│   └── tenants/                  # MODULE 1 — Tenant & Subscription Management
-│       ├── models.py             # Plan, Subscription, Invoice, InvoiceLineItem, Payment,
-│       │                         # BillingAddress, UsageMeter, BrandingSettings,
-│       │                         # EmailTemplate, TenantAuditLog, TenantHealthSnapshot,
-│       │                         # HealthAlert
-│       ├── services/
-│       │   ├── gateway.py        # PaymentGateway Protocol + MockGateway
-│       │   ├── billing.py        # start_trial, issue_invoice, mark_paid
-│       │   └── health.py         # capture_snapshot
-│       ├── signals.py            # Audit-log receivers on Subscription, Branding
-│       ├── forms.py
-│       ├── views.py              # Onboarding wizard, Plans, Subscription, Invoices, Branding, Health, Audit
+│   ├── tenants/                  # MODULE 1 — Tenant & Subscription Management
+│   │   ├── models.py             # Plan, Subscription, Invoice, InvoiceLineItem, Payment,
+│   │   │                         # BillingAddress, UsageMeter, BrandingSettings,
+│   │   │                         # EmailTemplate, TenantAuditLog, TenantHealthSnapshot,
+│   │   │                         # HealthAlert
+│   │   ├── services/
+│   │   │   ├── gateway.py        # PaymentGateway Protocol + MockGateway
+│   │   │   ├── billing.py        # start_trial, issue_invoice, mark_paid
+│   │   │   └── health.py         # capture_snapshot
+│   │   ├── signals.py            # Audit-log receivers on Subscription, Branding
+│   │   ├── forms.py
+│   │   ├── views.py              # Onboarding wizard, Plans, Subscription, Invoices, Branding, Health, Audit
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       ├── capture_health.py
+│   │       ├── seed_plans.py
+│   │       └── seed_tenants.py
+│   │
+│   └── plm/                      # MODULE 2 — Product Lifecycle Management
+│       ├── models.py             # ProductCategory, Product, ProductRevision, ProductSpecification,
+│       │                         # ProductVariant, EngineeringChangeOrder, ECOImpactedItem,
+│       │                         # ECOApproval, ECOAttachment, CADDocument, CADDocumentVersion,
+│       │                         # ComplianceStandard (shared catalog), ProductCompliance,
+│       │                         # ComplianceAuditLog, NPIProject, NPIStage, NPIDeliverable
+│       ├── signals.py            # Audit-log receivers on ECO + ProductCompliance status changes
+│       ├── forms.py              # ModelForms with file-extension allowlists + 25 MB cap
+│       ├── views.py              # Full CRUD for all 5 sub-modules + workflow actions
 │       ├── urls.py
 │       ├── admin.py
 │       └── management/commands/
-│           ├── capture_health.py
-│           ├── seed_plans.py
-│           └── seed_tenants.py
+│           └── seed_plm.py       # Idempotent demo data per tenant
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -143,7 +171,8 @@ NavMSM/
 │   ├── auth/                     # login, register, forgot_password, reset_password, accept_invite
 │   ├── dashboard/index.html
 │   ├── accounts/                 # user list/form/detail, profile, invite list/form
-│   └── tenants/                  # onboarding_wizard, plans, subscription, invoices, branding, health, audit, email_templates
+│   ├── tenants/                  # onboarding_wizard, plans, subscription, invoices, branding, health, audit, email_templates
+│   └── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -279,7 +308,9 @@ Running `python manage.py seed_data` creates:
 
 - **4 plans** — Starter ($29/mo), Growth ($99/mo, featured), Pro ($249/mo), Enterprise (custom)
 - **3 demo tenants** — Acme Manufacturing, Globex Industries, Stark Production Co.
-- **Per tenant** — 1 tenant admin + 4 staff users, 2 pending invites, 1 subscription, 3–6 invoices (mix of paid/open), 30 days of health snapshots, audit log entries, default branding, and 5 default email templates.
+- **Per tenant (Module 1)** — 1 tenant admin + 4 staff users, 2 pending invites, 1 subscription, 3–6 invoices (mix of paid/open), 30 days of health snapshots, audit log entries, default branding, and 5 default email templates.
+- **Per tenant (Module 2 — PLM)** — 8 categories (4 root + 4 child), 20 products spanning all product types with revisions A & B + specs + variants on finished goods, 5 ECOs in mixed statuses (draft / submitted / approved / implemented), 8 CAD documents, 16 compliance records linked to global standards, 3 NPI projects with all 7 stages and 1–3 deliverables per stage. CAD documents are seeded *without* binary files — upload real CAD files via the UI.
+- **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
 
@@ -379,6 +410,61 @@ A 4-step wizard at `/tenants/onboarding/`:
 
 ---
 
+## Module 2 — Product Lifecycle Management (PLM)
+
+Module 2 is implemented in [`apps/plm/`](apps/plm/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` and queries are scoped via `request.tenant`.
+
+### Sub-module 2.1 — Product Master Data
+
+- **`ProductCategory`** — hierarchical (self-FK `parent`), unique `(tenant, code)`, `is_active` toggle
+- **`Product`** — `sku` unique per tenant, `product_type` (raw_material / component / sub_assembly / finished_good / service), `unit_of_measure`, `status` (draft / active / obsolete / phased_out), nullable FK to `current_revision`, optional product image
+- **`ProductRevision`** — revision history (e.g. `A`, `B`) with `effective_date` and status (`draft` / `active` / `superseded`); promoting a revision to *active* auto-supersedes prior actives and updates `Product.current_revision`
+- **`ProductSpecification`** — typed key/value pairs (physical / electrical / mechanical / chemical / performance / other), optionally pinned to a revision
+- **`ProductVariant`** — variant SKU + free-form attributes JSON (rendered in form as `key=value` lines)
+
+The product detail page exposes these as tabs alongside linked CAD docs and compliance records.
+
+### Sub-module 2.2 — Engineering Change Orders (ECO)
+
+- **`EngineeringChangeOrder`** — auto-numbered `ECO-00001` per tenant, `change_type` (design / specification / material / process / documentation), `priority` (low / medium / high / critical), `requested_by`, status workflow: `draft → submitted → under_review → approved → implemented`, with `rejected` and `cancelled` terminal states
+- **`ECOImpactedItem`** — links ECO to one or more `Product`s with optional before/after revision FKs and a per-item change summary
+- **`ECOApproval`** — written approval log (approver, decision, comment, decided_at)
+- **`ECOAttachment`** — file upload per ECO; allowlist enforced in `forms.py` (`.pdf .dwg .dxf .step .stp .iges .igs .png .jpg .jpeg .svg .zip .docx .xlsx .txt .csv`), 25 MB cap
+
+Workflow buttons on the detail page: **Submit for review** (draft → submitted), **Approve** / **Reject** (submitted/under_review → approved/rejected), **Mark Implemented** (approved → implemented). Edit and delete are gated to `draft` status only.
+
+### Sub-module 2.3 — CAD / Drawing Repository
+
+- **`CADDocument`** — `drawing_number` unique per tenant, `doc_type` (2d_drawing / 3d_model / schematic / pcb / assembly / other), optional FK to `Product`, nullable FK `current_version`
+- **`CADDocumentVersion`** — version string + `FileField`, `change_notes`, `uploaded_by`, status (`draft` / `under_review` / `released` / `obsolete`); CAD file allowlist `.pdf .dwg .dxf .step .stp .iges .igs .png .jpg .jpeg .svg .zip` with 25 MB cap
+
+Releasing a version automatically obsoletes any prior released version and promotes the new one to `current_version` — there is always exactly one current version per drawing.
+
+### Sub-module 2.4 — Product Compliance Tracking
+
+- **`ComplianceStandard`** — *shared* catalog (NOT tenant-scoped, like `Plan`) pre-seeded with 8 standards: ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC
+- **`ProductCompliance`** — links a `Product` to a `ComplianceStandard` with status (`pending` / `in_progress` / `compliant` / `non_compliant` / `expired`), `certification_number`, `issuing_body`, `issued_date`, `expiry_date`, optional `certificate_file`. Unique per `(tenant, product, standard)`.
+- **`ComplianceAuditLog`** — immutable per-record trail; entries are written automatically by signals on create and on every status change
+
+The list page surfaces an *Expiring within 30 days* counter and a per-row expiry warning icon. Certificate file allowlist: `.pdf .png .jpg .jpeg .zip`.
+
+### Sub-module 2.5 — NPI / Stage-Gate Management
+
+- **`NPIProject`** — auto-numbered `NPI-00001` per tenant, optional FK to `Product`, `project_manager`, `current_stage` (concept / feasibility / design / development / validation / pilot_production / launch), `status` (planning / in_progress / on_hold / completed / cancelled), target/actual launch dates
+- **`NPIStage`** — pre-populated automatically when a project is created (one row per stage, sequenced 1-7), with `planned_start/end`, `actual_start/end`, `status` (pending / in_progress / passed / failed / skipped), `gate_decision` (pending / go / no_go / recycle), `gate_notes`, `gate_decided_by`
+- **`NPIDeliverable`** — per-stage tasks with `owner`, `due_date`, `completed_at`, status (pending / in_progress / done / blocked)
+
+The detail page renders the 7 stages as a Bootstrap accordion with inline deliverable add/edit/complete/delete forms. Editing a stage's `gate_decision` from `pending` automatically stamps `gate_decided_by` and `gate_decided_at`.
+
+### Audit signals
+
+`apps/plm/signals.py` wires:
+
+- `pre_save` + `post_save` on `EngineeringChangeOrder` → writes `apps.tenants.TenantAuditLog` entries on every status transition (`eco.created`, `eco.status.<new>` with `meta={'from': old, 'to': new}`)
+- `pre_save` + `post_save` on `ProductCompliance` → writes BOTH `TenantAuditLog` and a per-record `ComplianceAuditLog` entry on create and on status change
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -406,7 +492,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py createsuperuser` | Create a Django superuser for `/admin/` |
 | `python manage.py seed_plans` | Seed/update the 4 default plans |
 | `python manage.py seed_tenants [--flush]` | Seed 3 demo tenants with users, invoices, health snapshots |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` |
+| `python manage.py seed_plm [--flush]` | Seed PLM demo data (categories, products, ECOs, CAD, compliance, NPI) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 
@@ -453,9 +540,9 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + Module 1. The 21 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription) and **Module 2** (Product Lifecycle Management). The 20 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
-2. Product Lifecycle Management (PLM)
+2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. Bill of Materials (BOM)
 4. Production Planning & Scheduling
 5. Material Requirements Planning (MRP)
