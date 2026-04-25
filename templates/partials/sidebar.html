@@ -42,6 +42,23 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarPLM" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-stack-line"></i> <span>Product Lifecycle (PLM)</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarPLM" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'plm:index' %}" class="nav-link">PLM Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:product_list' %}" class="nav-link">Products</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:category_list' %}" class="nav-link">Categories</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:eco_list' %}" class="nav-link">Engineering Change Orders</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:cad_list' %}" class="nav-link">CAD / Drawings</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:compliance_list' %}" class="nav-link">Product Compliance</a></li>
+                            <li class="nav-item"><a href="{% url 'plm:npi_list' %}" class="nav-link">NPI / Stage-Gate</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
