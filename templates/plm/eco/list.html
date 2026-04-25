@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Engineering Change Orders{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Engineering Change Orders</h4>
+        <div class="text-muted small">Change request workflow, impact analysis, and approval routing.</div>
+    </div>
+    <a href="{% url 'plm:eco_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New ECO</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search number or title..."></div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="priority" class="form-select">
+                    <option value="">Any priority</option>
+                    {% for val, label in priority_choices %}<option value="{{ val }}" {% if request.GET.priority == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="change_type" class="form-select">
+                    <option value="">Any type</option>
+                    {% for val, label in change_type_choices %}<option value="{{ val }}" {% if request.GET.change_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Number</th><th>Title</th><th>Type</th><th>Priority</th><th>Status</th><th>Requested by</th><th>Target</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for e in ecos %}
+                    <tr>
+                        <td class="fw-semibold"><a href="{% url 'plm:eco_detail' e.pk %}">{{ e.number }}</a></td>
+                        <td>{{ e.title|truncatechars:50 }}</td>
+                        <td><span class="badge bg-info-subtle text-info">{{ e.get_change_type_display }}</span></td>
+                        <td>
+                            {% if e.priority == 'critical' %}<span class="badge bg-danger-subtle text-danger">Critical</span>
+                            {% elif e.priority == 'high' %}<span class="badge bg-warning-subtle text-warning">High</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ e.get_priority_display }}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if e.status == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>
+                            {% elif e.status == 'implemented' %}<span class="badge bg-success text-white">Implemented</span>
+                            {% elif e.status == 'rejected' %}<span class="badge bg-danger-subtle text-danger">Rejected</span>
+                            {% elif e.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>
+                            {% elif e.status == 'submitted' or e.status == 'under_review' %}<span class="badge bg-warning-subtle text-warning">{{ e.get_status_display }}</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>{% endif %}
+                        </td>
+                        <td class="small">{{ e.requested_by|default:"—" }}</td>
+                        <td class="small">{{ e.target_implementation_date|date:"M j, Y"|default:"—" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'plm:eco_detail' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            {% if e.status == 'draft' %}
+                            <a href="{% url 'plm:eco_edit' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'plm:eco_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete ECO {{ e.number }}?');">
+                                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">No ECOs yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
