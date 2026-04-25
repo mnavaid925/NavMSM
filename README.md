@@ -200,7 +200,7 @@ All commands below assume **Windows PowerShell**. For bash/zsh substitute the ac
 ### 1. Clone & enter the project
 
 ```powershell
-git clone <your-remote-url> NavMSM
+git clone https://github.com/mnavaid925/NavMSM.git
 cd NavMSM
 ```
 
