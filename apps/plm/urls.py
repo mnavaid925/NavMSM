@@ -44,6 +44,7 @@ urlpatterns = [
     path('eco/items/<int:pk>/delete/', views.ECOImpactedItemDeleteView.as_view(), name='eco_item_delete'),
     path('eco/<int:pk>/attachments/new/', views.ECOAttachmentAddView.as_view(), name='eco_attachment_add'),
     path('eco/attachments/<int:pk>/delete/', views.ECOAttachmentDeleteView.as_view(), name='eco_attachment_delete'),
+    path('eco/attachments/<int:pk>/download/', views.ECOAttachmentDownloadView.as_view(), name='eco_attachment_download'),
 
     # ---- CAD ----
     path('cad/', views.CADListView.as_view(), name='cad_list'),
@@ -54,6 +55,7 @@ urlpatterns = [
     path('cad/<int:pk>/versions/new/', views.CADVersionUploadView.as_view(), name='cad_version_upload'),
     path('cad/versions/<int:pk>/release/', views.CADVersionReleaseView.as_view(), name='cad_version_release'),
     path('cad/versions/<int:pk>/delete/', views.CADVersionDeleteView.as_view(), name='cad_version_delete'),
+    path('cad/versions/<int:pk>/download/', views.CADVersionDownloadView.as_view(), name='cad_version_download'),
 
     # ---- Compliance ----
     path('compliance/', views.ComplianceListView.as_view(), name='compliance_list'),
@@ -61,6 +63,7 @@ urlpatterns = [
     path('compliance/<int:pk>/', views.ComplianceDetailView.as_view(), name='compliance_detail'),
     path('compliance/<int:pk>/edit/', views.ComplianceEditView.as_view(), name='compliance_edit'),
     path('compliance/<int:pk>/delete/', views.ComplianceDeleteView.as_view(), name='compliance_delete'),
+    path('compliance/<int:pk>/certificate/', views.ComplianceCertificateDownloadView.as_view(), name='compliance_certificate_download'),
 
     # ---- NPI ----
     path('npi/', views.NPIListView.as_view(), name='npi_list'),
