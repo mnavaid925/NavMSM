@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Products</h4>
+        <div class="text-muted small">Master data for raw materials, components, sub-assemblies, and finished goods.</div>
+    </div>
+    <a href="{% url 'plm:product_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Product</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search SKU or name..."></div>
+            <div class="col-md-3">
+                <select name="category" class="form-select">
+                    <option value="">Any category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.pk }}" {% if request.GET.category == cat.pk|stringformat:"d" %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="product_type" class="form-select">
+                    <option value="">Any type</option>
+                    {% for val, label in type_choices %}<option value="{{ val }}" {% if request.GET.product_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Type</th><th>UoM</th><th>Rev</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for p in products %}
+                    <tr>
+                        <td class="fw-semibold"><a href="{% url 'plm:product_detail' p.pk %}">{{ p.sku }}</a></td>
+                        <td>{{ p.name|truncatechars:50 }}</td>
+                        <td class="small text-muted">{{ p.category.name|default:"—" }}</td>
+                        <td><span class="badge bg-info-subtle text-info">{{ p.get_product_type_display }}</span></td>
+                        <td>{{ p.get_unit_of_measure_display }}</td>
+                        <td>{{ p.current_revision.revision_code|default:"—" }}</td>
+                        <td>
+                            {% if p.status == 'active' %}<span class="badge bg-success-subtle text-success">Active</span>
+                            {% elif p.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                            {% elif p.status == 'obsolete' %}<span class="badge bg-warning-subtle text-warning">Obsolete</span>
+                            {% else %}<span class="badge bg-danger-subtle text-danger">{{ p.get_status_display }}</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'plm:product_detail' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            <a href="{% url 'plm:product_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'plm:product_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete product &quot;{{ p.sku }}&quot;? This cannot be undone.');">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">No products yet. <a href="{% url 'plm:product_create' %}">Create the first one</a>.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
