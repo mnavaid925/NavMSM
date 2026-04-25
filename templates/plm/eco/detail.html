@@ -141,7 +141,7 @@
                     <tbody>
                     {% for a in attachments %}
                         <tr>
-                            <td><a href="{{ a.file.url }}" target="_blank">{{ a.title }}</a></td>
+                            <td><a href="{% url 'plm:eco_attachment_download' a.pk %}">{{ a.title }}</a></td>
                             <td class="small">{{ a.created_at|date:"M j, Y" }}</td>
                             <td class="small">{{ a.uploaded_by|default:"—" }}</td>
                             <td class="text-end">
