@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if document %}Edit{% else %}New{% endif %} Drawing{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if document %}Edit Drawing — {{ document.drawing_number }}{% else %}New Drawing{% endif %}</h4>
+    <a href="{% url 'plm:cad_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+                {% if document %}<a href="{% url 'plm:cad_detail' document.pk %}" class="btn btn-light">Cancel</a>
+                {% else %}<a href="{% url 'plm:cad_list' %}" class="btn btn-light">Cancel</a>{% endif %}
+            </div>
+        </form>
+        <p class="text-muted small mt-3 mb-0">After creating the drawing, upload the first version on the detail page. Allowed formats: pdf, dwg, dxf, step/stp, iges/igs, png, jpg, svg, zip. Max 25 MB.</p>
+    </div>
+</div>
+{% endblock %}
