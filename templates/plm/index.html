@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}PLM Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Product Lifecycle Management</h4>
+        <div class="text-muted small">Module 2 — Product master data, ECOs, CAD, compliance, and NPI.</div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-primary-subtle rounded p-2 me-3"><i class="ri-archive-2-line text-primary fs-4"></i></div>
+                    <div>
+                        <div class="text-muted small text-uppercase">Products</div>
+                        <h4 class="mb-0">{{ product_count|intcomma }}</h4>
+                    </div>
+                </div>
+                <a href="{% url 'plm:product_list' %}" class="btn btn-sm btn-link p-0 mt-2">View all <i class="ri-arrow-right-line"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-warning-subtle rounded p-2 me-3"><i class="ri-git-pull-request-line text-warning fs-4"></i></div>
+                    <div>
+                        <div class="text-muted small text-uppercase">Open ECOs</div>
+                        <h4 class="mb-0">{{ eco_open|intcomma }}</h4>
+                    </div>
+                </div>
+                <a href="{% url 'plm:eco_list' %}" class="btn btn-sm btn-link p-0 mt-2">Review queue <i class="ri-arrow-right-line"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-info-subtle rounded p-2 me-3"><i class="ri-file-3-line text-info fs-4"></i></div>
+                    <div>
+                        <div class="text-muted small text-uppercase">CAD Drawings</div>
+                        <h4 class="mb-0">{{ cad_count|intcomma }}</h4>
+                    </div>
+                </div>
+                <a href="{% url 'plm:cad_list' %}" class="btn btn-sm btn-link p-0 mt-2">Repository <i class="ri-arrow-right-line"></i></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-shield-check-line text-success fs-4"></i></div>
+                    <div>
+                        <div class="text-muted small text-uppercase">Compliant Records</div>
+                        <h4 class="mb-0">{{ compliance_compliant|intcomma }}</h4>
+                        <div class="text-muted small">{{ compliance_pending }} pending</div>
+                    </div>
+                </div>
+                <a href="{% url 'plm:compliance_list' %}" class="btn btn-sm btn-link p-0 mt-2">Tracker <i class="ri-arrow-right-line"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-git-pull-request-line me-1"></i> Recent ECOs</h5>
+                <a href="{% url 'plm:eco_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> New ECO</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Title</th><th>Status</th><th>Priority</th></tr></thead>
+                    <tbody>
+                    {% for e in recent_ecos %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'plm:eco_detail' e.pk %}">{{ e.number }}</a></td>
+                            <td class="small">{{ e.title|truncatechars:40 }}</td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ e.get_status_display }}</span></td>
+                            <td><span class="badge bg-warning-subtle text-warning">{{ e.get_priority_display }}</span></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No ECOs yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-rocket-2-line me-1"></i> Active NPI Projects ({{ npi_active }})</h5>
+                <a href="{% url 'plm:npi_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> New Project</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Code</th><th>Name</th><th>Stage</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for p in recent_npi %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'plm:npi_detail' p.pk %}">{{ p.code }}</a></td>
+                            <td class="small">{{ p.name|truncatechars:40 }}</td>
+                            <td><span class="badge bg-info-subtle text-info">{{ p.get_current_stage_display }}</span></td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ p.get_status_display }}</span></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No NPI projects yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
