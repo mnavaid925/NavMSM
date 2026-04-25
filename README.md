@@ -94,6 +94,9 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/plm/compliance/<pk>/` | Compliance record detail with immutable audit trail |
 | `/plm/npi/` | NPI / Stage-Gate project list filterable by status and current stage |
 | `/plm/npi/<pk>/` | NPI detail with 7-stage accordion (Concept → Launch), gate decisions, and per-stage deliverables |
+| `/plm/cad/versions/<pk>/download/` | Auth-gated download for a CAD version file (404 cross-tenant; 302 → login if anonymous) |
+| `/plm/eco/attachments/<pk>/download/` | Auth-gated download for an ECO attachment |
+| `/plm/compliance/<pk>/certificate/` | Auth-gated download for a compliance certificate file |
 
 ---
 
@@ -463,6 +466,22 @@ The detail page renders the 7 stages as a Bootstrap accordion with inline delive
 - `pre_save` + `post_save` on `EngineeringChangeOrder` → writes `apps.tenants.TenantAuditLog` entries on every status transition (`eco.created`, `eco.status.<new>` with `meta={'from': old, 'to': new}`)
 - `pre_save` + `post_save` on `ProductCompliance` → writes BOTH `TenantAuditLog` and a per-record `ComplianceAuditLog` entry on create and on status change
 
+### File-upload security
+
+Three auth-gated download views ([`apps/plm/views.py`](apps/plm/views.py) — `CADVersionDownloadView`, `ECOAttachmentDownloadView`, `ComplianceCertificateDownloadView`) protect PLM uploads. Each verifies tenant ownership via `get_object_or_404(..., tenant=request.tenant)` then streams via `FileResponse`. Templates link to these via `{% url %}` rather than `.file.url`, so a guessed `/media/plm/...` path would still hit the static mount in DEBUG but is never produced by the application.
+
+> **Production hardening required:** remove the `static(MEDIA_URL, ...)` mount in [`config/urls.py`](config/urls.py) when `DEBUG=False` and configure the web server (Nginx `internal;` + `X-Accel-Redirect`, or Apache `mod_xsendfile`) to serve `MEDIA_ROOT/plm/*` ONLY via the auth-gated views. Documented in the views.py module docstring.
+
+File-extension allowlists (defined in [`apps/plm/forms.py`](apps/plm/forms.py)):
+
+| Surface | Allowed extensions | Notes |
+|---|---|---|
+| CAD version files | `.pdf .dwg .dxf .step .stp .iges .igs .png .jpg .jpeg .zip` | `.svg` deliberately excluded — XSS risk via embedded `<script>` |
+| ECO attachments | CAD allowlist + `.docx .xlsx .txt .csv` | |
+| Compliance certificates | `.pdf .png .jpg .jpeg .zip` | |
+
+All uploads are capped at **25 MB**.
+
 ---
 
 ## UI / Theme Customization
@@ -496,6 +515,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
+| `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
+| `pytest --cov=apps/plm` | Run with coverage report |
 
 ---
 
