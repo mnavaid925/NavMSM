@@ -9,6 +9,7 @@ urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
     path('accounts/', include('apps.accounts.urls')),
     path('tenants/', include('apps.tenants.urls')),
+    path('plm/', include('apps.plm.urls')),
 ]
 
 if settings.DEBUG:
