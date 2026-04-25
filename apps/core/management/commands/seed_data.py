@@ -13,3 +13,5 @@ class Command(BaseCommand):
         call_command('seed_plans')
         self.stdout.write(self.style.HTTP_INFO('→ seed_tenants'))
         call_command('seed_tenants', flush=options.get('flush', False))
+        self.stdout.write(self.style.HTTP_INFO('→ seed_plm'))
+        call_command('seed_plm', flush=options.get('flush', False))
