@@ -36,7 +36,7 @@
                 <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Issued</span><span class="small">{{ record.issued_date|date:"M j, Y"|default:"—" }}</span></li>
                 <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Expires</span><span class="small">{{ record.expiry_date|date:"M j, Y"|default:"—" }}{% if record.is_expiring_soon %} <i class="ri-alarm-warning-line text-warning"></i>{% endif %}</span></li>
                 {% if record.certificate_file %}
-                <li class="list-group-item"><a href="{{ record.certificate_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary w-100"><i class="ri-download-line me-1"></i> Download Certificate</a></li>
+                <li class="list-group-item"><a href="{% url 'plm:compliance_certificate_download' record.pk %}" class="btn btn-sm btn-outline-primary w-100"><i class="ri-download-line me-1"></i> Download Certificate</a></li>
                 {% endif %}
             </ul>
         </div>
