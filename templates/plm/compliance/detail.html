@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}{{ record.product.sku }} · {{ record.standard.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ record.product.sku }} · {{ record.standard.code }}</h4>
+        <div class="text-muted small">{{ record.standard.name }} ({{ record.standard.get_region_display }})</div>
+    </div>
+    <div>
+        <a href="{% url 'plm:compliance_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'plm:compliance_edit' record.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'plm:compliance_delete' record.pk %}" style="display:inline" onsubmit="return confirm('Delete this compliance record?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if record.status == 'compliant' %}<span class="badge bg-success fs-6 px-3 py-2">Compliant</span>
+                    {% elif record.status == 'non_compliant' %}<span class="badge bg-danger fs-6 px-3 py-2">Non-Compliant</span>
+                    {% elif record.status == 'expired' %}<span class="badge bg-warning fs-6 px-3 py-2">Expired</span>
+                    {% elif record.status == 'in_progress' %}<span class="badge bg-info fs-6 px-3 py-2">In Progress</span>
+                    {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Pending</span>{% endif %}
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span><a href="{% url 'plm:product_detail' record.product.pk %}">{{ record.product.sku }}</a></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Standard</span><strong>{{ record.standard.code }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Cert. Number</span>{{ record.certification_number|default:"—" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Issuing Body</span>{{ record.issuing_body|default:"—" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Issued</span><span class="small">{{ record.issued_date|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Expires</span><span class="small">{{ record.expiry_date|date:"M j, Y"|default:"—" }}{% if record.is_expiring_soon %} <i class="ri-alarm-warning-line text-warning"></i>{% endif %}</span></li>
+                {% if record.certificate_file %}
+                <li class="list-group-item"><a href="{{ record.certificate_file.url }}" target="_blank" class="btn btn-sm btn-outline-primary w-100"><i class="ri-download-line me-1"></i> Download Certificate</a></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Notes</h5></div>
+            <div class="card-body">
+                <p class="text-muted">{{ record.notes|default:"No notes."|linebreaks }}</p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h5 class="mb-0"><i class="ri-history-line me-1"></i> Audit Trail</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>When</th><th>Event</th><th>By</th><th>Details</th></tr></thead>
+                    <tbody>
+                    {% for a in audit_entries %}
+                        <tr>
+                            <td class="small">{{ a.performed_at|date:"M j, Y H:i" }}</td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ a.get_event_display }}</span></td>
+                            <td class="small">{{ a.performed_by|default:"system" }}</td>
+                            <td class="small text-muted">
+                                {% for k, v in a.meta.items %}<code>{{ k }}={{ v }}</code> {% endfor %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No audit entries.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
