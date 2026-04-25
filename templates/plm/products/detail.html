@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}{{ product.sku }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ product.sku }} <small class="text-muted">— {{ product.name }}</small></h4>
+        <div class="text-muted small">
+            {{ product.get_product_type_display }} · {{ product.category.name|default:"Uncategorized" }} · UoM {{ product.get_unit_of_measure_display }}
+        </div>
+    </div>
+    <div>
+        <a href="{% url 'plm:product_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'plm:product_edit' product.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'plm:product_delete' product.pk %}" style="display:inline" onsubmit="return confirm('Delete this product?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                {% if product.image %}<img src="{{ product.image.url }}" class="img-fluid mb-3" style="max-height:200px">{% else %}<div class="text-muted py-4"><i class="ri-image-line fs-1"></i><div>No image</div></div>{% endif %}
+                <h5>{{ product.name }}</h5>
+                <div>
+                    {% if product.status == 'active' %}<span class="badge bg-success-subtle text-success">Active</span>
+                    {% elif product.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                    {% else %}<span class="badge bg-warning-subtle text-warning">{{ product.get_status_display }}</span>{% endif %}
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">SKU</span><strong>{{ product.sku }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ product.get_product_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">UoM</span>{{ product.get_unit_of_measure_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Category</span>{{ product.category.name|default:"—" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Current revision</span>{{ product.current_revision.revision_code|default:"—" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Created</span><span class="small">{{ product.created_at|date:"M j, Y" }}</span></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-specs">Specifications ({{ specifications.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-revisions">Revisions ({{ revisions.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-variants">Variants ({{ variants.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-cad">CAD ({{ cad_documents.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-compliance">Compliance ({{ compliance.count }})</a></li>
+        </ul>
+
+        <div class="tab-content card border-top-0">
+            <div class="tab-pane fade show active p-3" id="tab-overview">
+                <h6>Description</h6>
+                <p class="text-muted">{{ product.description|default:"No description provided."|linebreaks }}</p>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-specs">
+                <form method="post" action="{% url 'plm:spec_create' product.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-md-3">
+                        <select name="spec_type" class="form-select form-select-sm">
+                            <option value="physical">Physical</option><option value="electrical">Electrical</option>
+                            <option value="mechanical">Mechanical</option><option value="chemical">Chemical</option>
+                            <option value="performance">Performance</option><option value="other" selected>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3"><input name="key" placeholder="Key (e.g. Voltage)" class="form-control form-control-sm" required></div>
+                    <div class="col-md-3"><input name="value" placeholder="Value" class="form-control form-control-sm" required></div>
+                    <div class="col-md-2"><input name="unit" placeholder="Unit" class="form-control form-control-sm"></div>
+                    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>Type</th><th>Key</th><th>Value</th><th>Unit</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for s in specifications %}
+                        <tr>
+                            <td><span class="badge bg-info-subtle text-info">{{ s.get_spec_type_display }}</span></td>
+                            <td>{{ s.key }}</td>
+                            <td>{{ s.value }}</td>
+                            <td class="text-muted">{{ s.unit|default:"—" }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'plm:spec_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete spec?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No specifications.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-revisions">
+                <form method="post" action="{% url 'plm:revision_create' product.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-md-2"><input name="revision_code" placeholder="Code (A, B, ...)" class="form-control form-control-sm" required></div>
+                    <div class="col-md-3"><input type="date" name="effective_date" class="form-control form-control-sm" required></div>
+                    <div class="col-md-2">
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="draft" selected>Draft</option><option value="active">Active</option><option value="superseded">Superseded</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4"><input name="change_notes" placeholder="Change notes" class="form-control form-control-sm"></div>
+                    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>Code</th><th>Effective</th><th>Status</th><th>Notes</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for r in revisions %}
+                        <tr>
+                            <td class="fw-semibold">{{ r.revision_code }}</td>
+                            <td>{{ r.effective_date|date:"M j, Y" }}</td>
+                            <td>
+                                {% if r.status == 'active' %}<span class="badge bg-success-subtle text-success">Active</span>
+                                {% elif r.status == 'superseded' %}<span class="badge bg-secondary-subtle text-secondary">Superseded</span>
+                                {% else %}<span class="badge bg-warning-subtle text-warning">Draft</span>{% endif %}
+                            </td>
+                            <td class="small text-muted">{{ r.change_notes|truncatechars:50 }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'plm:revision_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete revision?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No revisions yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-variants">
+                <form method="post" action="{% url 'plm:variant_create' product.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-md-3"><input name="variant_sku" placeholder="Variant SKU" class="form-control form-control-sm" required></div>
+                    <div class="col-md-4"><input name="name" placeholder="Variant name" class="form-control form-control-sm" required></div>
+                    <div class="col-md-3"><input name="attributes_text" placeholder="color=red, size=L" class="form-control form-control-sm"></div>
+                    <div class="col-md-1">
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="active" selected>Active</option><option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>SKU</th><th>Name</th><th>Attributes</th><th>Status</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for v in variants %}
+                        <tr>
+                            <td class="fw-semibold">{{ v.variant_sku }}</td>
+                            <td>{{ v.name }}</td>
+                            <td class="small text-muted">{% for k, val in v.attributes.items %}<span class="badge bg-light text-dark me-1">{{ k }}={{ val }}</span>{% endfor %}</td>
+                            <td>
+                                {% if v.status == 'active' %}<span class="badge bg-success-subtle text-success">Active</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'plm:variant_edit' v.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'plm:variant_delete' v.pk %}" style="display:inline" onsubmit="return confirm('Delete variant?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No variants.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-cad">
+                <table class="table table-sm">
+                    <thead><tr><th>Drawing #</th><th>Title</th><th>Type</th><th>Current</th></tr></thead>
+                    <tbody>
+                    {% for d in cad_documents %}
+                        <tr>
+                            <td><a href="{% url 'plm:cad_detail' d.pk %}">{{ d.drawing_number }}</a></td>
+                            <td>{{ d.title }}</td>
+                            <td>{{ d.get_doc_type_display }}</td>
+                            <td>{{ d.current_version.version|default:"—" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">No CAD documents linked.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-compliance">
+                <table class="table table-sm">
+                    <thead><tr><th>Standard</th><th>Status</th><th>Cert #</th><th>Issued</th><th>Expires</th></tr></thead>
+                    <tbody>
+                    {% for c in compliance %}
+                        <tr>
+                            <td><a href="{% url 'plm:compliance_detail' c.pk %}">{{ c.standard.code }}</a></td>
+                            <td>
+                                {% if c.status == 'compliant' %}<span class="badge bg-success-subtle text-success">Compliant</span>
+                                {% elif c.status == 'non_compliant' %}<span class="badge bg-danger-subtle text-danger">Non-Compliant</span>
+                                {% elif c.status == 'expired' %}<span class="badge bg-warning-subtle text-warning">Expired</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ c.get_status_display }}</span>{% endif %}
+                            </td>
+                            <td class="small">{{ c.certification_number|default:"—" }}</td>
+                            <td class="small">{{ c.issued_date|date:"M j, Y"|default:"—" }}</td>
+                            <td class="small">{{ c.expiry_date|date:"M j, Y"|default:"—" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No compliance records.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
