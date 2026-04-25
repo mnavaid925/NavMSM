@@ -10,6 +10,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Max, Q
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
@@ -238,7 +239,15 @@ class ProductEditView(TenantRequiredMixin, View):
 class ProductDeleteView(TenantRequiredMixin, View):
     def post(self, request, pk):
         product = get_object_or_404(Product, pk=pk, tenant=request.tenant)
-        product.delete()
+        try:
+            product.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                f'Cannot delete "{product.sku}" — it is referenced by ECO impacted '
+                'items or other protected records. Remove those references first.',
+            )
+            return redirect('plm:product_detail', pk=product.pk)
         messages.success(request, 'Product deleted.')
         return redirect('plm:product_list')
 
