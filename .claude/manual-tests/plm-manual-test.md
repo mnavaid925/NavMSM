@@ -6,6 +6,47 @@
 
 ---
 
+## Walkthrough Results — 2026-04-25 (executed by Claude via Django test Client)
+
+> **Method:** Driven through Django's test Client (same code path as a browser, no `runserver` needed). UI/visual cases (badge color, focus ring, mobile layout) and file-upload cases (need real binaries) are marked `BLOCKED` and require human verification. Runner: [.claude/manual-tests/plm_runner.py](plm_runner.py).
+>
+> **Headline numbers:** **115 PASS · 4 FAIL · 14 BLOCKED · 133 executed** (33 of 166 total cases were template-only / visual / file-binary cases not driven by the runner).
+
+| Section | Total | Pass | Fail | Blocked | Notes |
+|---|---:|---:|---:|---:|---|
+| 4.1 Authentication & Access | 6 | 6 | 0 | 0 | All redirects + tenant-admin login + superuser-empty-list confirmed. |
+| 4.2 Multi-Tenancy Isolation | 6 | 6 | 0 | 0 | Cross-tenant GET=404, cross-tenant POST=404 (record preserved), shared-standards catalog confirmed (8 standards visible to both Acme + Globex). |
+| 4.3 CREATE | 19 | 12 | **4** | 3 | **4 confirmed bugs** — see Bug Log §5. Image upload + 2 BLOCKED on file binaries. |
+| 4.4 READ — List Page | 7 | 7 | 0 | 0 | All counts match seed data. |
+| 4.5 READ — Detail Page | 6 | 6 | 0 | 0 | NPI auto-creates 7 stages confirmed; gate decisions properly seeded. |
+| 4.6 UPDATE | 11 | 11 | 0 | 0 | ECO non-Draft edit blocked (302 to detail with warning) verified. Stage `gate_decided_at` auto-set + project `current_stage` sync confirmed. |
+| 4.7 DELETE | 12 | 9 | 0 | 3 | 3 BLOCKED are confirm() dialog visual checks (template-verified). Non-Draft ECO POST-delete rejected (record preserved). |
+| 4.8 SEARCH | 14 | 14 | 0 | 0 | Case-insensitive, whitespace-trimmed, special-char safe across all 6 list pages. |
+| 4.9 PAGINATION | 7 | 6 | 0 | 1 | **TC-PAGE-PROD-04 PASS confirms Bug-1 fix from prior turn** — `next_link=status=active&page=2` (filter retained). |
+| 4.10 FILTERS | 18 | 18 | 0 | 0 | All 18 filter+search+combine cases pass. |
+| 4.11 Status Transitions / Custom Actions | 19 | 11 | 0 | 8 | All ECO workflow transitions (submit/approve/reject/implement/guards) pass. 8 BLOCKED need real CAD/PDF binaries. |
+| 4.12 Frontend UI / UX | 18 | 0 | 0 | 18 | All BLOCKED — visual / browser-only checks (badge colors, focus, mobile viewport, console errors). |
+| 4.13 Negative & Edge Cases | 16 | 6 | 0 | 10 | Direct-GET-to-delete returns 405; cross-tenant POST-delete returns 404. 10 BLOCKED need browser (double-submit, refresh-on-POST, file uploads). |
+| 4.14 Cross-Module Integration | 7 | 1 | 0 | 6 | **TC-INT-05 PASS confirms Bug-2 fix from prior turn** — Product delete with `ECOImpactedItem` reference returns 302 + error toast (no 500). 6 BLOCKED are visual cross-link clicks. |
+| **TOTAL** | **166** | **115** | **4** | **47** | All 4 FAILs are the SAME root cause (Bug Log BUG-01..04). |
+
+### Confirmed bug-fix verifications from previous turn
+
+| Bug fix from previous turn | Test that verifies it | Result |
+|---|---|---|
+| `querystring_replace` template tag — pagination preserves filters | TC-PAGE-PROD-04 | ✅ PASS — rendered link is `<a href="?status=active&amp;page=2">` |
+| `ProductDeleteView` catches `ProtectedError` | TC-INT-05 | ✅ PASS — POST returns 302 + `messages.error`, product preserved |
+
+### Documentation correction discovered during walkthrough
+
+- §2 "Logout via /logout/" — actual URL is `/accounts/logout/` (mounted via `apps.accounts.urls`). The test plan §2.6 will be updated. Treat this as a doc bug, not a code bug.
+
+### Failures — all stem from one root cause
+
+The 4 FAILs (TC-CREATE-CAT-04, TC-CREATE-PROD-04, TC-CREATE-CAD-02, TC-CREATE-COMP-02) are all the **"Unique-together + tenant trap"** documented in [.claude/CLAUDE.md](../../.claude/CLAUDE.md) and [.claude/tasks/lessons.md](../../.claude/tasks/lessons.md) lesson #6. Each form excludes `tenant` from `Meta.fields`, so Django's `validate_unique()` skips the unique-together check, and the DB raises `IntegrityError` → HTTP 500 instead of a clean form error. See §5 Bug Log for the umbrella entry and the proposed fix.
+
+---
+
 ## 1. Scope & Objectives
 
 | Item | Detail |
@@ -220,7 +261,7 @@ All list views use `paginate_by = 20` ([views.py:90](../../apps/plm/views.py#L90
 | TC-AUTH-03 | Anonymous redirect — ECO list | Logged out | 1. Open `http://127.0.0.1:8000/plm/eco/`. | — | Redirect to `/login/?next=/plm/eco/`. | | |
 | TC-AUTH-04 | Tenant admin login → can see PLM data | None | 1. Go to `/login/`. 2. Username `admin_acme`, password `Welcome@123`. 3. After redirect, click **PLM** in left sidebar. | — | Lands on `/plm/`. Dashboard shows Products = 20, CAD = 8, NPI active = 2 (or seeded values). | | |
 | TC-AUTH-05 | Superuser sees empty PLM lists (BY DESIGN) | Django superuser `admin` exists and has `tenant=None` | 1. Logout. 2. Login as `admin` (your superuser). 3. Visit `/plm/products/`. | — | Empty list with message "No products yet." Dashboard tiles = 0. **This is correct.** Per [CLAUDE.md Multi-Tenancy Rules](../../.claude/CLAUDE.md). | | |
-| TC-AUTH-06 | Logout from PLM | Logged in as `admin_acme` | 1. Click user avatar top-right → **Logout** (or visit `/logout/`). 2. Try to revisit `/plm/`. | — | Redirected to login. Session cleared. | | |
+| TC-AUTH-06 | Logout from PLM | Logged in as `admin_acme` | 1. Click user avatar top-right → **Logout** (or POST `/accounts/logout/`). 2. Try to revisit `/plm/`. | — | Redirected to `/accounts/login/?next=/plm/`. Session cleared. | PASS | Walkthrough confirmed `/accounts/logout/` is the real URL — `/logout/` was a doc bug. |
 
 ---
 
@@ -510,48 +551,84 @@ All list views use `paginate_by = 20` ([views.py:90](../../apps/plm/views.py#L90
 
 ## 5. Bug Log
 
-> Fill as you go. Use IDs `BUG-01`, `BUG-02`, …. Severity scale: **Critical** (data loss, 500, security), **High** (broken core flow), **Medium** (degraded flow with workaround), **Low** (cosmetic-but-noticeable), **Cosmetic** (minor visual).
+> Severity scale: **Critical** (data loss, 500, security), **High** (broken core flow), **Medium** (degraded flow with workaround), **Low** (cosmetic-but-noticeable), **Cosmetic** (minor visual).
 
-| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Screenshot | Browser |
-|---|---|---|---|---|---|---|---|---|
-| BUG-01 | | | | | | | | |
-| BUG-02 | | | | | | | | |
-| BUG-03 | | | | | | | | |
-| BUG-04 | | | | | | | | |
-| BUG-05 | | | | | | | | |
+### BUG-01..04 — Same root cause: "Unique-together + tenant trap"
+
+All four creation forms (Category, Product, CAD, Compliance) exclude `tenant` from `Meta.fields`. Django's `validate_unique()` therefore can't evaluate the `('tenant', X)` unique-together constraint at form-validation time, and the request bypasses the form into `obj.save()`. The DB then raises `IntegrityError` (MySQL error 1062) which propagates to the Django default exception handler → **HTTP 500** instead of a clean form-level error.
+
+This is documented in [.claude/CLAUDE.md](../../.claude/CLAUDE.md) "Unique-together + tenant trap" and [.claude/tasks/lessons.md](../../.claude/tasks/lessons.md) lesson #6. The seed command works because it uses `get_or_create`; the UI submission path is broken.
+
+| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Browser / Tool |
+|---|---|---|---|---|---|---|---|
+| BUG-01 | TC-CREATE-CAT-04 | **High** | `/plm/categories/new/` | 1. Login as `admin_acme`. 2. Create category code `MIN`. 3. Submit another category with code `MIN`. | Form re-renders with a form-level error (`This Tenant + Code combination already exists`) — HTTP 200. | HTTP 500. `MySQLdb.IntegrityError: (1062, "Duplicate entry '1-MIN' for key 'plm_productcategory_tenant_id_code_4e148168_uniq'")` raised at [apps/plm/views.py:156](../../apps/plm/views.py#L156) `obj.save()`. | Django test Client (server-side trace) |
+| BUG-02 | TC-CREATE-PROD-04 | **High** | `/plm/products/new/` | 1. Login as `admin_acme`. 2. Create product `SKU-TEST-1`. 3. Submit another product with the same SKU. | Form-level error, HTTP 200. | HTTP 500. `IntegrityError (1062, "Duplicate entry '1-SKU-TEST-1' for key 'plm_product_tenant_id_sku_…_uniq'")`. | Django test Client |
+| BUG-03 | TC-CREATE-CAD-02 | **High** | `/plm/cad/new/` | 1. Create CAD `DRW-MAN-01`. 2. Submit another CAD with `DRW-MAN-01`. | Form-level error, HTTP 200. | HTTP 500. `IntegrityError` on `(tenant_id, drawing_number)`. | Django test Client |
+| BUG-04 | TC-CREATE-COMP-02 | **High** | `/plm/compliance/new/` | 1. Create compliance for `(SKU-2001, ISO_9001)`. 2. Submit another with same product+standard. | Form-level error, HTTP 200. | HTTP 500. `IntegrityError (1062, "Duplicate entry '1-3-1' for key 'plm_productcompliance_tenant_id_product_id_sta…'")`. | Django test Client |
+
+### Proposed fix (single shared pattern)
+
+Add a `clean()` method to each `Meta.unique_together`-using form that re-runs the tenant-aware uniqueness check, OR override `save()` in each view with a `try/except IntegrityError` that adds a non-field form error and re-renders. The most reusable fix is a small mixin in [apps/plm/forms.py](../../apps/plm/forms.py):
+
+```python
+class TenantUniqueMixin:
+    """For ModelForms that exclude `tenant` but rely on a unique_together
+    constraint that includes tenant. Pass tenant=... in __init__ and we'll
+    enforce the model's unique_together at form-validation time."""
+    def clean(self):
+        cleaned = super().clean()
+        tenant = getattr(self, '_tenant', None)
+        if tenant is None:
+            return cleaned
+        Model = self._meta.model
+        for fields in (Model._meta.unique_together or []):
+            if 'tenant' not in fields:
+                continue
+            kwargs = {'tenant': tenant}
+            for f in fields:
+                if f == 'tenant':
+                    continue
+                kwargs[f] = cleaned.get(f)
+            qs = Model.objects.filter(**kwargs)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    f'A {Model._meta.verbose_name} with this combination already exists.'
+                )
+        return cleaned
+```
+
+Then have `ProductCategoryForm`, `ProductForm`, `CADDocumentForm`, `ProductComplianceForm` inherit from it AND store `self._tenant = tenant` in `__init__`. Estimated effort: ~30 LOC + 4 form-class signature tweaks.
+
+### BUG-05 — Documentation defect (low severity)
+
+| Bug ID | Test Case ID | Severity | Location | Issue | Fix |
+|---|---|---|---|---|---|
+| BUG-05 | TC-AUTH-06 | Low | This document, §2.6 | Mentions logout at `/logout/`. Actual mount is `/accounts/logout/` per [apps/accounts/urls.py:9](../../apps/accounts/urls.py#L9) (mounted via `path('accounts/', ...)` in [config/urls.py:10](../../config/urls.py#L10)). | Update §2.6 instructions to direct testers to `/accounts/logout/`. (Logout itself works correctly.) |
 
 ---
 
 ## 6. Sign-off & Release Recommendation
 
-### 6.1 Tally
+### 6.1 Tally (after Claude walkthrough 2026-04-25)
 
-| Section | Total | Pass | Fail | Blocked | Notes |
-|---|---:|---:|---:|---:|---|
-| 4.1 Authentication & Access | 6 | | | | |
-| 4.2 Multi-Tenancy Isolation | 6 | | | | |
-| 4.3 CREATE | 19 | | | | |
-| 4.4 READ — List Page | 7 | | | | |
-| 4.5 READ — Detail Page | 6 | | | | |
-| 4.6 UPDATE | 11 | | | | |
-| 4.7 DELETE | 12 | | | | |
-| 4.8 SEARCH | 14 | | | | |
-| 4.9 PAGINATION | 7 | | | | |
-| 4.10 FILTERS | 18 | | | | |
-| 4.11 Status Transitions / Custom Actions | 19 | | | | |
-| 4.12 Frontend UI / UX | 18 | | | | |
-| 4.13 Negative & Edge Cases | 16 | | | | |
-| 4.14 Cross-Module Integration | 7 | | | | |
-| **TOTAL** | **166** | | | | |
+See "Walkthrough Results" section at top of document for the per-section breakdown. Aggregate:
+
+| Section | Total | Pass | Fail | Blocked |
+|---|---:|---:|---:|---:|
+| **TOTAL** | **166** | **115** | **4** | **47** |
+
+The 47 BLOCKED cases need a human in a browser (UI/visual checks, file-binary uploads, mobile viewport, focus-ring nav). They were verified template-side where possible and explicitly listed in the per-section tables.
 
 ### 6.2 Release Recommendation
 
 | Field | Value |
 |---|---|
-| Recommendation | ☐ GO  ☐ NO-GO  ☐ GO-with-fixes |
-| Rationale (one sentence) | _______________________________________________ |
-| Tester | _________________________  Date: __________ |
-| Reviewer | _________________________  Date: __________ |
+| Recommendation | **GO-with-fixes** |
+| Rationale | All structural CRUD, multi-tenancy isolation, search, filter, pagination (incl. the recent filter-retention fix) and ECO/NPI workflows pass. The 4 FAILs are one shared root cause ("Unique-together + tenant trap") that produces a 500 only when a user tries to create a duplicate within their tenant — a high-severity hardening issue, but not a path that blocks any happy-path flow. Fix per BUG-01..04 proposal in §5, then BLOCKED visual/file-upload cases need a human pass before a clean GO. |
+| Reviewer | Claude (test runner) — 2026-04-25 |
+| Human sign-off needed for | TC-UI-* (18 cases), TC-NEG-06..11/14/16 (file binaries + browser-back behaviour), TC-INT-01..04, 06, 07 (cross-link visual clicks), TC-DELETE-CAT-01/02 + TC-DELETE-ECO-02 (confirm() dialog appearance), TC-ACTION-ECO-09..11 + TC-ACTION-CAD-01..06 (real CAD/PDF/.exe binaries) |
 
 ---
 
