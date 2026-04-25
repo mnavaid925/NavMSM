@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ eco.number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ eco.number }} <small class="text-muted">— {{ eco.title }}</small></h4>
+        <div class="text-muted small">
+            {{ eco.get_change_type_display }} · Priority {{ eco.get_priority_display }} ·
+            Requested by {{ eco.requested_by|default:"—" }}
+        </div>
+    </div>
+    <div>
+        <a href="{% url 'plm:eco_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if eco.status == 'draft' %}
+            <a href="{% url 'plm:eco_edit' eco.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+            <form method="post" action="{% url 'plm:eco_submit' eco.pk %}" style="display:inline" onsubmit="return confirm('Submit this ECO for review?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-send-plane-line"></i> Submit for review</button>
+            </form>
+            <form method="post" action="{% url 'plm:eco_delete' eco.pk %}" style="display:inline" onsubmit="return confirm('Delete this ECO?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+            </form>
+        {% elif eco.status == 'submitted' or eco.status == 'under_review' %}
+            <form method="post" action="{% url 'plm:eco_approve' eco.pk %}" style="display:inline" onsubmit="return confirm('Approve this ECO?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-check-line"></i> Approve</button>
+            </form>
+            <form method="post" action="{% url 'plm:eco_reject' eco.pk %}" style="display:inline" onsubmit="return confirm('Reject this ECO?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-close-line"></i> Reject</button>
+            </form>
+        {% elif eco.status == 'approved' %}
+            <form method="post" action="{% url 'plm:eco_implement' eco.pk %}" style="display:inline" onsubmit="return confirm('Mark this ECO as implemented?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-tools-line"></i> Mark Implemented</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if eco.status == 'approved' %}<span class="badge bg-success fs-6 px-3 py-2">Approved</span>
+                    {% elif eco.status == 'implemented' %}<span class="badge bg-success-subtle text-success fs-6 px-3 py-2">Implemented</span>
+                    {% elif eco.status == 'rejected' %}<span class="badge bg-danger fs-6 px-3 py-2">Rejected</span>
+                    {% elif eco.status == 'submitted' or eco.status == 'under_review' %}<span class="badge bg-warning fs-6 px-3 py-2">{{ eco.get_status_display }}</span>
+                    {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">{{ eco.get_status_display }}</span>{% endif %}
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Number</span><strong>{{ eco.number }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ eco.get_change_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Priority</span>{{ eco.get_priority_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Submitted</span><span class="small">{{ eco.submitted_at|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Approved</span><span class="small">{{ eco.approved_at|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Implemented</span><span class="small">{{ eco.implemented_at|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Target</span><span class="small">{{ eco.target_implementation_date|date:"M j, Y"|default:"—" }}</span></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <ul class="nav nav-tabs">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-eco-overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-eco-items">Impacted Items ({{ impacted_items.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-eco-approvals">Approvals ({{ approvals.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-eco-attachments">Attachments ({{ attachments.count }})</a></li>
+        </ul>
+        <div class="tab-content card border-top-0">
+            <div class="tab-pane fade show active p-3" id="tab-eco-overview">
+                <h6>Description</h6>
+                <p class="text-muted">{{ eco.description|default:"No description."|linebreaks }}</p>
+                <h6>Reason for change</h6>
+                <p class="text-muted">{{ eco.reason|default:"—"|linebreaks }}</p>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-eco-items">
+                {% if eco.is_editable %}
+                <form method="post" action="{% url 'plm:eco_item_add' eco.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    {{ item_form|crispy }}
+                    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add impacted item</button></div>
+                </form>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead><tr><th>Product</th><th>Before</th><th>After</th><th>Summary</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for it in impacted_items %}
+                        <tr>
+                            <td><a href="{% url 'plm:product_detail' it.product.pk %}">{{ it.product.sku }}</a></td>
+                            <td class="small">{{ it.before_revision.revision_code|default:"—" }}</td>
+                            <td class="small">{{ it.after_revision.revision_code|default:"—" }}</td>
+                            <td class="small text-muted">{{ it.change_summary|truncatechars:60 }}</td>
+                            <td class="text-end">
+                                {% if eco.is_editable %}
+                                <form method="post" action="{% url 'plm:eco_item_delete' it.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No impacted items.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-eco-approvals">
+                <table class="table table-sm">
+                    <thead><tr><th>Approver</th><th>Decision</th><th>Comment</th><th>Decided at</th></tr></thead>
+                    <tbody>
+                    {% for a in approvals %}
+                        <tr>
+                            <td>{{ a.approver }}</td>
+                            <td>
+                                {% if a.decision == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>
+                                {% elif a.decision == 'rejected' %}<span class="badge bg-danger-subtle text-danger">Rejected</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Pending</span>{% endif %}
+                            </td>
+                            <td class="small">{{ a.comment|default:"—" }}</td>
+                            <td class="small">{{ a.decided_at|date:"M j, Y H:i"|default:"—" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">No approval records yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-eco-attachments">
+                <form method="post" enctype="multipart/form-data" action="{% url 'plm:eco_attachment_add' eco.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    <div class="col-md-5"><input name="title" placeholder="Title" class="form-control form-control-sm" required></div>
+                    <div class="col-md-5"><input type="file" name="file" class="form-control form-control-sm" required></div>
+                    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="ri-upload-line"></i> Upload</button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>Title</th><th>Uploaded</th><th>By</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for a in attachments %}
+                        <tr>
+                            <td><a href="{{ a.file.url }}" target="_blank">{{ a.title }}</a></td>
+                            <td class="small">{{ a.created_at|date:"M j, Y" }}</td>
+                            <td class="small">{{ a.uploaded_by|default:"—" }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'plm:eco_attachment_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete attachment?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">No attachments.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
