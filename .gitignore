@@ -201,6 +201,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Claude Code — local-only
+.claude/settings.local.json
 
 # Project-specific
 staticfiles/
