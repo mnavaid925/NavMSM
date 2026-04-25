@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}NPI / Stage-Gate{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">NPI / Stage-Gate Management</h4>
+        <div class="text-muted small">New product introduction projects from concept to commercialization.</div>
+    </div>
+    <a href="{% url 'plm:npi_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Project</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search code or name..."></div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="current_stage" class="form-select">
+                    <option value="">Any stage</option>
+                    {% for val, label in stage_choices %}<option value="{{ val }}" {% if request.GET.current_stage == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Code</th><th>Name</th><th>Product</th><th>Manager</th><th>Stage</th><th>Status</th><th>Target Launch</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for p in projects %}
+                    <tr>
+                        <td class="fw-semibold"><a href="{% url 'plm:npi_detail' p.pk %}">{{ p.code }}</a></td>
+                        <td>{{ p.name|truncatechars:50 }}</td>
+                        <td class="small">{% if p.product %}<a href="{% url 'plm:product_detail' p.product.pk %}">{{ p.product.sku }}</a>{% else %}—{% endif %}</td>
+                        <td class="small">{{ p.project_manager|default:"—" }}</td>
+                        <td><span class="badge bg-info-subtle text-info">{{ p.get_current_stage_display }}</span></td>
+                        <td>
+                            {% if p.status == 'completed' %}<span class="badge bg-success-subtle text-success">Completed</span>
+                            {% elif p.status == 'in_progress' %}<span class="badge bg-primary-subtle text-primary">In Progress</span>
+                            {% elif p.status == 'on_hold' %}<span class="badge bg-warning-subtle text-warning">On Hold</span>
+                            {% elif p.status == 'cancelled' %}<span class="badge bg-danger-subtle text-danger">Cancelled</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">Planning</span>{% endif %}
+                        </td>
+                        <td class="small">{{ p.target_launch_date|date:"M j, Y"|default:"—" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'plm:npi_detail' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            <a href="{% url 'plm:npi_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'plm:npi_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete project {{ p.code }}?');">
+                                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" class="text-center text-muted py-4">No NPI projects yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
