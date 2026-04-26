@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if alternate %}Edit{% else %}Add{% endif %} alternate{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{% if alternate %}Edit Alternate{% else %}Add Alternate{% endif %}</h4>
+        <div class="text-muted small">For component {{ line.component.sku }} on BOM {{ line.bom.bom_number }}</div>
+    </div>
+    <a href="{% url 'bom:bom_detail' line.bom.pk %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+                <a href="{% url 'bom:bom_detail' line.bom.pk %}" class="btn btn-light">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
