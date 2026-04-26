@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}{{ run.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ run.name }}</h4>
+        <div class="text-muted small">MPS: <a href="{% url 'pps:mps_detail' run.mps.pk %}">{{ run.mps.mps_number }}</a> · Objective: {{ run.objective.name }}</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:run_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if run.status == 'queued' or run.status == 'failed' %}
+        <form method="post" action="{% url 'pps:run_start' run.pk %}" style="display:inline" onsubmit="return confirm('Start optimization run now?');">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Start</button>
+        </form>
+        {% endif %}
+        {% if run.status == 'completed' and result and not result.applied_at %}
+        <form method="post" action="{% url 'pps:run_apply' run.pk %}" style="display:inline" onsubmit="return confirm('Mark optimization result as applied?');">
+            {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-double-line"></i> Mark Applied</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'pps:run_delete' run.pk %}" style="display:inline" onsubmit="return confirm('Delete this run?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card"><div class="card-body text-center">
+            <div class="mb-2">
+                {% if run.status == 'completed' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Completed</span>
+                {% elif run.status == 'running' %}<span class="badge bg-warning fs-6 px-3 py-2">Running</span>
+                {% elif run.status == 'failed' %}<span class="badge bg-danger fs-6 px-3 py-2">Failed</span>
+                {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Queued</span>{% endif %}
+            </div>
+        </div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Started</span><span class="small">{{ run.started_at|date:"M j, Y H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Finished</span><span class="small">{{ run.finished_at|date:"M j, Y H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Started by</span><span class="small">{{ run.started_by|default:"—" }}</span></li>
+        </ul>
+        </div>
+        {% if run.status == 'failed' and run.error_message %}
+        <div class="card mt-3 border-danger">
+            <div class="card-header bg-danger text-white"><h6 class="mb-0">Error</h6></div>
+            <div class="card-body small"><code>{{ run.error_message }}</code></div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Result</h6></div>
+            <div class="card-body p-0">
+                {% if result %}
+                <table class="table table-sm mb-0">
+                    <thead><tr><th></th><th>Before</th><th>After</th><th>Δ</th></tr></thead>
+                    <tbody>
+                        <tr><td class="text-muted">Total minutes</td><td>{{ result.before_total_minutes }}</td><td>{{ result.after_total_minutes }}</td><td class="small text-muted">{{ result.before_total_minutes }} → {{ result.after_total_minutes }}</td></tr>
+                        <tr><td class="text-muted">Changeovers</td><td>{{ result.before_changeovers }}</td><td>{{ result.after_changeovers }}</td><td class="small {% if result.after_changeovers < result.before_changeovers %}text-success{% endif %}">{{ result.before_changeovers }} → {{ result.after_changeovers }}</td></tr>
+                        <tr><td class="text-muted">Lateness</td><td>{{ result.before_lateness }}</td><td>{{ result.after_lateness }}</td><td class="small {% if result.after_lateness < result.before_lateness %}text-success{% endif %}">{{ result.before_lateness }} → {{ result.after_lateness }}</td></tr>
+                        <tr class="bg-success-subtle"><td class="text-muted"><strong>Improvement</strong></td><td colspan="3"><strong>{{ result.improvement_pct }}%</strong></td></tr>
+                        <tr><td class="text-muted small">Applied</td><td colspan="3" class="small">{{ result.applied_at|date:"M j, Y H:i"|default:"—" }} {% if result.applied_by %}by {{ result.applied_by }}{% endif %}</td></tr>
+                    </tbody>
+                </table>
+                {% if result.suggestion_json %}
+                <div class="p-3 small">
+                    <strong>Algorithm:</strong> <code>{{ result.suggestion_json.algorithm }}</code><br>
+                    <strong>Suggested order sequence:</strong> <code>{{ result.suggestion_json.sequence }}</code>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="p-4 text-center text-muted">
+                    {% if run.status == 'queued' %}Run is queued — click Start to execute.
+                    {% elif run.status == 'running' %}Run is in progress.
+                    {% elif run.status == 'failed' %}Run failed before producing a result.
+                    {% else %}No result.{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
