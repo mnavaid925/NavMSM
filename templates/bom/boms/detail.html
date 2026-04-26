@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ bom.bom_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ bom.bom_number }} <small class="text-muted">— {{ bom.name }}</small></h4>
+        <div class="text-muted small">
+            {{ bom.product.sku }} · {{ bom.get_bom_type_display }} · v{{ bom.version }}.{{ bom.revision }}
+            {% if bom.is_default %}· <span class="badge bg-primary-subtle text-primary">Default</span>{% endif %}
+        </div>
+    </div>
+    <div>
+        <a href="{% url 'bom:bom_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'bom:bom_explode' bom.pk %}" class="btn btn-outline-primary"><i class="ri-list-check-3"></i> Explode</a>
+
+        {% if bom.status == 'draft' or bom.status == 'under_review' %}
+            <a href="{% url 'bom:bom_edit' bom.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        {% endif %}
+
+        {% if bom.status == 'draft' %}
+            <form method="post" action="{% url 'bom:bom_submit' bom.pk %}" style="display:inline" onsubmit="return confirm('Submit this BOM for review?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-send-plane-line"></i> Submit for review</button>
+            </form>
+            <form method="post" action="{% url 'bom:bom_delete' bom.pk %}" style="display:inline" onsubmit="return confirm('Delete this BOM?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+            </form>
+        {% elif bom.status == 'under_review' %}
+            <form method="post" action="{% url 'bom:bom_approve' bom.pk %}" style="display:inline" onsubmit="return confirm('Approve this BOM?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-check-line"></i> Approve</button>
+            </form>
+            <form method="post" action="{% url 'bom:bom_reject' bom.pk %}" style="display:inline" onsubmit="return confirm('Send this BOM back to Draft?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-close-line"></i> Reject</button>
+            </form>
+        {% elif bom.status == 'approved' %}
+            <form method="post" action="{% url 'bom:bom_release' bom.pk %}" style="display:inline" onsubmit="return confirm('Release this BOM? Prior released BOM of the same product+type will be marked Obsolete.');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-rocket-line"></i> Release</button>
+            </form>
+            <form method="post" action="{% url 'bom:bom_obsolete' bom.pk %}" style="display:inline" onsubmit="return confirm('Mark this BOM Obsolete?');">
+                {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Obsolete</button>
+            </form>
+        {% elif bom.status == 'released' %}
+            <form method="post" action="{% url 'bom:bom_obsolete' bom.pk %}" style="display:inline" onsubmit="return confirm('Mark this BOM Obsolete?');">
+                {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Obsolete</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-2">
+                    {% if bom.status == 'released' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Released</span>
+                    {% elif bom.status == 'approved' %}<span class="badge bg-success-subtle text-success fs-6 px-3 py-2">Approved</span>
+                    {% elif bom.status == 'under_review' %}<span class="badge bg-warning fs-6 px-3 py-2">Under Review</span>
+                    {% elif bom.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary fs-6 px-3 py-2">Obsolete</span>
+                    {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Draft</span>{% endif %}
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Number</span><strong>{{ bom.bom_number }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span><a href="{% url 'plm:product_detail' bom.product.pk %}">{{ bom.product.sku }}</a></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ bom.get_bom_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Version</span>{{ bom.version }}.{{ bom.revision }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Effective from</span><span class="small">{{ bom.effective_from|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Effective to</span><span class="small">{{ bom.effective_to|date:"M j, Y"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Created by</span><span class="small">{{ bom.created_by|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Approved by</span><span class="small">{{ bom.approved_by|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Released at</span><span class="small">{{ bom.released_at|date:"M j, Y"|default:"—" }}</span></li>
+            </ul>
+        </div>
+
+        {# Cost rollup card #}
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0"><i class="ri-money-dollar-circle-line me-1"></i> Cost Roll-Up</h6>
+                <form method="post" action="{% url 'bom:bom_recompute' bom.pk %}" style="display:inline">
+                    {% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="ri-refresh-line"></i> Recompute</button>
+                </form>
+            </div>
+            <div class="card-body p-0">
+                {% if rollup %}
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Material</span><strong>{{ rollup.material_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Labor</span><strong>{{ rollup.labor_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Overhead</span><strong>{{ rollup.overhead_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Tooling</span><strong>{{ rollup.tooling_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Other</span><strong>{{ rollup.other_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item d-flex justify-content-between bg-primary-subtle"><strong>Total</strong><strong>{{ rollup.total_cost }} {{ rollup.currency }}</strong></li>
+                    <li class="list-group-item small text-muted">
+                        {% if rollup.computed_at %}Computed {{ rollup.computed_at|date:"M j, Y H:i" }}{% if rollup.computed_by %} by {{ rollup.computed_by }}{% endif %}.
+                        {% else %}<span class="text-warning"><i class="ri-error-warning-line"></i> Stale — click Recompute.</span>{% endif %}
+                    </li>
+                </ul>
+                {% else %}
+                <div class="p-3 text-muted small">No rollup yet — click Recompute to calculate.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <ul class="nav nav-tabs">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-bom-overview">Overview</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bom-lines">Lines ({{ lines.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bom-revisions">Revisions ({{ revisions.count }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-bom-sync">Sync ({{ sync_targets.count|add:sync_sources.count }})</a></li>
+        </ul>
+        <div class="tab-content card border-top-0">
+            <div class="tab-pane fade show active p-3" id="tab-bom-overview">
+                <h6>Description</h6>
+                <p class="text-muted">{{ bom.description|default:"No description."|linebreaks }}</p>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-bom-lines">
+                {% if bom.is_editable %}
+                <form method="post" action="{% url 'bom:line_create' bom.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    {{ line_form|crispy }}
+                    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add line</button></div>
+                </form>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead><tr><th>#</th><th>Component</th><th>Qty</th><th>UoM</th><th>Scrap %</th><th>Phantom</th><th>Parent</th><th>Alternates</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for l in lines %}
+                        <tr>
+                            <td class="small">{{ l.sequence }}</td>
+                            <td><a href="{% url 'plm:product_detail' l.component.pk %}">{{ l.component.sku }}</a> <span class="small text-muted">{{ l.component.name|truncatechars:35 }}</span></td>
+                            <td class="small">{{ l.quantity }}</td>
+                            <td class="small">{{ l.get_unit_of_measure_display }}</td>
+                            <td class="small">{{ l.scrap_percent }}%</td>
+                            <td class="small">{% if l.is_phantom %}<span class="badge bg-info-subtle text-info">Phantom</span>{% else %}—{% endif %}</td>
+                            <td class="small">{% if l.parent_line %}{{ l.parent_line.component.sku }}{% else %}—{% endif %}</td>
+                            <td class="small">
+                                <a href="{% url 'bom:alt_create' l.pk %}" class="btn btn-sm btn-link p-0">
+                                    {{ l.alternates.count }} <i class="ri-add-line"></i>
+                                </a>
+                                {% for a in l.alternates.all %}
+                                    <div class="small">
+                                        {{ a.alternate_component.sku }}
+                                        {% if a.approval_status == 'approved' %}<span class="badge bg-success-subtle text-success">✓</span>
+                                        {% elif a.approval_status == 'rejected' %}<span class="badge bg-danger-subtle text-danger">✗</span>
+                                        {% else %}<span class="badge bg-warning-subtle text-warning">?</span>{% endif %}
+                                        {% if a.approval_status == 'pending' %}
+                                            <form method="post" action="{% url 'bom:alt_approve' a.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-link p-0 text-success"><i class="ri-check-line"></i></button></form>
+                                            <form method="post" action="{% url 'bom:alt_reject' a.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-link p-0 text-danger"><i class="ri-close-line"></i></button></form>
+                                        {% endif %}
+                                        <a href="{% url 'bom:alt_edit' a.pk %}" class="btn btn-sm btn-link p-0"><i class="ri-pencil-line"></i></a>
+                                        <form method="post" action="{% url 'bom:alt_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Remove alternate?');">{% csrf_token %}<button class="btn btn-sm btn-link p-0 text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                                    </div>
+                                {% endfor %}
+                            </td>
+                            <td class="text-end">
+                                {% if bom.is_editable %}
+                                <a href="{% url 'bom:line_edit' l.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'bom:line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Delete line?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="9" class="text-center text-muted">No lines on this BOM yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-bom-revisions">
+                <form method="post" action="{% url 'bom:revision_create' bom.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    {{ revision_form|crispy }}
+                    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="ri-save-line"></i> Capture revision snapshot</button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>v.r</th><th>Type</th><th>Effective</th><th>Changed by</th><th>Summary</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for r in revisions %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'bom:revision_detail' r.pk %}">{{ r.version }}.{{ r.revision }}</a></td>
+                            <td><span class="badge bg-secondary-subtle text-secondary">{{ r.get_revision_type_display }}</span></td>
+                            <td class="small">{{ r.effective_from|date:"M j, Y" }}</td>
+                            <td class="small">{{ r.changed_by|default:"—" }}</td>
+                            <td class="small text-muted">{{ r.change_summary|truncatechars:50 }}</td>
+                            <td class="text-end">
+                                {% if bom.is_editable %}
+                                <form method="post" action="{% url 'bom:revision_rollback' r.pk %}" style="display:inline" onsubmit="return confirm('Roll back BOM to this revision? Current lines will be replaced.');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-warning"><i class="ri-arrow-go-back-line"></i> Rollback</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted">No revision snapshots yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="tab-pane fade p-3" id="tab-bom-sync">
+                <h6 class="text-muted small">Sync targets (this BOM as source)</h6>
+                <table class="table table-sm">
+                    <thead><tr><th>Target BOM</th><th>Type</th><th>Status</th><th>Last sync</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for sm in sync_targets %}
+                        <tr>
+                            <td class="small"><a href="{% url 'bom:sync_detail' sm.pk %}">{{ sm.target_bom.bom_number }}</a></td>
+                            <td><span class="badge bg-info-subtle text-info">{{ sm.target_bom.get_bom_type_display }}</span></td>
+                            <td>
+                                {% if sm.sync_status == 'in_sync' %}<span class="badge bg-success-subtle text-success">In sync</span>
+                                {% elif sm.sync_status == 'drift_detected' %}<span class="badge bg-danger-subtle text-danger">Drift</span>
+                                {% elif sm.sync_status == 'manual_override' %}<span class="badge bg-secondary-subtle text-secondary">Override</span>
+                                {% else %}<span class="badge bg-warning-subtle text-warning">Pending</span>{% endif %}
+                            </td>
+                            <td class="small">{{ sm.last_synced_at|date:"M j, H:i"|default:"—" }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'bom:sync_run' sm.pk %}" style="display:inline">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="ri-refresh-line"></i> Run</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No sync targets.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+
+                <h6 class="text-muted small mt-3">Sync sources (this BOM as target)</h6>
+                <table class="table table-sm">
+                    <thead><tr><th>Source BOM</th><th>Type</th><th>Status</th><th>Last sync</th></tr></thead>
+                    <tbody>
+                    {% for sm in sync_sources %}
+                        <tr>
+                            <td class="small"><a href="{% url 'bom:sync_detail' sm.pk %}">{{ sm.source_bom.bom_number }}</a></td>
+                            <td><span class="badge bg-info-subtle text-info">{{ sm.source_bom.get_bom_type_display }}</span></td>
+                            <td>
+                                {% if sm.sync_status == 'in_sync' %}<span class="badge bg-success-subtle text-success">In sync</span>
+                                {% elif sm.sync_status == 'drift_detected' %}<span class="badge bg-danger-subtle text-danger">Drift</span>
+                                {% else %}<span class="badge bg-warning-subtle text-warning">{{ sm.get_sync_status_display }}</span>{% endif %}
+                            </td>
+                            <td class="small">{{ sm.last_synced_at|date:"M j, H:i"|default:"—" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">No sync sources.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                <a href="{% url 'bom:sync_create' %}" class="btn btn-sm btn-primary mt-2"><i class="ri-add-line"></i> New sync map</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
