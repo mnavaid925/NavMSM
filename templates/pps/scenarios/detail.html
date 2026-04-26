@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ scenario.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ scenario.name }}</h4>
+        <div class="text-muted small">Base: <a href="{% url 'pps:mps_detail' scenario.base_mps.pk %}">{{ scenario.base_mps.mps_number }}</a></div>
+    </div>
+    <div>
+        <a href="{% url 'pps:scenario_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if scenario.status == 'draft' or scenario.status == 'completed' %}
+        <a href="{% url 'pps:scenario_edit' scenario.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'pps:scenario_run' scenario.pk %}" style="display:inline" onsubmit="return confirm('Run simulation now?');">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Run Simulation</button>
+        </form>
+        {% endif %}
+        {% if scenario.status == 'completed' %}
+        <form method="post" action="{% url 'pps:scenario_apply' scenario.pk %}" style="display:inline" onsubmit="return confirm('Mark this scenario as applied?');">
+            {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-double-line"></i> Mark Applied</button>
+        </form>
+        {% endif %}
+        {% if scenario.status != 'applied' and scenario.status != 'discarded' %}
+        <form method="post" action="{% url 'pps:scenario_discard' scenario.pk %}" style="display:inline" onsubmit="return confirm('Discard this scenario?');">
+            {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-close-line"></i> Discard</button>
+        </form>
+        {% endif %}
+        {% if scenario.status != 'applied' %}
+        <form method="post" action="{% url 'pps:scenario_delete' scenario.pk %}" style="display:inline" onsubmit="return confirm('Delete this scenario?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card"><div class="card-body text-center">
+            <div class="mb-2">
+                {% if scenario.status == 'applied' %}<span class="badge bg-primary text-white fs-6 px-3 py-2">Applied</span>
+                {% elif scenario.status == 'completed' %}<span class="badge bg-success-subtle text-success fs-6 px-3 py-2">Completed</span>
+                {% elif scenario.status == 'running' %}<span class="badge bg-warning fs-6 px-3 py-2">Running</span>
+                {% elif scenario.status == 'discarded' %}<span class="badge bg-secondary fs-6 px-3 py-2">Discarded</span>
+                {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Draft</span>{% endif %}
+            </div>
+        </div>
+        {% if scenario.description %}
+        <div class="card-body"><p class="text-muted">{{ scenario.description|linebreaks }}</p></div>
+        {% endif %}
+        </div>
+
+        {% if result %}
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0"><i class="ri-funds-line me-1"></i> Result KPIs</h6></div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">On-time</span><strong>{{ result.on_time_pct }}%</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Total load</span><strong>{{ result.total_load_minutes }} min</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Total idle</span><strong>{{ result.total_idle_minutes }} min</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Bottlenecks</span><strong>{{ result.bottleneck_count }}</strong></li>
+                <li class="list-group-item small text-muted">Computed {{ result.computed_at|date:"M j, Y H:i"|default:"—" }}</li>
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Changes ({{ changes|length }})</h6></div>
+            <div class="card-body">
+                {% if scenario.is_editable %}
+                <form method="post" action="{% url 'pps:scenario_change_create' scenario.pk %}" class="mb-3">
+                    {% csrf_token %}
+                    {{ change_form|crispy }}
+                    <button class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add change</button>
+                </form>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead><tr><th>Seq</th><th>Type</th><th>Target</th><th>Payload</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for c in changes %}
+                        <tr>
+                            <td class="small">{{ c.sequence }}</td>
+                            <td><span class="badge bg-info-subtle text-info">{{ c.get_change_type_display }}</span></td>
+                            <td class="small">{{ c.target_ref }}</td>
+                            <td class="small text-muted"><code>{{ c.payload|truncatechars:60 }}</code></td>
+                            <td class="text-end">
+                                {% if scenario.is_editable %}
+                                <a href="{% url 'pps:scenario_change_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'pps:scenario_change_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete change?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No changes yet — add some, then run the simulation.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
