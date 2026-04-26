@@ -75,6 +75,23 @@ Here is the text extracted from the image:
 git add 'src/file.js'
 git commit -m 'some example changes'.
 
+**STRICT — ONE FILE PER COMMIT (no exceptions):**
+
+* **Never** combine multiple files into a single `git add` / `git commit` pair, **even if they're in the same folder, share a feature, or look like a "set"** (e.g. `list.html` + `form.html` + `detail.html` of the same module).
+* **Wrong** (this is what NOT to do):
+  ```
+  git add 'templates/pps/routings/list.html' 'templates/pps/routings/form.html' 'templates/pps/routings/detail.html'; git commit -m 'feat(pps): routing templates'
+  ```
+* **Right** — one `git add` + one `git commit` per file, every time:
+  ```
+  git add 'templates/pps/routings/list.html'; git commit -m 'feat(pps): routing list template'
+  git add 'templates/pps/routings/form.html'; git commit -m 'feat(pps): routing form template'
+  git add 'templates/pps/routings/detail.html'; git commit -m 'feat(pps): routing detail template with operation CRUD inline'
+  ```
+* Each commit message should be specific to that one file's content — don't reuse the same message across multiple commits.
+* If a change spans 30+ files, the snippet block IS 30+ commits. Length is fine — bundling is not.
+* Empty `__init__.py` files still get their own commit.
+
 **Shell Compatibility (CRITICAL — user runs PowerShell on Windows):**
 
 * The user's shell is **Windows PowerShell (5.x)** — `&&` is NOT a valid statement separator and WILL fail with `ParserError`.
