@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ routing.routing_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ routing.routing_number }} <small class="text-muted">— {{ routing.product.sku }}</small></h4>
+        <div class="text-muted small">v{{ routing.version }} · {{ routing.get_status_display }} {% if routing.is_default %}· <span class="badge bg-primary-subtle text-primary">Default</span>{% endif %}</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:routing_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'pps:routing_edit' routing.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'pps:routing_delete' routing.pk %}" style="display:inline" onsubmit="return confirm('Delete this routing?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card"><ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Number</span><strong>{{ routing.routing_number }}</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span><a href="{% url 'plm:product_detail' routing.product.pk %}">{{ routing.product.sku }}</a></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Version</span>{{ routing.version }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Default</span>{% if routing.is_default %}Yes{% else %}No{% endif %}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Created by</span><span class="small">{{ routing.created_by|default:"—" }}</span></li>
+        </ul></div>
+        {% if routing.description %}
+        <div class="card mt-3"><div class="card-body"><p class="text-muted">{{ routing.description|linebreaks }}</p></div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Operations ({{ operations|length }})</h6></div>
+            <div class="card-body">
+                <form method="post" action="{% url 'pps:routing_op_create' routing.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    {{ op_form|crispy }}
+                    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add operation</button></div>
+                </form>
+                <table class="table table-sm">
+                    <thead><tr><th>Seq</th><th>Operation</th><th>Work Center</th><th>Setup (m)</th><th>Run/unit (m)</th><th>Q+M (m)</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for op in operations %}
+                        <tr>
+                            <td class="small">{{ op.sequence }}</td>
+                            <td class="small">{{ op.operation_name|truncatechars:35 }}</td>
+                            <td class="small"><a href="{% url 'pps:work_center_detail' op.work_center.pk %}">{{ op.work_center.code }}</a></td>
+                            <td class="small">{{ op.setup_minutes }}</td>
+                            <td class="small">{{ op.run_minutes_per_unit }}</td>
+                            <td class="small">{{ op.queue_minutes }} + {{ op.move_minutes }}</td>
+                            <td class="text-end">
+                                <a href="{% url 'pps:routing_op_edit' op.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'pps:routing_op_delete' op.pk %}" style="display:inline" onsubmit="return confirm('Delete operation?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted">No operations yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
