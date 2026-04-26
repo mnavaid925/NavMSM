@@ -40,6 +40,21 @@ def _stash_bom_status(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=BillOfMaterials)
+def _enforce_single_default(sender, instance, **kwargs):
+    """When a BOM is saved with is_default=True, demote any other BOM of the
+    same (tenant, product, bom_type) so the rollup-cascade pick is deterministic.
+    """
+    if not instance.is_default or instance.tenant_id is None:
+        return
+    sender.all_objects.filter(
+        tenant=instance.tenant,
+        product=instance.product,
+        bom_type=instance.bom_type,
+        is_default=True,
+    ).exclude(pk=instance.pk).update(is_default=False)
+
+
+@receiver(post_save, sender=BillOfMaterials)
 def log_bom_save(sender, instance, created, **kwargs):
     if created:
         _tenant_audit(
