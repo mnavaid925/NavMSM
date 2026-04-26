@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, and **Module 3 — Bill of Materials (BOM) Management**. The remaining 19 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, and **Module 4 — Production Planning & Scheduling**. The remaining 18 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -22,13 +22,14 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 12. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
 13. [Module 2 — Product Lifecycle Management (PLM)](#module-2--product-lifecycle-management-plm)
 14. [Module 3 — Bill of Materials (BOM) Management](#module-3--bill-of-materials-bom-management)
-15. [UI / Theme Customization](#ui--theme-customization)
-14. [Management Commands](#management-commands)
-15. [Payment Gateway Integration](#payment-gateway-integration)
-16. [Security Notes](#security-notes)
-17. [Roadmap](#roadmap)
-18. [Troubleshooting](#troubleshooting)
-19. [License](#license)
+15. [Module 4 — Production Planning & Scheduling](#module-4--production-planning--scheduling)
+16. [UI / Theme Customization](#ui--theme-customization)
+17. [Management Commands](#management-commands)
+18. [Payment Gateway Integration](#payment-gateway-integration)
+19. [Security Notes](#security-notes)
+20. [Roadmap](#roadmap)
+21. [Troubleshooting](#troubleshooting)
+22. [License](#license)
 
 ---
 
@@ -40,6 +41,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 1 in full** — tenant onboarding wizard, plans & subscriptions, invoices & payments (mock gateway), custom branding, email templates, tenant audit log, and health monitoring with charts.
 - **Module 2 — Product Lifecycle Management (PLM)** — product master data with revisions, specs and variants; engineering change orders with submit/approve/reject/implement workflow; CAD/drawing repository with version control; product compliance tracking against global regulatory standards (ISO, RoHS, REACH, CE, UL, FCC, IPC); NPI/Stage-Gate project management with 7-stage gate reviews and deliverables.
 - **Module 3 — Bill of Materials (BOM) Management** — multi-level BOMs with self-referencing tree and phantom assemblies; transparent recursive explosion; immutable revision snapshots with one-click rollback; alternate / substitute material catalog with approval workflow; per-component cost elements (material / labor / overhead / tooling) with cascading roll-up through default released sub-assembly BOMs; EBOM / MBOM / SBOM discriminator with sync mappings and automated drift detection.
+- **Module 4 — Production Planning & Scheduling** — Master Production Schedule with horizon + time-bucket planning and draft → released workflow; demand forecasts (manual / sales-order / historical); work centers, working calendars, and recomputable capacity load with bottleneck flagging; routings with sequenced operations; production orders with forward / backward / infinite scheduling laid down on the calendar by a pure-function scheduler service; ApexCharts Gantt of scheduled operations; what-if scenario simulator that never mutates the base MPS; deterministic greedy optimizer with weighted objectives (changeovers / idle / lateness / priority) and before/after KPI deltas.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -117,6 +119,34 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/bom/sync/` | EBOM / MBOM / SBOM sync map list filterable by sync status |
 | `/bom/sync/<pk>/` | Sync map detail with append-only sync log |
 | `/bom/sync/<pk>/run/` | POST — run drift detection between source and target BOM |
+| `/pps/` | PPS dashboard — open MPS, planned/released/in-progress orders, bottleneck count, last optimization gain, recent orders + recent MPS |
+| `/pps/forecasts/` | Demand forecast list with source / product filters; create, edit, delete |
+| `/pps/forecasts/<pk>/` | Forecast detail |
+| `/pps/mps/` | Master Production Schedule list with status / time-bucket filters |
+| `/pps/mps/<pk>/` | MPS detail with line CRUD inline + Submit / Approve / Release / Obsolete workflow buttons |
+| `/pps/mps/<pk>/submit/` · `/approve/` · `/release/` · `/obsolete/` | POST — MPS workflow transitions |
+| `/pps/mps/<id>/lines/new/` | POST — add an MPS line |
+| `/pps/mps/lines/<pk>/edit/` · `/delete/` | MPS line CRUD |
+| `/pps/work-centers/` | Work center list with type / active filters |
+| `/pps/work-centers/<pk>/` | Work center detail with working calendar + recent capacity load |
+| `/pps/calendars/` | Capacity calendar entries (per shift per weekday per work center) |
+| `/pps/capacity/` | Capacity load dashboard — ApexCharts column chart of utilization with 95% bottleneck threshold annotation |
+| `/pps/capacity/recompute/` | POST — recompute capacity load for the next 14 days |
+| `/pps/routings/` | Routing list with status / product filters |
+| `/pps/routings/<pk>/` | Routing detail with sequenced operation CRUD inline |
+| `/pps/routings/<id>/operations/new/` · `/operations/<pk>/edit/` · `/delete/` | Routing operation CRUD |
+| `/pps/orders/` | Production order list with status / priority / method / product filters |
+| `/pps/orders/<pk>/` | Order detail with scheduled operations table + Release / Start / Complete / Cancel + Schedule (forward/backward/infinite) actions |
+| `/pps/orders/<pk>/release/` · `/start/` · `/complete/` · `/cancel/` | POST — production order workflow |
+| `/pps/orders/<pk>/schedule/` | POST — replace `ScheduledOperation` rows by laying routing operations onto work-center calendars |
+| `/pps/orders/gantt/` | ApexCharts `rangeBar` Gantt of scheduled operations grouped by work center |
+| `/pps/scenarios/` | What-if scenario list with status filter |
+| `/pps/scenarios/<pk>/` | Scenario detail with change CRUD + Run / Apply / Discard actions and KPI result panel |
+| `/pps/scenarios/<pk>/run/` · `/apply/` · `/discard/` | POST — scenario workflow (simulator never mutates the base MPS) |
+| `/pps/optimizer/objectives/` | Weighted optimization objective catalog |
+| `/pps/optimizer/runs/` | Optimization run list |
+| `/pps/optimizer/runs/<pk>/` | Run detail with before/after changeovers / lateness / minutes and improvement % |
+| `/pps/optimizer/runs/<pk>/start/` · `/apply/` | POST — start the greedy heuristic / mark result as applied |
 
 ---
 
@@ -188,21 +218,45 @@ NavMSM/
 │   │   └── management/commands/
 │   │       └── seed_plm.py       # Idempotent demo data per tenant
 │   │
-│   └── bom/                      # MODULE 3 — Bill of Materials Management
-│       ├── models.py             # BillOfMaterials, BOMLine (self-FK tree, phantom flag),
-│       │                         # BOMRevision (JSON snapshot), AlternateMaterial,
-│       │                         # SubstitutionRule, CostElement, BOMCostRollup,
-│       │                         # BOMSyncMap, BOMSyncLog
-│       ├── signals.py            # Audit-log receivers on BOM status + alternate approval;
-│       │                         # BOMLine save/delete invalidates the parent BOM rollup
-│       ├── forms.py              # ModelForms with cross-component validation
-│       ├── views.py              # Full CRUD + workflow (submit/approve/release/obsolete),
-│       │                         # BOMExplodeView, BOMRecomputeRollupView, BOMRollbackView,
-│       │                         # AlternateApproveView/RejectView, BOMSyncRunView
+│   ├── bom/                      # MODULE 3 — Bill of Materials Management
+│   │   ├── models.py             # BillOfMaterials, BOMLine (self-FK tree, phantom flag),
+│   │   │                         # BOMRevision (JSON snapshot), AlternateMaterial,
+│   │   │                         # SubstitutionRule, CostElement, BOMCostRollup,
+│   │   │                         # BOMSyncMap, BOMSyncLog
+│   │   ├── signals.py            # Audit-log receivers on BOM status + alternate approval;
+│   │   │                         # BOMLine save/delete invalidates the parent BOM rollup
+│   │   ├── forms.py              # ModelForms with cross-component validation
+│   │   ├── views.py              # Full CRUD + workflow (submit/approve/release/obsolete),
+│   │   │                         # BOMExplodeView, BOMRecomputeRollupView, BOMRollbackView,
+│   │   │                         # AlternateApproveView/RejectView, BOMSyncRunView
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_bom.py       # Idempotent demo data per tenant (BOMs + costs + alternates + sync)
+│   │
+│   └── pps/                      # MODULE 4 — Production Planning & Scheduling
+│       ├── models.py             # DemandForecast, MasterProductionSchedule, MPSLine,
+│       │                         # WorkCenter, CapacityCalendar, CapacityLoad,
+│       │                         # Routing, RoutingOperation, ProductionOrder,
+│       │                         # ScheduledOperation, Scenario, ScenarioChange,
+│       │                         # ScenarioResult, OptimizationObjective,
+│       │                         # OptimizationRun, OptimizationResult
+│       ├── services/
+│       │   ├── scheduler.py      # Pure-function forward/backward/infinite scheduler
+│       │   │                     # + per-day load summary; no ORM imports at module level
+│       │   ├── simulator.py      # apply_scenario(scenario) — never mutates real data
+│       │   └── optimizer.py      # Greedy priority-then-product-grouping heuristic (v1)
+│       ├── signals.py            # Audit-log receivers on MPS / ProductionOrder /
+│       │                         # Scenario / OptimizationRun status; ScheduledOperation
+│       │                         # save/delete invalidates the relevant CapacityLoad
+│       ├── forms.py              # ModelForms with cross-field validation
+│       ├── views.py              # Full CRUD + workflow + Gantt + capacity dashboard
+│       │                         # + ScenarioRunView, OptimizationStartView
 │       ├── urls.py
 │       ├── admin.py
 │       └── management/commands/
-│           └── seed_bom.py       # Idempotent demo data per tenant (BOMs + costs + alternates + sync)
+│           └── seed_pps.py       # Idempotent demo data per tenant (work centers,
+│                                 # MPS, routings, orders, scenario, optimizer run)
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -212,7 +266,8 @@ NavMSM/
 │   ├── accounts/                 # user list/form/detail, profile, invite list/form
 │   ├── tenants/                  # onboarding_wizard, plans, subscription, invoices, branding, health, audit, email_templates
 │   ├── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
-│   └── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
+│   ├── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
+│   └── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -351,6 +406,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 1)** — 1 tenant admin + 4 staff users, 2 pending invites, 1 subscription, 3–6 invoices (mix of paid/open), 30 days of health snapshots, audit log entries, default branding, and 5 default email templates.
 - **Per tenant (Module 2 — PLM)** — 8 categories (4 root + 4 child), 20 products spanning all product types with revisions A & B + specs + variants on finished goods, 5 ECOs in mixed statuses (draft / submitted / approved / implemented), 8 CAD documents, 16 compliance records linked to global standards, 3 NPI projects with all 7 stages and 1–3 deliverables per stage. CAD documents are seeded *without* binary files — upload real CAD files via the UI.
 - **Per tenant (Module 3 — BOM)** — 5 BOMs (mix of EBOM / MBOM / SBOM) attached to seeded finished-good products with 1 phantom assembly across the set, 27 cost elements covering material / labor / overhead / tooling, 6 alternate materials (mix of approved / pending), 2 substitution rules, an initial release-time `BOMRevision` snapshot per released BOM, an initial cost roll-up per BOM, and 2 `BOMSyncMap` entries — one in sync, one with seeded drift between EBOM and MBOM.
+- **Per tenant (Module 4 — PPS)** — 4 work centers (machine / labor / cell / assembly_line) each with Mon–Fri 08:00–17:00 calendars, 5 routings (one per seeded finished-good) with 2–4 sequenced operations, 8 demand forecasts spanning 2 weeks across 4 products, 1 released `MasterProductionSchedule` covering 4 weeks with 8 lines, 6 production orders in mixed statuses (planned / released / in_progress / completed) — released and in-progress orders carry full `ScheduledOperation` chains laid down by the forward scheduler — 56 daily `CapacityLoad` snapshots, 1 completed What-If scenario with 2 changes + KPI result, 1 default `OptimizationObjective`, and 1 completed `OptimizationRun` with before/after result.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -589,6 +645,72 @@ All workflow transitions use a conditional `UPDATE … WHERE status IN (…)` so
 
 ---
 
+## Module 4 — Production Planning & Scheduling
+
+Module 4 is implemented in [`apps/pps/`](apps/pps/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (scheduling, simulation, optimization) lives behind small pure-function services in [`apps/pps/services/`](apps/pps/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 4.1 — Master Production Schedule (MPS)
+
+- **`DemandForecast`** — per-product per-period forecast quantity with `source` (`manual` / `sales_order` / `historical`), confidence percentage, and free-text notes.
+- **`MasterProductionSchedule`** — auto-numbered `MPS-00001` per tenant; `horizon_start` / `horizon_end` plus `time_bucket` (`day` / `week` / `month`); workflow `draft → under_review → approved → released → obsolete`. Released MPS records auto-stamp `approved_by` / `approved_at` / `released_at`.
+- **`MPSLine`** — one product/period row per MPS with `forecast_qty`, `firm_planned_qty`, `scheduled_qty`, and `available_to_promise`. Unique per `(mps, product, period_start)`.
+
+Workflow buttons on the MPS detail page: **Submit for review**, **Approve**, **Release**, **Obsolete** — gated by current status, all using a conditional `UPDATE` for race safety.
+
+### Sub-module 4.2 — Capacity Planning
+
+- **`WorkCenter`** — `code` unique per tenant, `work_center_type` (`machine` / `labor` / `cell` / `assembly_line`), `capacity_per_hour`, `efficiency_pct`, `cost_per_hour`, `is_active`.
+- **`CapacityCalendar`** — one row per shift per weekday per work center (`shift_start`, `shift_end`, `is_working`). Drives available-minutes computation.
+- **`CapacityLoad`** — recomputable per-day snapshot of `planned_minutes` / `available_minutes` / `utilization_pct` / `is_bottleneck`. Bottleneck threshold is **95%** (rendered as a dashed `dc3545` annotation on the dashboard's ApexCharts column chart).
+- **Recompute view** at `/pps/capacity/recompute/` walks the next 14 days, sums `ScheduledOperation` minutes per work center per date, and updates / creates `CapacityLoad` rows. A `post_save` / `post_delete` signal on `ScheduledOperation` clears the affected `CapacityLoad.computed_at` so the UI shows the row as **stale** until recomputed.
+
+### Sub-module 4.3 — Finite & Infinite Scheduling
+
+- **`Routing`** — auto-numbered `ROUT-00001` per tenant; FK to a `plm.Product`; `is_default` flag and `status` (`draft` / `active` / `obsolete`). Unique per `(tenant, product, version)`.
+- **`RoutingOperation`** — sequenced operations with `setup_minutes`, `run_minutes_per_unit`, `queue_minutes`, `move_minutes`, and an FK to a `WorkCenter`.
+- **`ProductionOrder`** — auto-numbered `PO-00001`; FK to product, optional FK to a routing and a `bom.BillOfMaterials`; optional FK to an `MPSLine` so completion data feeds back to the MPS bucket; status workflow `planned → released → in_progress → completed` (plus `cancelled`); `priority` (`low` / `normal` / `high` / `rush`); `scheduling_method` (`forward` / `backward` / `infinite`).
+- **`ScheduledOperation`** — one row per laid-down routing operation with `planned_start` / `planned_end` / `planned_minutes` / `status`. Created and replaced atomically by the schedule action.
+- **Scheduler service** — [`apps/pps/services/scheduler.py`](apps/pps/services/scheduler.py) exposes `schedule_forward(start)`, `schedule_backward(end)`, `schedule_infinite(start)`, and `compute_load(scheduled, available)`. The functions are pure — they consume `OperationRequest` dataclasses and return `ScheduledSlot` lists, leaving persistence to the caller. Forward scheduling walks each work center's calendar shift-by-shift, respecting both the flow-cursor (previous op finished) and the per-work-center cursor (free-time). Backward scheduling reuses forward scheduling from a generous probe-start, then slides the entire block so the last operation ends at the target. Naive vs aware datetimes are normalized at function entry / exit.
+- **Gantt view** at `/pps/orders/gantt/` renders an ApexCharts `rangeBar` of all `ScheduledOperation` rows in the selected window (default 14 days), grouped by work center, filterable by work center.
+
+### Sub-module 4.4 — What-If Simulation
+
+- **`Scenario`** — clones from a `base_mps`; status workflow `draft → running → completed → applied / discarded`. The Apply action records intent only — it never mutates the base MPS, so simulations stay completely safe.
+- **`ScenarioChange`** — one entry per modeled change: `add_order` / `remove_order` / `change_qty` / `change_date` / `change_priority` / `shift_resource`. Carries a `target_ref` (e.g. `mps_line:42`) and a free-form JSON `payload`.
+- **`ScenarioResult`** — KPI snapshot (`on_time_pct`, `total_load_minutes`, `total_idle_minutes`, `bottleneck_count`) plus a `summary_json` with line counts and rush count. Computed by [`services/simulator.py`](apps/pps/services/simulator.py)'s `apply_scenario(scenario)` — projects MPSLines into mutable dicts, walks the changes in sequence, never touches the database.
+
+### Sub-module 4.5 — Advanced Planning & Optimization (APO)
+
+- **`OptimizationObjective`** — weighted goal definition with `weight_changeovers`, `weight_idle`, `weight_lateness`, `weight_priority` plus an `is_default` flag. Form-level validation enforces at least one weight > 0.
+- **`OptimizationRun`** — a single execution against an MPS; status `queued → running → completed / failed`; captures `started_at`, `finished_at`, `started_by`, `error_message`.
+- **`OptimizationResult`** — before / after `total_minutes`, `changeovers`, `lateness` plus `improvement_pct` and a `suggestion_json` with the proposed order sequence.
+- **Optimizer** — [`apps/pps/services/optimizer.py`](apps/pps/services/optimizer.py) runs a deterministic greedy heuristic for v1 (priority-bucket sort, then group-by-product within bucket to minimize changeovers, secondary key by `requested_end` for lateness). Real ML/AI optimization is intentionally deferred to a follow-up phase — same way the payment gateway is mock-only today; the data model and UI are forward-compatible, so a different ranker can drop in.
+
+### Audit signals
+
+[`apps/pps/signals.py`](apps/pps/signals.py) wires:
+
+- `pre_save` + `post_save` on `MasterProductionSchedule` → `apps.tenants.TenantAuditLog` entries on every status transition (`mps.created`, `mps.status.<new>` with `meta={'from': old, 'to': new}`).
+- `pre_save` + `post_save` on `ProductionOrder` → audit entries on creation and on every status transition.
+- `post_save` on `Scenario` → audit entries when the scenario is `applied` / `discarded` / `completed`.
+- `post_save` on `OptimizationRun` → audit entries on every status change (queued / running / completed / failed).
+- `post_save` / `post_delete` on `ScheduledOperation` → invalidates the matching `CapacityLoad.computed_at` so the dashboard surfaces the row as stale until recomputed.
+
+### Workflow buttons (production order detail page)
+
+| From | Action button | To |
+|---|---|---|
+| `planned` | Edit / Delete | (mutating) |
+| `planned` | Release | `released` |
+| `planned` | Schedule (forward / backward / infinite) | (replaces `ScheduledOperation` rows) |
+| `released` | Start | `in_progress` (stamps `actual_start`) |
+| `in_progress` | Complete | `completed` (stamps `actual_end`) |
+| any non-terminal | Cancel | `cancelled` |
+
+All workflow transitions use the same conditional `UPDATE … WHERE status IN (…)` pattern as Module 3 so two operators racing on the floor cannot double-action.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -618,7 +740,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_tenants [--flush]` | Seed 3 demo tenants with users, invoices, health snapshots |
 | `python manage.py seed_plm [--flush]` | Seed PLM demo data (categories, products, ECOs, CAD, compliance, NPI) per tenant |
 | `python manage.py seed_bom [--flush]` | Seed BOM demo data (BOMs, lines, alternates, substitution rules, cost elements, sync maps) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` |
+| `python manage.py seed_pps [--flush]` | Seed PPS demo data (work centers, calendars, routings, MPS, production orders + scheduled operations, capacity load, scenario, optimizer run) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -667,11 +790,11 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), and **Module 3** (Bill of Materials). The 19 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), and **Module 4** (Production Planning & Scheduling). The 18 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
-4. Production Planning & Scheduling
+4. ~~Production Planning & Scheduling~~ ✅ shipped
 5. Material Requirements Planning (MRP)
 6. Shop Floor Control (MES)
 7. Quality Management (QMS)
