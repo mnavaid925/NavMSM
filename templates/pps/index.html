@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Production Planning Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Production Planning &amp; Scheduling</h4>
+        <div class="text-muted small">Module 4 — MPS, capacity, scheduling, simulation, and APO.</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:mps_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New MPS</a>
+        <a href="{% url 'pps:order_create' %}" class="btn btn-outline-primary"><i class="ri-add-line me-1"></i> New Order</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-primary-subtle rounded p-2 me-3"><i class="ri-calendar-2-line text-primary fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Open MPS</div>
+                    <h4 class="mb-0">{{ mps_open|intcomma }}</h4>
+                </div>
+            </div>
+            <a href="{% url 'pps:mps_list' %}" class="btn btn-sm btn-link p-0 mt-2">View all <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-warning-subtle rounded p-2 me-3"><i class="ri-list-check-3 text-warning fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Production Orders</div>
+                    <h4 class="mb-0">{{ orders_planned|add:orders_released|add:orders_in_progress|intcomma }}</h4>
+                    <div class="text-muted small">{{ orders_planned }} planned · {{ orders_released }} released · {{ orders_in_progress }} running</div>
+                </div>
+            </div>
+            <a href="{% url 'pps:order_list' %}" class="btn btn-sm btn-link p-0 mt-2">Manage orders <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-danger-subtle rounded p-2 me-3"><i class="ri-error-warning-line text-danger fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Bottlenecks (14d)</div>
+                    <h4 class="mb-0">{{ bottleneck_count|intcomma }}</h4>
+                    <div class="text-muted small">{{ work_centers }} active work centers</div>
+                </div>
+            </div>
+            <a href="{% url 'pps:capacity_dashboard' %}" class="btn btn-sm btn-link p-0 mt-2">Capacity load <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-magic-line text-success fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Last Optimization</div>
+                    <h4 class="mb-0">{% if last_optimization_gain is not None %}{{ last_optimization_gain }}%{% else %}—{% endif %}</h4>
+                    <div class="text-muted small">projected gain</div>
+                </div>
+            </div>
+            <a href="{% url 'pps:run_list' %}" class="btn btn-sm btn-link p-0 mt-2">Optimizer <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-list-check-3 me-1"></i> Recent Production Orders</h5>
+                <a href="{% url 'pps:order_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> New Order</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Product</th><th>Qty</th><th>Priority</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for o in recent_orders %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'pps:order_detail' o.pk %}">{{ o.order_number }}</a></td>
+                            <td class="small">{{ o.product.sku }}</td>
+                            <td class="small">{{ o.quantity }}</td>
+                            <td>
+                                {% if o.priority == 'rush' %}<span class="badge bg-danger text-white">Rush</span>
+                                {% elif o.priority == 'high' %}<span class="badge bg-warning-subtle text-warning">High</span>
+                                {% elif o.priority == 'low' %}<span class="badge bg-secondary-subtle text-secondary">Low</span>
+                                {% else %}<span class="badge bg-info-subtle text-info">Normal</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if o.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                                {% elif o.status == 'in_progress' %}<span class="badge bg-warning text-dark">In Progress</span>
+                                {% elif o.status == 'released' %}<span class="badge bg-info-subtle text-info">Released</span>
+                                {% elif o.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Planned</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No production orders yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-calendar-2-line me-1"></i> Recent MPS</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Horizon</th><th>Bucket</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for m in recent_mps %}
+                        <tr>
+                            <td class="small"><a href="{% url 'pps:mps_detail' m.pk %}">{{ m.mps_number }}</a></td>
+                            <td class="small">{{ m.horizon_start|date:"M j" }} → {{ m.horizon_end|date:"M j" }}</td>
+                            <td class="small">{{ m.get_time_bucket_display }}</td>
+                            <td>
+                                {% if m.status == 'released' %}<span class="badge bg-success text-white">Released</span>
+                                {% elif m.status == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>
+                                {% elif m.status == 'under_review' %}<span class="badge bg-warning-subtle text-warning">Review</span>
+                                {% elif m.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary">Obsolete</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No MPS yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
