@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management** and **Module 2 — Product Lifecycle Management (PLM)**. The remaining 20 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, and **Module 3 — Bill of Materials (BOM) Management**. The remaining 19 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -21,7 +21,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 11. [Authentication & User Management](#authentication--user-management)
 12. [Module 1 — Tenant & Subscription Management](#module-1--tenant--subscription-management)
 13. [Module 2 — Product Lifecycle Management (PLM)](#module-2--product-lifecycle-management-plm)
-14. [UI / Theme Customization](#ui--theme-customization)
+14. [Module 3 — Bill of Materials (BOM) Management](#module-3--bill-of-materials-bom-management)
+15. [UI / Theme Customization](#ui--theme-customization)
 14. [Management Commands](#management-commands)
 15. [Payment Gateway Integration](#payment-gateway-integration)
 16. [Security Notes](#security-notes)
@@ -38,6 +39,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Complete user management** — list with search/filter, create, edit, detail, delete, toggle-active; per-user profile with UI theme preferences.
 - **Module 1 in full** — tenant onboarding wizard, plans & subscriptions, invoices & payments (mock gateway), custom branding, email templates, tenant audit log, and health monitoring with charts.
 - **Module 2 — Product Lifecycle Management (PLM)** — product master data with revisions, specs and variants; engineering change orders with submit/approve/reject/implement workflow; CAD/drawing repository with version control; product compliance tracking against global regulatory standards (ISO, RoHS, REACH, CE, UL, FCC, IPC); NPI/Stage-Gate project management with 7-stage gate reviews and deliverables.
+- **Module 3 — Bill of Materials (BOM) Management** — multi-level BOMs with self-referencing tree and phantom assemblies; transparent recursive explosion; immutable revision snapshots with one-click rollback; alternate / substitute material catalog with approval workflow; per-component cost elements (material / labor / overhead / tooling) with cascading roll-up through default released sub-assembly BOMs; EBOM / MBOM / SBOM discriminator with sync mappings and automated drift detection.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -97,6 +99,24 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/plm/cad/versions/<pk>/download/` | Auth-gated download for a CAD version file (404 cross-tenant; 302 → login if anonymous) |
 | `/plm/eco/attachments/<pk>/download/` | Auth-gated download for an ECO attachment |
 | `/plm/compliance/<pk>/certificate/` | Auth-gated download for a compliance certificate file |
+| `/bom/` | BOM dashboard — total / draft / released BOMs, pending alternates, drift watch, recent BOMs |
+| `/bom/boms/` | BOM list with status / type / product filters; create, edit, delete |
+| `/bom/boms/<pk>/` | BOM detail with tabs for Lines, Revisions, Sync; Cost Roll-Up sidebar with Recompute action |
+| `/bom/boms/<pk>/explode/` | Indented multi-level BOM explosion (phantom assemblies collapsed) |
+| `/bom/boms/<pk>/submit/` | POST — Draft → Under Review |
+| `/bom/boms/<pk>/approve/` | POST — Under Review → Approved |
+| `/bom/boms/<pk>/release/` | POST — Approved → Released (supersedes prior released BOM, captures snapshot) |
+| `/bom/boms/<pk>/recompute/` | POST — recompute the cost roll-up |
+| `/bom/lines/<pk>/edit/` | Edit a BOM line (parent / phantom / scrap %) |
+| `/bom/revisions/<pk>/` | Revision snapshot detail with rollback action |
+| `/bom/revisions/<pk>/rollback/` | POST — rollback BOM to this snapshot (creates a new revision entry) |
+| `/bom/lines/<line_id>/alternates/new/` | Add an alternate / substitute for a BOM line |
+| `/bom/alternates/<pk>/approve/` | POST — approve an alternate |
+| `/bom/rules/` | Substitution rule catalog (tenant-level reusable equivalences) |
+| `/bom/costs/` | Per-component cost element list (material / labor / overhead / tooling) |
+| `/bom/sync/` | EBOM / MBOM / SBOM sync map list filterable by sync status |
+| `/bom/sync/<pk>/` | Sync map detail with append-only sync log |
+| `/bom/sync/<pk>/run/` | POST — run drift detection between source and target BOM |
 
 ---
 
@@ -154,19 +174,35 @@ NavMSM/
 │   │       ├── seed_plans.py
 │   │       └── seed_tenants.py
 │   │
-│   └── plm/                      # MODULE 2 — Product Lifecycle Management
-│       ├── models.py             # ProductCategory, Product, ProductRevision, ProductSpecification,
-│       │                         # ProductVariant, EngineeringChangeOrder, ECOImpactedItem,
-│       │                         # ECOApproval, ECOAttachment, CADDocument, CADDocumentVersion,
-│       │                         # ComplianceStandard (shared catalog), ProductCompliance,
-│       │                         # ComplianceAuditLog, NPIProject, NPIStage, NPIDeliverable
-│       ├── signals.py            # Audit-log receivers on ECO + ProductCompliance status changes
-│       ├── forms.py              # ModelForms with file-extension allowlists + 25 MB cap
-│       ├── views.py              # Full CRUD for all 5 sub-modules + workflow actions
+│   ├── plm/                      # MODULE 2 — Product Lifecycle Management
+│   │   ├── models.py             # ProductCategory, Product, ProductRevision, ProductSpecification,
+│   │   │                         # ProductVariant, EngineeringChangeOrder, ECOImpactedItem,
+│   │   │                         # ECOApproval, ECOAttachment, CADDocument, CADDocumentVersion,
+│   │   │                         # ComplianceStandard (shared catalog), ProductCompliance,
+│   │   │                         # ComplianceAuditLog, NPIProject, NPIStage, NPIDeliverable
+│   │   ├── signals.py            # Audit-log receivers on ECO + ProductCompliance status changes
+│   │   ├── forms.py              # ModelForms with file-extension allowlists + 25 MB cap
+│   │   ├── views.py              # Full CRUD for all 5 sub-modules + workflow actions
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_plm.py       # Idempotent demo data per tenant
+│   │
+│   └── bom/                      # MODULE 3 — Bill of Materials Management
+│       ├── models.py             # BillOfMaterials, BOMLine (self-FK tree, phantom flag),
+│       │                         # BOMRevision (JSON snapshot), AlternateMaterial,
+│       │                         # SubstitutionRule, CostElement, BOMCostRollup,
+│       │                         # BOMSyncMap, BOMSyncLog
+│       ├── signals.py            # Audit-log receivers on BOM status + alternate approval;
+│       │                         # BOMLine save/delete invalidates the parent BOM rollup
+│       ├── forms.py              # ModelForms with cross-component validation
+│       ├── views.py              # Full CRUD + workflow (submit/approve/release/obsolete),
+│       │                         # BOMExplodeView, BOMRecomputeRollupView, BOMRollbackView,
+│       │                         # AlternateApproveView/RejectView, BOMSyncRunView
 │       ├── urls.py
 │       ├── admin.py
 │       └── management/commands/
-│           └── seed_plm.py       # Idempotent demo data per tenant
+│           └── seed_bom.py       # Idempotent demo data per tenant (BOMs + costs + alternates + sync)
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -175,7 +211,8 @@ NavMSM/
 │   ├── dashboard/index.html
 │   ├── accounts/                 # user list/form/detail, profile, invite list/form
 │   ├── tenants/                  # onboarding_wizard, plans, subscription, invoices, branding, health, audit, email_templates
-│   └── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
+│   ├── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
+│   └── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -313,6 +350,7 @@ Running `python manage.py seed_data` creates:
 - **3 demo tenants** — Acme Manufacturing, Globex Industries, Stark Production Co.
 - **Per tenant (Module 1)** — 1 tenant admin + 4 staff users, 2 pending invites, 1 subscription, 3–6 invoices (mix of paid/open), 30 days of health snapshots, audit log entries, default branding, and 5 default email templates.
 - **Per tenant (Module 2 — PLM)** — 8 categories (4 root + 4 child), 20 products spanning all product types with revisions A & B + specs + variants on finished goods, 5 ECOs in mixed statuses (draft / submitted / approved / implemented), 8 CAD documents, 16 compliance records linked to global standards, 3 NPI projects with all 7 stages and 1–3 deliverables per stage. CAD documents are seeded *without* binary files — upload real CAD files via the UI.
+- **Per tenant (Module 3 — BOM)** — 5 BOMs (mix of EBOM / MBOM / SBOM) attached to seeded finished-good products with 1 phantom assembly across the set, 27 cost elements covering material / labor / overhead / tooling, 6 alternate materials (mix of approved / pending), 2 substitution rules, an initial release-time `BOMRevision` snapshot per released BOM, an initial cost roll-up per BOM, and 2 `BOMSyncMap` entries — one in sync, one with seeded drift between EBOM and MBOM.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -484,6 +522,65 @@ All uploads are capped at **25 MB**.
 
 ---
 
+## Module 3 — Bill of Materials (BOM) Management
+
+Module 3 is implemented in [`apps/bom/`](apps/bom/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` and every query is scoped via `request.tenant`. BOMs link to existing PLM `Product` records — the BOM module deliberately *reuses* the part master from PLM rather than maintaining a parallel one.
+
+### Sub-module 3.1 — Multi-Level BOM
+
+- **`BillOfMaterials`** — auto-numbered `BOM-00001` per tenant, FK to `plm.Product` (the parent assembly), `bom_type` discriminator (`ebom` / `mbom` / `sbom`), `version` + `revision`, `status` workflow (`draft → under_review → approved → released → obsolete`), `is_default` flag, effective-date window, `created_by` / `approved_by` / `released_at` audit stamps. Unique per `(tenant, product, bom_type, version, revision)`.
+- **`BOMLine`** — one row per component with self-FK `parent_line` (enables multi-level trees), `sequence`, FK to component `Product`, `quantity`, `unit_of_measure`, `scrap_percent`, `is_phantom` flag, `reference_designator`, `notes`.
+- **Phantom assemblies** — when `is_phantom=True`, `BillOfMaterials.explode()` collapses the line transparently: the phantom itself is *not* yielded but its child components are emitted at the level the phantom would have occupied, with quantities multiplied through. This keeps phantoms out of MRP while preserving structural grouping in engineering data.
+- **Recursive explosion** — `BillOfMaterials.explode()` is a generator yielding `(level, line, expanded_qty)` tuples; each line's effective quantity is `quantity × (1 + scrap%/100) × parent_qty`. Used by the `/bom/boms/<pk>/explode/` view.
+
+### Sub-module 3.2 — BOM Versioning & Revision
+
+- **`BOMRevision`** — immutable JSON snapshot of the full BOM tree taken at any point. Fields: `version`, `revision`, `revision_type` (`major` / `minor` / `engineering` / `rollback`), `change_summary`, `effective_from`, `snapshot_json`, `changed_by`. Every release auto-captures one of these.
+- **Rollback** — `BOMRollbackView` reads `snapshot_json` and rebuilds the line tree (matching components by SKU); a new `revision_type='rollback'` entry is logged so the audit trail shows what happened. Only available while the BOM is `draft` or `under_review`.
+
+### Sub-module 3.3 — Alternative & Substitute Materials
+
+- **`AlternateMaterial`** — per-line alternates with `priority` (1 = preferred), `substitution_type` (`direct` / `approved` / `emergency` / `one_to_one` / `one_to_many`), `usage_rule` text, and an `approval_status` workflow (`pending` / `approved` / `rejected`) gated by `AlternateApproveView` / `AlternateRejectView`. Approval timestamps the actor.
+- **`SubstitutionRule`** — tenant-level reusable equivalence catalog (e.g. "any 10kΩ 1% resistor in 0805 package"). Includes `condition_text`, `requires_approval`, `is_active`. Validates that original and substitute components differ.
+
+### Sub-module 3.4 — BOM Cost Roll-Up
+
+- **`CostElement`** — current cost per part per `cost_type` (`material` / `labor` / `overhead` / `tooling` / `other`) with `unit_cost`, `currency` (defaults `USD`), `effective_date`, `source` (`manual` / `vendor` / `computed`). Unique per `(tenant, product, cost_type)`.
+- **`BOMCostRollup`** — computed snapshot per BOM with five cost buckets and a total. Recomputed on demand via `BOMRecomputeRollupView`. The detail page shows it as **stale** (`computed_at IS NULL`) when any line is added / edited / deleted — a `post_save` / `post_delete` signal on `BOMLine` invalidates the rollup so the user knows to recompute.
+- **Sub-assembly cost cascade** — when a component has no direct `CostElement`, the rollup falls back to the unit total of the component's *default released* BOM (`is_default=True, status='released'`). This is the safe, predictable choice — explicit costs always win, and fallback only walks one level down per call (no runaway recursion).
+
+### Sub-module 3.5 — EBOM / MBOM / SBOM Synchronization
+
+- The `BillOfMaterials.bom_type` field discriminates the three views. A single Product can have one EBOM, one MBOM, and one SBOM (each with its own version line).
+- **`BOMSyncMap`** — links a source BOM to a target BOM (typically EBOM → MBOM, or MBOM → SBOM). Validates that source and target have *different* `bom_type` values. Carries `sync_status` (`pending` / `in_sync` / `drift_detected` / `manual_override`), `last_synced_at`, `synced_by`, and a free-text `drift_summary`.
+- **`BOMSyncLog`** — append-only event log, one row per sync run, with `before_json` / `after_json`, `actor`, and `notes`.
+- **Drift detection** — `BOMSyncRunView` flattens both BOMs to `{component_sku → quantity}` dicts and reports: components only in source, only in target, and components present in both with different quantities. If the dicts match, the map flips to `in_sync`; otherwise to `drift_detected`. Either outcome is logged.
+
+### Audit signals
+
+[`apps/bom/signals.py`](apps/bom/signals.py) wires:
+
+- `pre_save` + `post_save` on `BillOfMaterials` → writes `apps.tenants.TenantAuditLog` entries on every status transition (`bom.created`, `bom.status.<new>` with `meta={'from': old, 'to': new}`).
+- `post_save` on `AlternateMaterial` → writes audit entries when approval status changes.
+- `post_save` / `post_delete` on `BOMLine` → invalidates the parent BOM's `BOMCostRollup.computed_at` so the UI shows the rollup as stale until recomputed.
+
+### Workflow buttons (BOM detail page)
+
+| From | Action button | To |
+|---|---|---|
+| `draft` | Submit for review | `under_review` |
+| `draft` | Edit / Delete | (mutating) |
+| `under_review` | Approve | `approved` |
+| `under_review` | Reject | `draft` |
+| `under_review` | Edit | (mutating) |
+| `approved` | Release | `released` (and a `BOMRevision` snapshot is captured; any prior released BOM with the same product+bom_type is auto-marked `obsolete`) |
+| `approved` | Obsolete | `obsolete` |
+| `released` | Obsolete | `obsolete` |
+
+All workflow transitions use a conditional `UPDATE … WHERE status IN (…)` so two reviewers racing each other can't double-action — only one wins.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -512,7 +609,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_plans` | Seed/update the 4 default plans |
 | `python manage.py seed_tenants [--flush]` | Seed 3 demo tenants with users, invoices, health snapshots |
 | `python manage.py seed_plm [--flush]` | Seed PLM demo data (categories, products, ECOs, CAD, compliance, NPI) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` |
+| `python manage.py seed_bom [--flush]` | Seed BOM demo data (BOMs, lines, alternates, substitution rules, cost elements, sync maps) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -561,10 +659,10 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription) and **Module 2** (Product Lifecycle Management). The 20 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), and **Module 3** (Bill of Materials). The 19 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
-3. Bill of Materials (BOM)
+3. ~~Bill of Materials (BOM)~~ ✅ shipped
 4. Production Planning & Scheduling
 5. Material Requirements Planning (MRP)
 6. Shop Floor Control (MES)
