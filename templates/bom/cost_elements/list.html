@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Cost Elements{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Cost Elements</h4>
+        <div class="text-muted small">Per-component unit costs by type — feeds the BOM cost roll-up.</div>
+    </div>
+    <a href="{% url 'bom:cost_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Cost</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search SKU or name..."></div>
+            <div class="col-md-3">
+                <select name="cost_type" class="form-select">
+                    <option value="">Any cost type</option>
+                    {% for val, label in cost_type_choices %}<option value="{{ val }}" {% if request.GET.cost_type == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="source" class="form-select">
+                    <option value="">Any source</option>
+                    {% for val, label in source_choices %}<option value="{{ val }}" {% if request.GET.source == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Component</th><th>Cost Type</th><th>Unit Cost</th><th>Currency</th><th>Effective</th><th>Source</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for c in cost_elements %}
+                <tr>
+                    <td class="fw-semibold">{{ c.product.sku }} <span class="small text-muted">{{ c.product.name|truncatechars:35 }}</span></td>
+                    <td><span class="badge bg-info-subtle text-info">{{ c.get_cost_type_display }}</span></td>
+                    <td>{{ c.unit_cost }}</td>
+                    <td class="small">{{ c.currency }}</td>
+                    <td class="small">{{ c.effective_date|date:"M j, Y" }}</td>
+                    <td class="small">{{ c.get_source_display }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'bom:cost_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'bom:cost_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete cost element?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No cost elements yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
