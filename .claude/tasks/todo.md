@@ -1,313 +1,239 @@
-# Plan — Module 2: Product Lifecycle Management (PLM)
+# Plan — Module 3: Bill of Materials (BOM) Management
 
 > Status: **COMPLETE — all 5 sub-modules implemented, migrated, seeded, and smoke-tested**
-> Created: 2026-04-25
-> Completed: 2026-04-25
-> Owner: Navaid
+> Created: 2026-04-26
+> Completed: 2026-04-26
 
-## Review (post-implementation)
+## Goal
+Build **Module 3 — Bill of Materials (BOM) Management** as a new Django app `apps/bom/`, mirroring the conventions established by `apps/plm/` (multi-tenant, full CRUD, signals, idempotent seeder, sidebar entry, README update).
 
-- 13 list/form pages render 200, 5 detail pages render 200, cross-tenant
-  isolation verified (globex returns 404 on acme's product).
-- `python manage.py makemigrations plm` → `0001_initial.py` clean.
-- `python manage.py migrate plm` → applied successfully.
-- `python manage.py seed_plm` → idempotent (second run skips per tenant).
-- `python manage.py seed_data` orchestrator now chains
-  `seed_plans → seed_tenants → seed_plm`.
-- Per tenant: 8 categories, 20 products (with revisions A & B), 5 ECOs in
-  mixed statuses, 8 CAD docs, 16 compliance records, 3 NPI projects each
-  with 7 stages and 1–3 deliverables per stage.
-- Global catalog: 8 ComplianceStandards (ISO 9001, ISO 14001, RoHS, REACH,
-  CE, UL, FCC, IPC).
-- Pagination warning on category list resolved with explicit
-  `.order_by('name')`.
-- ECO file allowlist enforced in form clean: `.pdf .dwg .dxf .step .stp
-  .iges .igs .png .jpg .jpeg .svg .zip .docx .xlsx .txt .csv`, max 25 MB.
-- CAD file allowlist: same minus office/text formats.
-- Compliance certificate allowlist: `.pdf .png .jpg .jpeg .zip`.
-- Audit-log signals wired: ECO status changes write `TenantAuditLog`
-  entries (`eco.status.<new>`); ProductCompliance status changes write
-  to both `TenantAuditLog` and a per-record `ComplianceAuditLog` trail.
-
-## Out of scope (deferred)
-
-- BOM linkage (Module 3), inventory (8), procurement (9), workflow engine
-  for ECO routing rules — all stubbed via `Product` FKs ready for use.
-- Real CAD viewer; CAD seed creates docs without binary files (real files
-  must be uploaded via the UI).
-
-
-This module follows the `apps/tenants/` blueprint exactly (TenantAwareModel,
-TenantRequiredMixin / TenantAdminRequiredMixin, full CRUD per CLAUDE.md,
-idempotent seeders, multi-tenant filtering on every queryset).
+## Sub-modules to Implement
+| # | Sub-Module | Core Capability |
+|---|---|---|
+| 3.1 | Multi-Level BOM | Parent-child hierarchy, phantom assemblies, recursive BOM explosion |
+| 3.2 | BOM Versioning & Revision | Effective-date management, revision history, rollback |
+| 3.3 | Alternative & Substitute Materials | Alternates / substitutes with rules + approval workflow |
+| 3.4 | BOM Cost Roll-Up | Material + labor + overhead aggregation per BOM level |
+| 3.5 | EBOM / MBOM / SBOM Synchronization | Engineering ↔ Manufacturing ↔ Service BOM alignment |
 
 ---
 
-## 1. App scaffolding
+## 1. Models — `apps/bom/models.py`
 
-- [ ] Create `apps/plm/` Django app with: `__init__.py`, `apps.py`, `models.py`,
-      `forms.py`, `views.py`, `urls.py`, `admin.py`, `signals.py`,
-      `migrations/__init__.py`, `management/__init__.py`,
-      `management/commands/__init__.py`, `management/commands/seed_plm.py`
-- [ ] Register `apps.plm` in `config/settings.py` `INSTALLED_APPS`
-- [ ] Mount `path('plm/', include('apps.plm.urls'))` in `config/urls.py`
-- [ ] Add a "Product Lifecycle (PLM)" collapsible group to
-      `templates/partials/sidebar.html` with sub-links for the 5 sub-modules
-- [ ] Create `templates/plm/` with sub-folders per sub-module
+All models inherit from `TenantAwareModel, TimeStampedModel`. Reuse `apps.plm.models.Product` as the part master.
 
----
+### 3.1 Multi-Level BOM
+- **`BillOfMaterials`** (header)
+  - `bom_number` (auto `BOM-00001` per tenant), `name`, `product` FK→`plm.Product` (parent assembly), `bom_type` (`ebom`/`mbom`/`sbom`), `version` (e.g. `A`), `revision` (e.g. `01`), `status` (`draft`/`under_review`/`approved`/`released`/`obsolete`), `effective_from`, `effective_to`, `is_default` flag, `description`, `created_by`, `approved_by`, `approved_at`
+  - Unique: `(tenant, product, bom_type, version, revision)`
+- **`BOMLine`** (component row)
+  - `bom` FK, `parent_line` FK→self (nullable, enables multi-level tree), `sequence` int, `component` FK→`plm.Product`, `quantity` decimal, `unit_of_measure`, `scrap_percent`, `is_phantom` bool (phantom assembly flag), `reference_designator`, `notes`, `position` int
 
-## 2. Sub-module 2.1 — Product Master Data
+### 3.2 Versioning & Revision
+- **`BOMRevision`** — immutable snapshot
+  - `bom` FK, `version`, `revision`, `change_summary`, `changed_by`, `effective_from`, `snapshot_json` (full BOM tree), `revision_type` (`major`/`minor`/`engineering`/`rollback`)
 
-**Models** (all `TenantAwareModel + TimeStampedModel` unless noted):
+### 3.3 Alternates & Substitutes
+- **`AlternateMaterial`**
+  - `bom_line` FK, `alternate_component` FK→`plm.Product`, `priority` int, `substitution_type` (`direct`/`approved`/`emergency`/`one_to_one`/`one_to_many`), `usage_rule` text, `approval_status` (`pending`/`approved`/`rejected`), `approved_by`, `approved_at`, `notes`
+  - Unique: `(bom_line, alternate_component)`
+- **`SubstitutionRule`** — reusable tenant-level rule
+  - `name`, `description`, `original_component` FK, `substitute_component` FK, `condition_text`, `requires_approval` bool, `is_active` bool
 
-- [ ] `ProductCategory` — `name`, `code`, `parent` (self-FK, nullable),
-      `description`, `is_active`. Unique `(tenant, code)`.
-- [ ] `Product` — `sku` (unique per tenant), `name`, `category` FK,
-      `product_type` choices (`raw_material`, `component`, `sub_assembly`,
-      `finished_good`, `service`), `unit_of_measure`, `description`,
-      `status` choices (`draft`, `active`, `obsolete`, `phased_out`),
-      `current_revision` FK to `ProductRevision` (nullable, related_name='+').
-- [ ] `ProductRevision` — `product` FK, `revision_code` (e.g. "A", "B"),
-      `effective_date`, `status` (`draft`, `active`, `superseded`),
-      `change_notes`. Unique `(product, revision_code)`.
-- [ ] `ProductSpecification` — `product` FK, `revision` FK (nullable),
-      `key`, `value`, `unit` (blank), `spec_type` (`physical`, `electrical`,
-      `mechanical`, `chemical`, `other`).
-- [ ] `ProductVariant` — `product` FK, `variant_sku` (unique per tenant),
-      `name`, `attributes` JSONField, `status` (`active`/`inactive`).
+### 3.4 Cost Roll-Up
+- **`CostElement`** — current cost per part per cost-type
+  - `product` FK→`plm.Product`, `cost_type` (`material`/`labor`/`overhead`/`tooling`/`other`), `unit_cost` decimal, `currency` (default `USD`), `effective_date`, `source` (`manual`/`vendor`/`computed`), `notes`
+  - Unique: `(tenant, product, cost_type)`
+- **`BOMCostRollup`** — computed snapshot
+  - `bom` OneToOne, `material_cost`, `labor_cost`, `overhead_cost`, `tooling_cost`, `other_cost`, `total_cost`, `currency`, `computed_at`, `computed_by`
 
-**Views (CRUD for each main model — Category, Product, Revision, Variant):**
+### 3.5 EBOM / MBOM / SBOM Sync
+- Same `BillOfMaterials` model with `bom_type` discriminator (mirrors how PLM treats variants).
+- **`BOMSyncMap`**
+  - `source_bom` FK, `target_bom` FK, `sync_status` (`pending`/`in_sync`/`drift_detected`/`manual_override`), `last_synced_at`, `synced_by`, `drift_summary` text
+  - Unique: `(source_bom, target_bom)`
+- **`BOMSyncLog`** — append-only sync events
+  - `sync_map` FK, `action` (`created`/`updated`/`drift`/`reconciled`), `before_json`, `after_json`, `actor`, `notes`, `timestamp`
 
-- [ ] `category_list_view` (search + active filter) / `_create_view` /
-      `_detail_view` / `_edit_view` / `_delete_view`
-- [ ] `product_list_view` (search by sku/name; filter by category, type, status)
-      + create/detail/edit/delete; on detail show specs + revisions + variants tabs
-- [ ] `revision_create_view` / `_edit_view` / `_delete_view` (nested under product)
-- [ ] `specification_create_view` / `_delete_view` (inline on product detail)
-- [ ] `variant_create_view` / `_edit_view` / `_delete_view`
+### Helper methods
+- `BillOfMaterials.explode(level=0)` — recursive generator; collapses `is_phantom=True` sub-assemblies
+- `BillOfMaterials.compute_rollup()` — fills `BOMCostRollup`, cascades through default released sub-assembly BOMs
+- `BillOfMaterials.snapshot()` — returns JSON for `BOMRevision.snapshot_json`
 
 ---
 
-## 3. Sub-module 2.2 — Engineering Change Orders (ECO)
+## 2. Forms — `apps/bom/forms.py`
+- `BillOfMaterialsForm`, `BOMLineForm`, `AlternateMaterialForm`, `SubstitutionRuleForm`, `CostElementForm`, `BOMRevisionForm`, `BOMSyncMapForm`
+- All `ModelForm` with crispy bootstrap5
+- Component dropdowns filtered to `Product.objects.filter(tenant=…, status='active')`
 
-**Models:**
+## 3. Views — `apps/bom/views.py`
+Full CRUD per the project's CRUD Completeness Rules (list / create / detail / edit / delete) for: `BillOfMaterials`, `BOMLine`, `AlternateMaterial`, `SubstitutionRule`, `CostElement`, `BOMSyncMap`.
 
-- [ ] `EngineeringChangeOrder` — `number` auto `ECO-00001` per tenant,
-      `title`, `description`, `change_type` (`design`, `specification`,
-      `material`, `process`, `documentation`),
-      `priority` (`low`, `medium`, `high`, `critical`),
-      `reason`, `requested_by` FK accounts.User,
-      `status` (`draft`, `submitted`, `under_review`, `approved`, `rejected`,
-      `implemented`, `cancelled`),
-      `target_implementation_date`, `approved_at`, `implemented_at`.
-- [ ] `ECOImpactedItem` — `eco` FK, `product` FK, `change_summary` (text),
-      `before_revision` FK ProductRevision (nullable), `after_revision` FK (nullable).
-- [ ] `ECOApproval` — `eco` FK, `approver` FK accounts.User,
-      `decision` (`pending`, `approved`, `rejected`), `comment`, `decided_at`.
-- [ ] `ECOAttachment` — `eco` FK, `title`, `file` (FileField, `upload_to='plm/eco/'`),
-      `uploaded_by` FK, `uploaded_at`.
+Workflow / action views:
+- `BOMSubmitView`, `BOMApproveView`, `BOMRejectView`, `BOMReleaseView`, `BOMObsoleteView`
+- `BOMRollbackView` (restore from `BOMRevision` snapshot)
+- `BOMRecomputeRollupView`
+- `BOMSyncView` (push EBOM → MBOM, MBOM → SBOM with drift detection)
+- `BOMExplodeView` (indented multi-level explosion)
+- `AlternateApproveView`, `AlternateRejectView`
 
-**Views (full CRUD on ECO; nested for impacted items / approvals / attachments):**
+Index view: `BOMIndexView` — KPI cards (total BOMs, draft, released, drift count) + recent BOMs.
 
-- [ ] `eco_list_view` (search by number/title; filter by status, priority, change_type)
-- [ ] `eco_create_view` / `_detail_view` (with impacted-items, approvals, attachments tabs)
-      / `_edit_view` (only if status=draft) / `_delete_view` (only if status=draft)
-- [ ] `eco_submit_view` (POST — draft → submitted)
-- [ ] `eco_approve_view` / `eco_reject_view` (POST — sets ECOApproval + flips status)
-- [ ] `eco_implement_view` (POST — approved → implemented; stamps `implemented_at`)
-- [ ] Impacted-item / approval / attachment add+delete views
+All views use `LoginRequiredMixin`, filter by `tenant=request.tenant`. Filter rules from CLAUDE.md applied (pass `status_choices`, FK querysets, etc).
 
-**Signals:**
+## 4. URLs — `apps/bom/urls.py`
+- App namespace `bom`; mounted at `/bom/` in `config/urls.py`.
 
-- [ ] `post_save` on `EngineeringChangeOrder` → write `TenantAuditLog` entry on
-      status changes (mirrors the tenants/signals.py pattern)
+## 5. Signals — `apps/bom/signals.py`
+- `pre_save` + `post_save` on `BillOfMaterials` → `TenantAuditLog` on status transitions
+- `post_save` on `AlternateMaterial` (approval change) → audit log
+- `post_save` on `BOMLine` → mark `BOMCostRollup.computed_at = None` ("stale")
 
----
+## 6. Admin — `apps/bom/admin.py`
+- Register all models with `list_display` / `list_filter` / `search_fields`.
 
-## 4. Sub-module 2.3 — CAD / Drawing Repository
+## 7. Templates — `templates/bom/`
+Following the PLM template structure exactly:
+- `index.html` — dashboard
+- `boms/list.html`, `form.html`, `detail.html` (tabs: Lines / Alternates / Cost Roll-Up / Revisions / Sync), `explode.html`
+- `lines/form.html`
+- `alternates/list.html`, `form.html`
+- `substitution_rules/list.html`, `form.html`
+- `cost_elements/list.html`, `form.html`
+- `sync_maps/list.html`, `form.html`, `detail.html`
 
-**Models:**
+Every list template carries Actions column (View / Edit / Delete with `confirm()`); every detail template carries Actions sidebar — per CRUD Completeness Rules.
 
-- [ ] `CADDocument` — `product` FK (nullable; some drawings are tooling/general),
-      `drawing_number` (unique per tenant), `title`,
-      `doc_type` (`2d_drawing`, `3d_model`, `schematic`, `pcb`, `assembly`, `other`),
-      `description`, `current_version` FK CADDocumentVersion (nullable, related_name='+'),
-      `is_active`.
-- [ ] `CADDocumentVersion` — `document` FK, `version` (e.g. "1.0", "1.1"),
-      `file` FileField (`upload_to='plm/cad/'`),
-      `change_notes`, `uploaded_by` FK accounts.User,
-      `status` (`draft`, `under_review`, `released`, `obsolete`),
-      `released_at`. Unique `(document, version)`.
+## 8. Seeder — `apps/bom/management/commands/seed_bom.py`
+Idempotent. Per tenant:
+- 5 BOMs (mix EBOM/MBOM/SBOM) on existing seeded `finished_good` / `sub_assembly` products
+- 12–20 BOMLines per BOM, including 1–2 phantom sub-assemblies
+- 3–5 alternates (mix approved / pending)
+- 2 substitution rules
+- `CostElement` rows for every seeded product
+- Initial `BOMCostRollup` via `compute_rollup()`
+- 2 `BOMSyncMap` rows (EBOM↔MBOM, MBOM↔SBOM); one marked `drift_detected`
+- Hook `seed_bom` into `apps/core/management/commands/seed_data.py`
 
-**Views:**
+## 9. Migrations
+- `python manage.py makemigrations bom`
+- `python manage.py migrate`
 
-- [ ] `cad_list_view` (search by drawing_number/title; filter by type, product, active)
-- [ ] `cad_create_view` / `_detail_view` (lists all versions, mark current,
-      download links) / `_edit_view` / `_delete_view`
-- [ ] `cad_version_upload_view` (POST upload new version; auto-bumps current)
-- [ ] `cad_version_release_view` (POST — flips draft → released, stamps `released_at`)
-- [ ] `cad_version_delete_view`
+## 10. Sidebar — `templates/partials/sidebar.html`
+New `<li>` block "Bill of Materials" with sub-links: Dashboard, BOMs, Substitution Rules, Cost Elements, BOM Sync. Icon `ri-node-tree` or `ri-list-check-3`.
 
-**Security note:** validate uploaded file extensions against an allowlist
-(`.pdf`, `.dwg`, `.dxf`, `.step`, `.stp`, `.iges`, `.igs`, `.png`, `.jpg`, `.jpeg`,
-`.svg`, `.zip`); reject everything else to avoid arbitrary file storage.
+## 11. Settings — `config/settings.py`
+Add `'apps.bom'` to `INSTALLED_APPS`.
 
----
+## 12. Root URL — `config/urls.py`
+Add `path('bom/', include('apps.bom.urls'))`.
 
-## 5. Sub-module 2.4 — Product Compliance Tracking
+## 13. README.md (MANDATORY per project rules)
+- Mark Module 3 as shipped in Roadmap (strikethrough)
+- Add new dedicated **Module 3 — Bill of Materials** section
+- Extend Project Structure tree with `apps/bom/`
+- Extend Screenshots / UI Tour table with `/bom/...` routes
+- Extend Management Commands table with `seed_bom`
+- Extend Seeded Demo Data with BOM summary
+- Update Highlights bullet
+- Update Table of Contents
 
-**Models:**
-
-- [ ] `ComplianceStandard` — NOT tenant-scoped (shared catalog like `Plan`):
-      `code` (unique, e.g. `ISO_9001`, `RoHS`, `REACH`, `CE`, `UL`, `FCC`, `IPC`),
-      `name`, `description`, `region` (`global`, `us`, `eu`, `apac`, …),
-      `is_active`. Pre-seeded with the standard set.
-- [ ] `ProductCompliance` — `product` FK, `standard` FK,
-      `status` (`pending`, `in_progress`, `compliant`, `non_compliant`, `expired`),
-      `certification_number` (blank), `issued_date`, `expiry_date`,
-      `certificate_file` FileField (blank), `issuing_body` (blank), `notes`.
-      Unique `(tenant, product, standard)`.
-- [ ] `ComplianceAuditLog` (immutable, no edit/delete UI) — `compliance` FK,
-      `event` (`created`, `status_changed`, `renewed`, `expired`, `note_added`),
-      `performed_by` FK accounts.User, `performed_at`, `meta` JSONField.
-
-**Views:**
-
-- [ ] `compliance_list_view` (search by product/cert#; filter by standard + status;
-      shows expiring-within-30-days flag in the row)
-- [ ] `compliance_create_view` / `_detail_view` (with audit-trail tab)
-      / `_edit_view` / `_delete_view`
-- [ ] `standard_list_view` (read-only catalog page, admins only via Django admin)
-
-**Signals:**
-
-- [ ] `post_save` on `ProductCompliance` → write `ComplianceAuditLog` entry
-      whenever `status` changes
+## 14. Per-File Git Commit Snippets
+Provide a copy-paste block at the end (PowerShell-safe with `;`), one commit per file.
 
 ---
 
-## 6. Sub-module 2.5 — NPI / Stage-Gate Management
-
-**Models:**
-
-- [ ] `NPIProject` — `code` auto `NPI-00001` per tenant, `name`, `description`,
-      `product` FK (nullable — project may precede the product record),
-      `project_manager` FK accounts.User,
-      `status` (`planning`, `in_progress`, `on_hold`, `completed`, `cancelled`),
-      `current_stage` choice field (mirrors `NPIStage.STAGE_CHOICES`),
-      `target_launch_date`, `actual_launch_date`.
-- [ ] `NPIStage` — `project` FK,
-      `stage` (`concept`, `feasibility`, `design`, `development`,
-      `validation`, `pilot_production`, `launch`),
-      `sequence` PositiveInt,
-      `planned_start`, `planned_end`, `actual_start`, `actual_end`,
-      `status` (`pending`, `in_progress`, `passed`, `failed`, `skipped`),
-      `gate_decision` (`pending`, `go`, `no_go`, `recycle`),
-      `gate_notes`, `gate_decided_by` FK (nullable), `gate_decided_at`.
-      Unique `(project, stage)`.
-- [ ] `NPIDeliverable` — `stage` FK, `name`, `description`,
-      `owner` FK accounts.User, `due_date`, `completed_at`,
-      `status` (`pending`, `in_progress`, `done`, `blocked`).
-
-**Views:**
-
-- [ ] `npi_list_view` (search by code/name; filter by status, current_stage)
-- [ ] `npi_create_view` / `_detail_view` (Gantt-ish stage timeline + deliverables list)
-      / `_edit_view` / `_delete_view`
-- [ ] `npi_stage_advance_view` (POST — closes current stage with gate_decision,
-      auto-creates next stage if not present, updates project.current_stage)
-- [ ] `deliverable_create_view` / `_edit_view` / `_delete_view` /
-      `_complete_view` (POST flag done)
+## Out of Scope (v1)
+- CSV / Excel BOM import / export
+- WebSocket-driven cost recalculation
+- ERP integration
+- Where-used reverse-lookup UI tab
+- Pytest test suite (matches PLM v1; can follow up)
 
 ---
 
-## 7. Templates (under `templates/plm/`)
-
-Each sub-module gets its own folder. List + form + detail templates
-mirror `templates/tenants/invoices.html` / `branding.html` patterns.
-
-- [ ] `plm/products/` — list, form, detail (tabs: Overview / Specs / Revisions / Variants), category_list, category_form
-- [ ] `plm/eco/` — list, form, detail (tabs: Items / Approvals / Attachments)
-- [ ] `plm/cad/` — list, form, detail (with version history + upload form)
-- [ ] `plm/compliance/` — list, form, detail (with audit trail)
-- [ ] `plm/npi/` — list, form, detail (with stages + deliverables)
-
-All list templates MUST include the standard search input + status filter +
-View / Edit / Delete actions column per CLAUDE.md "CRUD Completeness Rules".
+## Verification Steps Before Marking Done
+1. `python manage.py makemigrations bom` → clean migration
+2. `python manage.py migrate` → succeeds
+3. `python manage.py seed_bom` → idempotent (run twice, no duplicates)
+4. Log in as `admin_acme` → sidebar shows BOM group → all list pages render
+5. Create BOM → add lines (one phantom) → "Explode" view renders correctly
+6. "Recompute Cost" populates rollup card
+7. Approve an alternate → audit log entry appears
+8. Rollback from a `BOMRevision` snapshot
+9. EBOM → MBOM sync detects drift
+10. README updated; per-file git commit snippets generated
 
 ---
 
-## 8. Admin
-
-- [ ] Register every model in `apps/plm/admin.py` with `list_display`,
-      `list_filter`, `search_fields`, and inlines for child models
-      (e.g. `ProductSpecificationInline` on `ProductAdmin`).
-
----
-
-## 9. Forms
-
-- [ ] One ModelForm per CRUD-able model (mirrors `apps/tenants/forms.py`).
-- [ ] File-upload forms validate extensions for CAD + ECO attachments +
-      compliance certificates.
+## Open Questions for User Approval
+1. **v1 Scope** — does the above match expectations, or do you want CSV import/export and where-used UI in this cut?
+2. **Cost units** — single `currency` field on `CostElement` defaulting to `USD`. OK, or tenant-level base currency?
+3. **Phantom semantics** — phantoms are exploded transparently and never appear in MRP. Confirm.
+4. **Sub-assembly cost cascade** — follow sub-assembly's *default released BOM*. Confirm.
+5. **EBOM/MBOM/SBOM** — one model + `bom_type` discriminator (proposed) vs three separate models. Confirm.
+6. **Pytest tests** — include in v1 or defer (PLM did the latter)?
 
 ---
 
-## 10. Migrations
-
-- [ ] `python manage.py makemigrations plm`
-- [ ] `python manage.py migrate plm`
-
----
-
-## 11. Seed command — `seed_plm`
-
-Idempotent per CLAUDE.md "Seed Command Rules":
-
-- [ ] For each existing tenant, skip if `Product.objects.filter(tenant=t).exists()`
-- [ ] Create:
-  - 8 categories (3 root + 5 children)
-  - 20 products spanning all product_types, with revisions A & B
-  - 5 ECOs in mixed statuses (draft / submitted / approved / implemented)
-  - 8 CAD documents with 1–3 versions each
-  - 12 compliance records across standards (RoHS, REACH, ISO_9001, CE, UL)
-  - 3 NPI projects in different stages with deliverables
-- [ ] Pre-seed `ComplianceStandard` global catalog (idempotent get_or_create)
-- [ ] Hook into `apps/core/management/commands/seed_data.py` to call
-      `seed_plm` after `seed_tenants` (only if `--with-plm` flag passed,
-      or default-on — TBD with user)
+## Implementation Checklist (for tracking once approved)
+- [ ] Create `apps/bom/` package skeleton (`__init__.py`, `apps.py`, `migrations/`, `management/commands/`)
+- [ ] Add `'apps.bom'` to `INSTALLED_APPS`
+- [ ] Write `models.py` (10 models)
+- [ ] Write `forms.py`
+- [ ] Write `views.py`
+- [ ] Write `urls.py`
+- [ ] Write `signals.py` + wire in `apps.py.ready()`
+- [ ] Write `admin.py`
+- [ ] Mount `bom/` in `config/urls.py`
+- [ ] Build templates in `templates/bom/`
+- [ ] Add sidebar entry
+- [ ] Write `seed_bom.py`
+- [ ] Hook `seed_bom` into `seed_data.py`
+- [ ] `makemigrations` + `migrate`
+- [ ] Run `seed_bom` end-to-end
+- [ ] Smoke-test in browser as `admin_acme`
+- [ ] Update `README.md`
+- [ ] Hand user per-file git commit snippets
 
 ---
 
-## 12. Verification (per CLAUDE.md "Verification Before Done")
+## Review (filled after implementation)
 
-- [ ] `python manage.py makemigrations --check --dry-run` — no missing migrations
-- [ ] `python manage.py migrate` — applies cleanly on a fresh DB
-- [ ] `python manage.py seed_plm` — runs idempotently (twice in a row, no errors)
-- [ ] `python manage.py runserver` — manually visit each list / detail / form
-      page as `admin_acme` and confirm CRUD works for at least one model in
-      each sub-module
-- [ ] Every list page filter actually filters (per CLAUDE.md "Filter
-      Implementation Rules")
-- [ ] Cross-tenant isolation: log in as `admin_globex` and confirm Acme's
-      products don't appear
+**Outcome:** all open questions resolved per the user's "do what you think best for me" reply — proceeded with the proposed defaults: one-model-with-`bom_type` discriminator, single `USD` currency, default-released sub-assembly cost cascade, phantoms transparently exploded, no CSV import/export or pytest in v1.
 
----
+**Verification results (run against seeded `admin_acme` tenant):**
 
-## 13. Out of scope (deferred to later modules)
+| Check | Result |
+|---|---|
+| `makemigrations bom` | clean — single `0001_initial.py` |
+| `migrate` | applied without warnings |
+| `seed_bom` first run | 27 cost elements + 5 BOMs + 2 rules + 6 alternates + 2 sync maps per tenant × 3 tenants |
+| `seed_bom` second run | idempotent — "already exists, skipping" per tenant |
+| `python manage.py check` | no issues |
+| `Client.get` smoke test | all 7 BOM URLs return 200 (`/bom/`, `/bom/boms/`, `/bom/rules/`, `/bom/costs/`, `/bom/sync/`, BOM detail, BOM explode) |
+| Phantom collapse | confirmed via shell — phantom `SKU-2002` not yielded but its child `SKU-1001` emitted at parent level |
+| Cost rollup | total `147.18 USD` for BOM-00001 with cascading sub-assembly costs |
+| Sync drift detection | seeded EBOM↔MBOM map correctly carries `drift_detected` status with summary |
+| Audit signals | `bom.created` entries written to `TenantAuditLog` for all 5 seeded BOMs |
 
-- BOM linkage (Module 3) — `Product.boms` reverse relation will wire up later
-- Inventory linkage (Module 8) — stock balances per product
-- Procurement linkage (Module 9) — supplier bindings on products
-- Real-time collaboration / live preview on CAD viewer
-- Workflow engine for ECO routing rules (a hard-coded linear approval is fine for now)
+**What got built:**
 
----
+- 10 models in `apps/bom/models.py` (~430 LOC)
+- Full CRUD + workflow views in `apps/bom/views.py` (~600 LOC)
+- 14 templates in `templates/bom/` (dashboard, BOM list/form/detail/explode, line form, alternate form, rules list/form, cost list/form, sync list/form/detail, revision detail)
+- Idempotent seeder `apps/bom/management/commands/seed_bom.py` with --flush support, hooked into the `seed_data` orchestrator
+- New "Bill of Materials" sidebar group with 5 nav links
+- README updated: ToC, Highlights, Project Structure, UI Tour, Module 3 dedicated section, Management Commands, Seeded Demo Data, Roadmap
 
-## 14. Per-file git commits (per CLAUDE.md GIT Commit Rule)
+**Things deferred to a follow-up (per the v1 scope agreed in the plan):**
 
-After each file is added/changed, the assistant will hand the user a
-single-line `git add 'path'; git commit -m '...'` snippet (PowerShell-safe,
-NEVER `&&`). Final delivery includes a "single copy" block aggregating all
-commits for one paste.
+- CSV / Excel BOM import / export
+- Where-used reverse-lookup UI tab on the Product detail page
+- Pytest test suite (matches the way PLM was shipped — tests came later)
+- Tenant-level base currency setting (single `USD` default for now)
+- ERP / external sync integration
+
+These can be tracked individually whenever you want to schedule them.
+
