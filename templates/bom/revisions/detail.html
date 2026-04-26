@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Revision {{ revision.version }}.{{ revision.revision }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Revision {{ revision.version }}.{{ revision.revision }}</h4>
+        <div class="text-muted small">Snapshot of <a href="{% url 'bom:bom_detail' revision.bom.pk %}">{{ revision.bom.bom_number }}</a> · {{ revision.bom.product.sku }}</div>
+    </div>
+    <div>
+        <a href="{% url 'bom:bom_detail' revision.bom.pk %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back to BOM</a>
+        {% if revision.bom.is_editable %}
+        <form method="post" action="{% url 'bom:revision_rollback' revision.pk %}" style="display:inline" onsubmit="return confirm('Roll back BOM to this revision? Current lines will be replaced.');">
+            {% csrf_token %}<button class="btn btn-warning"><i class="ri-arrow-go-back-line"></i> Rollback to this revision</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ revision.get_revision_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Effective</span><span class="small">{{ revision.effective_from|date:"M j, Y" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Captured</span><span class="small">{{ revision.created_at|date:"M j, Y H:i" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Changed by</span><span class="small">{{ revision.changed_by|default:"—" }}</span></li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h6 class="card-title mb-0">Change summary</h6></div>
+            <div class="card-body"><p class="text-muted">{{ revision.change_summary|default:"No summary."|linebreaks }}</p></div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="card-title mb-0">Snapshot data (raw)</h6></div>
+            <div class="card-body"><pre class="small mb-0" style="max-height: 480px; overflow:auto;">{{ revision.snapshot_json|stringformat:"s" }}</pre></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
