@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Capacity Calendars{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Capacity Calendars</h4>
+        <div class="text-muted small">Working shifts per work center per weekday — drives capacity availability.</div>
+    </div>
+    <a href="{% url 'pps:calendar_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Shift</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4">
+            <select name="work_center" class="form-select">
+                <option value="">All work centers</option>
+                {% for wc in work_centers %}<option value="{{ wc.pk }}" {% if request.GET.work_center == wc.pk|stringformat:"d" %}selected{% endif %}>{{ wc.code }} — {{ wc.name|truncatechars:30 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Work Center</th><th>Day</th><th>Start</th><th>End</th><th>Working</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for cal in calendars %}
+                <tr>
+                    <td><a href="{% url 'pps:work_center_detail' cal.work_center.pk %}">{{ cal.work_center.code }}</a></td>
+                    <td>{{ cal.get_day_of_week_display }}</td>
+                    <td class="small">{{ cal.shift_start|time:"H:i" }}</td>
+                    <td class="small">{{ cal.shift_end|time:"H:i" }}</td>
+                    <td>{% if cal.is_working %}<span class="badge bg-success-subtle text-success">Working</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Off</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'pps:calendar_edit' cal.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'pps:calendar_delete' cal.pk %}" style="display:inline" onsubmit="return confirm('Delete shift?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No calendars configured.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
