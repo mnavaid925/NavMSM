@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if order %}Edit{% else %}New{% endif %} Production Order{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if order %}Edit Order — {{ order.order_number }}{% else %}New Production Order{% endif %}</h4>
+    <a href="{% url 'pps:order_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+            <a href="{% url 'pps:order_list' %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
