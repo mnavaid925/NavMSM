@@ -17,3 +17,5 @@ class Command(BaseCommand):
         call_command('seed_plm', flush=options.get('flush', False))
         self.stdout.write(self.style.HTTP_INFO('→ seed_bom'))
         call_command('seed_bom', flush=options.get('flush', False))
+        self.stdout.write(self.style.HTTP_INFO('→ seed_pps'))
+        call_command('seed_pps', flush=options.get('flush', False))
