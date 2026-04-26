@@ -26,10 +26,44 @@ class BillOfMaterialsForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Stash tenant for clean() — Meta.fields excludes `tenant`, so the
+        # default validate_unique() can't enforce the tenant-scoped
+        # unique_together on its own.
+        self._tenant = tenant
         if tenant is not None:
             self.fields['product'].queryset = Product.objects.filter(
                 tenant=tenant,
             ).exclude(status='obsolete')
+
+    def clean(self):
+        cleaned = super().clean()
+        product = cleaned.get('product')
+        bom_type = cleaned.get('bom_type')
+        version = cleaned.get('version')
+        revision = cleaned.get('revision')
+        eff_from = cleaned.get('effective_from')
+        eff_to = cleaned.get('effective_to')
+
+        if self._tenant is not None and product and bom_type and version and revision:
+            qs = BillOfMaterials.objects.filter(
+                tenant=self._tenant, product=product, bom_type=bom_type,
+                version=version, revision=revision,
+            )
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error(
+                    'revision',
+                    f'A {bom_type.upper()} v{version}.{revision} already exists '
+                    f'for {product.sku} in this tenant. Bump the revision or version.',
+                )
+
+        if eff_from and eff_to and eff_to < eff_from:
+            self.add_error(
+                'effective_to',
+                'Effective-to date cannot be earlier than effective-from.',
+            )
+        return cleaned
 
 
 class BOMLineForm(forms.ModelForm):
