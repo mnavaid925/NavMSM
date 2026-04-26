@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}{{ work_center.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ work_center.code }} <small class="text-muted">— {{ work_center.name }}</small></h4>
+        <div class="text-muted small">{{ work_center.get_work_center_type_display }}</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:work_center_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'pps:work_center_edit' work_center.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'pps:work_center_delete' work_center.pk %}" style="display:inline" onsubmit="return confirm('Delete this work center?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card"><ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Code</span><strong>{{ work_center.code }}</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ work_center.get_work_center_type_display }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Capacity / hour</span>{{ work_center.capacity_per_hour }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Efficiency</span>{{ work_center.efficiency_pct }}%</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Cost / hour</span>{{ work_center.cost_per_hour }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Active</span>{% if work_center.is_active %}Yes{% else %}No{% endif %}</li>
+        </ul></div>
+        {% if work_center.description %}
+        <div class="card mt-3"><div class="card-body"><p class="text-muted">{{ work_center.description|linebreaks }}</p></div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Working Calendar</h6>
+                <a href="{% url 'pps:calendar_create' %}" class="btn btn-sm btn-outline-primary"><i class="ri-add-line"></i> Add shift</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Day</th><th>Shift Start</th><th>Shift End</th><th>Working</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for cal in calendars %}
+                        <tr>
+                            <td>{{ cal.get_day_of_week_display }}</td>
+                            <td class="small">{{ cal.shift_start|time:"H:i" }}</td>
+                            <td class="small">{{ cal.shift_end|time:"H:i" }}</td>
+                            <td>{% if cal.is_working %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+                            <td class="text-end">
+                                <a href="{% url 'pps:calendar_edit' cal.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'pps:calendar_delete' cal.pk %}" style="display:inline" onsubmit="return confirm('Delete shift?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No working calendar configured.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0">Recent Capacity Load (14 days)</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Date</th><th>Planned</th><th>Available</th><th>Utilization</th><th>Bottleneck</th></tr></thead>
+                    <tbody>
+                    {% for ld in recent_load %}
+                        <tr>
+                            <td class="small">{{ ld.period_date|date:"M j" }}</td>
+                            <td class="small">{{ ld.planned_minutes }}m</td>
+                            <td class="small">{{ ld.available_minutes }}m</td>
+                            <td class="small">{{ ld.utilization_pct }}%</td>
+                            <td>{% if ld.is_bottleneck %}<span class="badge bg-danger-subtle text-danger">Bottleneck</span>{% else %}—{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No load data — recompute on the capacity dashboard.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
