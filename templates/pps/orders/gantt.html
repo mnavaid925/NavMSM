@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Gantt Schedule{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Gantt Schedule</h4>
+        <div class="text-muted small">{{ scheduled_count }} scheduled operation(s) over the next {{ days }} days, grouped by work center.</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:order_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Orders</a>
+        <a href="{% url 'pps:capacity_dashboard' %}" class="btn btn-outline-primary"><i class="ri-bar-chart-2-line"></i> Capacity</a>
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <form method="get" class="row g-2">
+        <div class="col-md-4">
+            <select name="work_center" class="form-select">
+                <option value="">All work centers</option>
+                {% for wc in work_centers %}<option value="{{ wc.pk }}" {% if request.GET.work_center == wc.pk|stringformat:"d" %}selected{% endif %}>{{ wc.code }} — {{ wc.name|truncatechars:30 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="number" name="days" value="{{ days }}" class="form-control" min="1" max="90">
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+</div></div>
+
+<div class="card"><div class="card-body">
+    <div id="gantt-chart" style="min-height: 480px;"></div>
+    {% if scheduled_count == 0 %}
+    <p class="text-center text-muted my-4">No scheduled operations in the selected window. Schedule an order from its detail page first.</p>
+    {% endif %}
+</div></div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
+<script>
+(function () {
+    var series = {{ chart_series_json|safe }};
+    if (!series || !series.length) { return; }
+    var options = {
+        chart: { type: 'rangeBar', height: Math.max(360, series.length * 80), toolbar: { show: true } },
+        plotOptions: { bar: { horizontal: true, distributed: false, dataLabels: { hideOverflowingLabels: false } } },
+        series: series,
+        xaxis: { type: 'datetime' },
+        legend: { position: 'top' },
+        tooltip: {
+            custom: function ({ seriesIndex, dataPointIndex, w }) {
+                var d = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                var start = new Date(d.y[0]);
+                var end = new Date(d.y[1]);
+                return '<div style="padding:6px"><strong>' + d.x + '</strong><br>'
+                    + (d.operation_name || 'Operation #' + d.sequence) + '<br>'
+                    + start.toLocaleString() + ' &rarr; ' + end.toLocaleString() + '</div>';
+            }
+        },
+        colors: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2', '#20c997', '#fd7e14']
+    };
+    var chart = new ApexCharts(document.querySelector('#gantt-chart'), options);
+    chart.render();
+})();
+</script>
+{% endblock %}
+{% endblock %}
