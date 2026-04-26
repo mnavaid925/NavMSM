@@ -213,8 +213,12 @@ class BOMEditView(TenantRequiredMixin, View):
 class BOMDeleteView(TenantRequiredMixin, View):
     def post(self, request, pk):
         bom = get_object_or_404(BillOfMaterials, pk=pk, tenant=request.tenant)
-        if bom.status == 'released':
-            messages.error(request, 'Released BOMs cannot be deleted — mark Obsolete first.')
+        if not bom.is_editable():
+            messages.error(
+                request,
+                'Only Draft or Under Review BOMs can be deleted. '
+                'Approved or Released BOMs must be marked Obsolete instead.',
+            )
             return redirect('bom:bom_detail', pk=pk)
         try:
             bom.delete()
@@ -417,29 +421,44 @@ class BOMRollbackView(TenantRequiredMixin, View):
             messages.warning(request, 'Rollback requires BOM to be Draft or Under Review.')
             return redirect('bom:bom_detail', pk=bom.pk)
         snapshot_lines = rev.snapshot_json.get('lines', [])
+        skipped = []
         with transaction.atomic():
             bom.lines.all().delete()
-            _restore_lines(bom, snapshot_lines, parent=None, tenant=request.tenant)
+            _restore_lines(bom, snapshot_lines, parent=None, tenant=request.tenant, skipped=skipped)
             BOMRevision.objects.create(
                 tenant=request.tenant, bom=bom,
                 version=bom.version, revision=bom.revision,
                 revision_type='rollback',
-                change_summary=f'Rolled back to revision {rev.pk} ({rev.version}.{rev.revision}).',
+                change_summary=(
+                    f'Rolled back to revision {rev.pk} ({rev.version}.{rev.revision}).'
+                    + (f' Skipped {len(skipped)} line(s) with missing components: '
+                       f'{", ".join(skipped[:10])}.' if skipped else '')
+                ),
                 snapshot_json=bom.snapshot(),
                 changed_by=request.user,
             )
         messages.success(request, f'BOM rolled back to revision {rev.version}.{rev.revision}.')
+        if skipped:
+            messages.warning(
+                request,
+                f'{len(skipped)} line(s) skipped — components no longer in catalog: '
+                f'{", ".join(skipped[:10])}{"…" if len(skipped) > 10 else ""}.',
+            )
         return redirect('bom:bom_detail', pk=bom.pk)
 
 
-def _restore_lines(bom, snapshot_lines, parent, tenant):
+def _restore_lines(bom, snapshot_lines, parent, tenant, skipped=None):
     """Recursively re-create BOMLines from a snapshot tree.
 
-    Components are matched by SKU; missing components silently skip the line.
+    Components are matched by SKU; missing components are skipped and their
+    SKUs appended to ``skipped`` so the caller can warn the user.
     """
     for raw in snapshot_lines:
-        component = Product.objects.filter(tenant=tenant, sku=raw.get('component_sku', '')).first()
+        sku = raw.get('component_sku', '')
+        component = Product.objects.filter(tenant=tenant, sku=sku).first()
         if component is None:
+            if skipped is not None and sku:
+                skipped.append(sku)
             continue
         line = BOMLine.objects.create(
             tenant=tenant, bom=bom, parent_line=parent,
@@ -454,7 +473,7 @@ def _restore_lines(bom, snapshot_lines, parent, tenant):
         )
         children = raw.get('children', [])
         if children:
-            _restore_lines(bom, children, parent=line, tenant=tenant)
+            _restore_lines(bom, children, parent=line, tenant=tenant, skipped=skipped)
 
 
 # ============================================================================
