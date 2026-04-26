@@ -11,6 +11,7 @@ urlpatterns = [
     path('tenants/', include('apps.tenants.urls')),
     path('plm/', include('apps.plm.urls')),
     path('bom/', include('apps.bom.urls')),
+    path('pps/', include('apps.pps.urls')),
 ]
 
 if settings.DEBUG:
