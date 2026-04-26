@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'apps.tenants',
     'apps.plm',
     'apps.bom',
+    'apps.pps',
 ]
 
 MIDDLEWARE = [
