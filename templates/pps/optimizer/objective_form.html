@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if objective %}Edit{% else %}New{% endif %} Objective{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if objective %}Edit Objective — {{ objective.name }}{% else %}New Optimization Objective{% endif %}</h4>
+    <a href="{% url 'pps:objective_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="alert alert-info small mt-2 mb-3">
+            <i class="ri-information-line me-1"></i>
+            Higher weights penalize that dimension more strongly. The v1 optimizer is a deterministic greedy heuristic — see <code>apps/pps/services/optimizer.py</code>. Real ML/AI optimization is planned for a follow-up phase; the data model is forward-compatible.
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+            <a href="{% url 'pps:objective_list' %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
