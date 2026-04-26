@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Demand Forecasts{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Demand Forecasts</h4>
+        <div class="text-muted small">Forecasted demand by product / period — feeds the Master Production Schedule.</div>
+    </div>
+    <a href="{% url 'pps:forecast_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Forecast</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by SKU or name..."></div>
+            <div class="col-md-3">
+                <select name="source" class="form-select">
+                    <option value="">Any source</option>
+                    {% for val, label in source_choices %}<option value="{{ val }}" {% if request.GET.source == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="product" class="form-select">
+                    <option value="">Any product</option>
+                    {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} — {{ p.name|truncatechars:35 }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead><tr><th>Product</th><th>Period</th><th>Forecast Qty</th><th>Source</th><th>Confidence</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for f in forecasts %}
+                    <tr>
+                        <td><a href="{% url 'pps:forecast_detail' f.pk %}">{{ f.product.sku }}</a> <span class="small text-muted">{{ f.product.name|truncatechars:35 }}</span></td>
+                        <td class="small">{{ f.period_start|date:"M j, Y" }} → {{ f.period_end|date:"M j, Y" }}</td>
+                        <td class="small">{{ f.forecast_qty }}</td>
+                        <td><span class="badge bg-info-subtle text-info">{{ f.get_source_display }}</span></td>
+                        <td class="small">{{ f.confidence_pct }}%</td>
+                        <td class="text-end">
+                            <a href="{% url 'pps:forecast_detail' f.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                            <a href="{% url 'pps:forecast_edit' f.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'pps:forecast_delete' f.pk %}" style="display:inline" onsubmit="return confirm('Delete this forecast?');">
+                                {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-4">No forecasts yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
