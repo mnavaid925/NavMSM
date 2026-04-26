@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}BOM Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Bill of Materials Management</h4>
+        <div class="text-muted small">Module 3 — Multi-level BOMs, revisions, alternates, cost roll-up, and EBOM/MBOM/SBOM sync.</div>
+    </div>
+    <a href="{% url 'bom:bom_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New BOM</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-primary-subtle rounded p-2 me-3"><i class="ri-node-tree text-primary fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Total BOMs</div>
+                    <h4 class="mb-0">{{ bom_count|intcomma }}</h4>
+                    <div class="text-muted small">{{ bom_draft }} draft · {{ bom_review }} in review</div>
+                </div>
+            </div>
+            <a href="{% url 'bom:bom_list' %}" class="btn btn-sm btn-link p-0 mt-2">View all <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-check-double-line text-success fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Released</div>
+                    <h4 class="mb-0">{{ bom_released|intcomma }}</h4>
+                </div>
+            </div>
+            <a href="{% url 'bom:bom_list' %}?status=released" class="btn btn-sm btn-link p-0 mt-2">Browse released <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-warning-subtle rounded p-2 me-3"><i class="ri-shuffle-line text-warning fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Pending Alternates</div>
+                    <h4 class="mb-0">{{ alt_pending|intcomma }}</h4>
+                </div>
+            </div>
+            <a href="{% url 'bom:bom_list' %}" class="btn btn-sm btn-link p-0 mt-2">Review on BOM <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-danger-subtle rounded p-2 me-3"><i class="ri-error-warning-line text-danger fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Sync Drift</div>
+                    <h4 class="mb-0">{{ drift_count|intcomma }}</h4>
+                </div>
+            </div>
+            <a href="{% url 'bom:sync_list' %}?sync_status=drift_detected" class="btn btn-sm btn-link p-0 mt-2">Reconcile <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-node-tree me-1"></i> Recent BOMs</h5>
+                <a href="{% url 'bom:bom_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> New BOM</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Product</th><th>Type</th><th>v.r</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for b in recent_boms %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'bom:bom_detail' b.pk %}">{{ b.bom_number }}</a></td>
+                            <td class="small">{{ b.product.sku }}</td>
+                            <td><span class="badge bg-info-subtle text-info">{{ b.get_bom_type_display }}</span></td>
+                            <td class="small">{{ b.version }}.{{ b.revision }}</td>
+                            <td>
+                                {% if b.status == 'released' %}<span class="badge bg-success text-white">Released</span>
+                                {% elif b.status == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>
+                                {% elif b.status == 'under_review' %}<span class="badge bg-warning-subtle text-warning">Under Review</span>
+                                {% elif b.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary">Obsolete</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No BOMs yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-error-warning-line me-1"></i> Drift Watch</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Source</th><th>Target</th><th>Last sync</th></tr></thead>
+                    <tbody>
+                    {% for sm in recent_drifts %}
+                        <tr>
+                            <td class="small"><a href="{% url 'bom:sync_detail' sm.pk %}">{{ sm.source_bom.bom_number }}</a></td>
+                            <td class="small">{{ sm.target_bom.bom_number }}</td>
+                            <td class="small">{{ sm.last_synced_at|date:"M j, H:i"|default:"—" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-4">No drift detected.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
