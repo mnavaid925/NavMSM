@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Optimization Runs{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Optimization Runs</h4>
+        <div class="text-muted small">Greedy schedule optimization runs — minimize changeovers, idle, and lateness.</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:objective_list' %}" class="btn btn-outline-primary"><i class="ri-target-line me-1"></i> Objectives</a>
+        <a href="{% url 'pps:run_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Run</a>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search name or MPS..."></div>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Name</th><th>MPS</th><th>Objective</th><th>Status</th><th>Started</th><th>Finished</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for r in runs %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'pps:run_detail' r.pk %}">{{ r.name|truncatechars:40 }}</a></td>
+                    <td class="small"><a href="{% url 'pps:mps_detail' r.mps.pk %}">{{ r.mps.mps_number }}</a></td>
+                    <td class="small">{{ r.objective.name|truncatechars:30 }}</td>
+                    <td>
+                        {% if r.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                        {% elif r.status == 'running' %}<span class="badge bg-warning-subtle text-warning">Running</span>
+                        {% elif r.status == 'failed' %}<span class="badge bg-danger-subtle text-danger">Failed</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Queued</span>{% endif %}
+                    </td>
+                    <td class="small">{{ r.started_at|date:"M j, H:i"|default:"—" }}</td>
+                    <td class="small">{{ r.finished_at|date:"M j, H:i"|default:"—" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'pps:run_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <form method="post" action="{% url 'pps:run_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete this run?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No runs yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
