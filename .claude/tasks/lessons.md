@@ -51,3 +51,27 @@ Running log of corrections and rules. New lessons go to the bottom. Each entry i
 **How to apply:** any view that loops over external data (snapshots, JSON imports, CSV uploads) should accumulate a `skipped: list[str]` and surface it as a `messages.warning(...)` AND record it on whatever revision/audit row the operation creates.
 
 **Concrete example in repo:** [apps/bom/views.py — BOMRollbackView](../../apps/bom/views.py) — fixed 2026-04-26 in [.claude/tasks/bom_sqa_fixes_todo.md](bom_sqa_fixes_todo.md) F-06.
+
+---
+
+## L-05 — Naive vs aware datetimes silently work in unit tests, then crash on the first call from a view
+
+**Rule:** When a service computes against `datetime.combine(date, time)` (which is naive) and the public entry point may receive `timezone.now()` (which is aware under `USE_TZ=True`), the comparison `cursor < shift_end` raises `TypeError: can't compare offset-naive and offset-aware datetimes`. Either normalize at the boundary or reject one of the two shapes loudly.
+
+**Why:** The PPS scheduler service is a pure-function module that does its calendar walk in naive local time (because shift definitions are naive `time` values). I caught this only on the first real seeder run, not in the model layer. Django's `USE_TZ=True` is the project default, so any service that wraps `datetime.combine()` arithmetic is at risk.
+
+**How to apply:** at the public entry point of any datetime-walking service, strip tz with `dt.replace(tzinfo=None)` and stash the original `tzinfo`; do the math; re-attach the tzinfo on every output datetime. Encapsulate with `_strip_tz(dt) -> (naive, tz)` + `_attach_tz(dt, tz)` helpers — never sprinkle `replace(tzinfo=...)` calls through the algorithm body.
+
+**Concrete example in repo:** [apps/pps/services/scheduler.py](../../apps/pps/services/scheduler.py) — fixed 2026-04-27 during initial PPS seeding.
+
+---
+
+## L-06 — One file per commit means ONE file per commit, never "logical groups"
+
+**Rule:** When the user asks for per-file git commit snippets, every single file gets its own `git add` + `git commit` pair. Never bundle "the three templates of a sub-module" or "the four files of a feature folder" into one commit, regardless of how tightly they're related.
+
+**Why:** The user reviews and squashes commits by hand and explicitly wants each file's history isolated. I bundled the 4 routing templates into one commit ("feat(pps): routing templates with operation CRUD inline") — they had to ask me to redo every batched group across the entire Module 4 snippet block. Folder-grouping looks economical to me; it costs the user time when they want to revert / cherry-pick / review one file.
+
+**How to apply:** when generating commit snippets, output one block per file. **Never** put two file paths after a single `git add`. Even shared `__init__.py` files, even three near-identical sibling templates. The signal that I should bundle is **always wrong** — resist it. Re-read [.claude/CLAUDE.md → GIT Commit Rule → "STRICT — ONE FILE PER COMMIT (no exceptions)"](../../.claude/CLAUDE.md) before producing the final block.
+
+**Concrete example in repo:** the Module 4 (PPS) commit snippet bundle was rejected on 2026-04-27 because of this; the corrected snippet block in [.claude/tasks/todo.md](todo.md) review section is the new reference shape.
