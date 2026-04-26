@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Explode {{ bom.bom_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">BOM Explosion — {{ bom.bom_number }}</h4>
+        <div class="text-muted small">{{ bom.product.sku }} {{ bom.product.name }} · {{ bom.get_bom_type_display }} v{{ bom.version }}.{{ bom.revision }}</div>
+    </div>
+    <a href="{% url 'bom:bom_detail' bom.pk %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back to BOM</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <p class="small text-muted">Phantom assemblies are exploded transparently — their child components appear at the same level the phantom would have occupied. Quantities are multiplied through scrap factors and parent quantities.</p>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Level</th><th>Component</th><th>Type</th><th>Qty (effective)</th><th>UoM</th><th>Reference</th></tr></thead>
+            <tbody>
+            {% for level, line, qty in rows %}
+                <tr>
+                    <td class="small">{{ level }}</td>
+                    <td>
+                        <span style="display:inline-block; width:{{ level }}rem;"></span>
+                        <i class="ri-arrow-right-s-line text-muted"></i>
+                        <a href="{% url 'plm:product_detail' line.component.pk %}">{{ line.component.sku }}</a>
+                        <span class="small text-muted">{{ line.component.name|truncatechars:50 }}</span>
+                    </td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ line.component.get_product_type_display }}</span></td>
+                    <td class="small">{{ qty }}</td>
+                    <td class="small">{{ line.get_unit_of_measure_display }}</td>
+                    <td class="small text-muted">{{ line.reference_designator|default:"—" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">This BOM has no lines yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
