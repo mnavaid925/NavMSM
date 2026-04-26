@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Production Orders{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Production Orders</h4>
+        <div class="text-muted small">Discrete orders to produce a quantity of a product, scheduled forward / backward / infinite.</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:order_gantt' %}" class="btn btn-outline-primary"><i class="ri-bar-chart-horizontal-line me-1"></i> Gantt</a>
+        <a href="{% url 'pps:order_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Order</a>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search number or product..."></div>
+        <div class="col-md-2">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="priority" class="form-select">
+                <option value="">Any priority</option>
+                {% for val, label in priority_choices %}<option value="{{ val }}" {% if request.GET.priority == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="product" class="form-select">
+                <option value="">Any product</option>
+                {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} — {{ p.name|truncatechars:35 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Number</th><th>Product</th><th>Qty</th><th>Priority</th><th>Method</th><th>Scheduled</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for o in orders %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'pps:order_detail' o.pk %}">{{ o.order_number }}</a></td>
+                    <td class="small">{{ o.product.sku }} <span class="text-muted">{{ o.product.name|truncatechars:30 }}</span></td>
+                    <td class="small">{{ o.quantity }}</td>
+                    <td>
+                        {% if o.priority == 'rush' %}<span class="badge bg-danger text-white">Rush</span>
+                        {% elif o.priority == 'high' %}<span class="badge bg-warning-subtle text-warning">High</span>
+                        {% elif o.priority == 'low' %}<span class="badge bg-secondary-subtle text-secondary">Low</span>
+                        {% else %}<span class="badge bg-info-subtle text-info">Normal</span>{% endif %}
+                    </td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ o.get_scheduling_method_display }}</span></td>
+                    <td class="small">{{ o.scheduled_start|date:"M j H:i"|default:"—" }} → {{ o.scheduled_end|date:"M j H:i"|default:"—" }}</td>
+                    <td>
+                        {% if o.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                        {% elif o.status == 'in_progress' %}<span class="badge bg-warning text-dark">In Progress</span>
+                        {% elif o.status == 'released' %}<span class="badge bg-info-subtle text-info">Released</span>
+                        {% elif o.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Planned</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'pps:order_detail' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if o.status == 'planned' %}
+                        <a href="{% url 'pps:order_edit' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'pps:order_delete' o.pk %}" style="display:inline" onsubmit="return confirm('Delete order {{ o.order_number }}?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No production orders yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
