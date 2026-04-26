@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Master Production Schedule{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Master Production Schedule</h4>
+        <div class="text-muted small">Demand-driven production plans across a horizon split into time buckets.</div>
+    </div>
+    <a href="{% url 'pps:mps_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New MPS</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search number or name..."></div>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for val, label in status_choices %}<option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="time_bucket" class="form-select">
+                <option value="">Any bucket</option>
+                {% for val, label in bucket_choices %}<option value="{{ val }}" {% if request.GET.time_bucket == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Number</th><th>Name</th><th>Horizon</th><th>Bucket</th><th>Lines</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for m in mps_list %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'pps:mps_detail' m.pk %}">{{ m.mps_number }}</a></td>
+                    <td class="small">{{ m.name|truncatechars:40 }}</td>
+                    <td class="small">{{ m.horizon_start|date:"M j" }} → {{ m.horizon_end|date:"M j, Y" }}</td>
+                    <td><span class="badge bg-info-subtle text-info">{{ m.get_time_bucket_display }}</span></td>
+                    <td class="small">{{ m.line_count }}</td>
+                    <td>
+                        {% if m.status == 'released' %}<span class="badge bg-success text-white">Released</span>
+                        {% elif m.status == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>
+                        {% elif m.status == 'under_review' %}<span class="badge bg-warning-subtle text-warning">Under Review</span>
+                        {% elif m.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary">Obsolete</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'pps:mps_detail' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if m.status == 'draft' or m.status == 'under_review' %}
+                        <a href="{% url 'pps:mps_edit' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'pps:mps_delete' m.pk %}" style="display:inline" onsubmit="return confirm('Delete MPS {{ m.mps_number }}?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No MPS yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
