@@ -11,6 +11,7 @@ Sub-modules:
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -212,13 +213,20 @@ class BOMLine(TenantAwareModel, TimeStampedModel):
     component = models.ForeignKey(
         Product, on_delete=models.PROTECT, related_name='used_in_bom_lines',
     )
-    quantity = models.DecimalField(max_digits=14, decimal_places=4, default=Decimal('1'))
+    quantity = models.DecimalField(
+        max_digits=14, decimal_places=4, default=Decimal('1'),
+        validators=[MinValueValidator(Decimal('0.0001'))],
+    )
     unit_of_measure = models.CharField(
         max_length=10, choices=Product.UOM_CHOICES, default='ea',
     )
     scrap_percent = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal('0'),
         help_text='Percentage scrap factor — added to effective demand.',
+        validators=[
+            MinValueValidator(Decimal('0')),
+            MaxValueValidator(Decimal('100')),
+        ],
     )
     is_phantom = models.BooleanField(
         default=False,
