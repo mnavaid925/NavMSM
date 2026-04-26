@@ -561,8 +561,16 @@ Module 3 is implemented in [`apps/bom/`](apps/bom/) with full CRUD across 5 sub-
 [`apps/bom/signals.py`](apps/bom/signals.py) wires:
 
 - `pre_save` + `post_save` on `BillOfMaterials` → writes `apps.tenants.TenantAuditLog` entries on every status transition (`bom.created`, `bom.status.<new>` with `meta={'from': old, 'to': new}`).
+- `post_save` on `BillOfMaterials` → enforces a single `is_default=True` per `(tenant, product, bom_type)` so the cost-rollup cascade picks deterministically.
 - `post_save` on `AlternateMaterial` → writes audit entries when approval status changes.
 - `post_save` / `post_delete` on `BOMLine` → invalidates the parent BOM's `BOMCostRollup.computed_at` so the UI shows the rollup as stale until recomputed.
+
+### Validation guards
+
+- `BillOfMaterialsForm.clean()` enforces the `(tenant, product, bom_type, version, revision)` `unique_together` (which Django's default `validate_unique` cannot do because `tenant` is not a form field) and rejects `effective_to < effective_from`.
+- `BOMLine.quantity` is bounded `>= 0.0001` (no zero or negative); `BOMLine.scrap_percent` is bounded `0..100`.
+- `BOMDeleteView` only permits deletion while the BOM is `draft` or `under_review`. Approved and Released BOMs must be marked Obsolete first, matching the buttons rendered by the list and detail templates.
+- `BOMRollbackView` reports the count and SKUs of any snapshot lines whose components are missing from the catalog (so a partial rollback no longer looks like a full success).
 
 ### Workflow buttons (BOM detail page)
 
