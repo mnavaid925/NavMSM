@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}BOM Sync Maps{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">EBOM / MBOM / SBOM Sync</h4>
+        <div class="text-muted small">Cross-type BOM mappings with drift detection.</div>
+    </div>
+    <a href="{% url 'bom:sync_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Sync Map</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-3">
+                <select name="sync_status" class="form-select">
+                    <option value="">Any status</option>
+                    {% for val, label in sync_status_choices %}<option value="{{ val }}" {% if request.GET.sync_status == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Source BOM</th><th>Source Type</th><th>Target BOM</th><th>Target Type</th><th>Status</th><th>Last sync</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for sm in sync_maps %}
+                <tr>
+                    <td class="small"><a href="{% url 'bom:bom_detail' sm.source_bom.pk %}">{{ sm.source_bom.bom_number }}</a></td>
+                    <td><span class="badge bg-info-subtle text-info">{{ sm.source_bom.get_bom_type_display }}</span></td>
+                    <td class="small"><a href="{% url 'bom:bom_detail' sm.target_bom.pk %}">{{ sm.target_bom.bom_number }}</a></td>
+                    <td><span class="badge bg-info-subtle text-info">{{ sm.target_bom.get_bom_type_display }}</span></td>
+                    <td>
+                        {% if sm.sync_status == 'in_sync' %}<span class="badge bg-success-subtle text-success">In sync</span>
+                        {% elif sm.sync_status == 'drift_detected' %}<span class="badge bg-danger-subtle text-danger">Drift</span>
+                        {% elif sm.sync_status == 'manual_override' %}<span class="badge bg-secondary-subtle text-secondary">Override</span>
+                        {% else %}<span class="badge bg-warning-subtle text-warning">Pending</span>{% endif %}
+                    </td>
+                    <td class="small">{{ sm.last_synced_at|date:"M j, Y H:i"|default:"—" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'bom:sync_detail' sm.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'bom:sync_edit' sm.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'bom:sync_run' sm.pk %}" style="display:inline">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-success"><i class="ri-refresh-line"></i></button>
+                        </form>
+                        <form method="post" action="{% url 'bom:sync_delete' sm.pk %}" style="display:inline" onsubmit="return confirm('Delete this sync map?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No sync maps yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
