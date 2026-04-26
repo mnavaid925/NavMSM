@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ mps.mps_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ mps.mps_number }} <small class="text-muted">— {{ mps.name }}</small></h4>
+        <div class="text-muted small">{{ mps.horizon_start|date:"M j, Y" }} → {{ mps.horizon_end|date:"M j, Y" }} · {{ mps.get_time_bucket_display }}</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:mps_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if mps.status == 'draft' or mps.status == 'under_review' %}
+        <a href="{% url 'pps:mps_edit' mps.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        {% endif %}
+        {% if mps.status == 'draft' %}
+            <form method="post" action="{% url 'pps:mps_submit' mps.pk %}" style="display:inline" onsubmit="return confirm('Submit this MPS for review?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-send-plane-line"></i> Submit for review</button>
+            </form>
+            <form method="post" action="{% url 'pps:mps_delete' mps.pk %}" style="display:inline" onsubmit="return confirm('Delete this MPS?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+            </form>
+        {% elif mps.status == 'under_review' %}
+            <form method="post" action="{% url 'pps:mps_approve' mps.pk %}" style="display:inline" onsubmit="return confirm('Approve this MPS?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-check-line"></i> Approve</button>
+            </form>
+        {% elif mps.status == 'approved' %}
+            <form method="post" action="{% url 'pps:mps_release' mps.pk %}" style="display:inline" onsubmit="return confirm('Release this MPS?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-rocket-line"></i> Release</button>
+            </form>
+            <form method="post" action="{% url 'pps:mps_obsolete' mps.pk %}" style="display:inline" onsubmit="return confirm('Mark this MPS Obsolete?');">
+                {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Obsolete</button>
+            </form>
+        {% elif mps.status == 'released' %}
+            <form method="post" action="{% url 'pps:mps_obsolete' mps.pk %}" style="display:inline" onsubmit="return confirm('Mark this MPS Obsolete?');">
+                {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-archive-line"></i> Obsolete</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card"><div class="card-body text-center">
+            <div class="mb-2">
+                {% if mps.status == 'released' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Released</span>
+                {% elif mps.status == 'approved' %}<span class="badge bg-success-subtle text-success fs-6 px-3 py-2">Approved</span>
+                {% elif mps.status == 'under_review' %}<span class="badge bg-warning fs-6 px-3 py-2">Under Review</span>
+                {% elif mps.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary fs-6 px-3 py-2">Obsolete</span>
+                {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Draft</span>{% endif %}
+            </div>
+        </div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Number</span><strong>{{ mps.mps_number }}</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Time bucket</span>{{ mps.get_time_bucket_display }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Created by</span><span class="small">{{ mps.created_by|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Approved by</span><span class="small">{{ mps.approved_by|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Released at</span><span class="small">{{ mps.released_at|date:"M j, Y H:i"|default:"—" }}</span></li>
+        </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Description</h6></div>
+            <div class="card-body"><p class="text-muted">{{ mps.description|default:"No description."|linebreaks }}</p></div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Lines ({{ lines|length }})</h6>
+            </div>
+            <div class="card-body">
+                {% if mps.is_editable %}
+                <form method="post" action="{% url 'pps:mps_line_create' mps.pk %}" class="row g-2 mb-3">
+                    {% csrf_token %}
+                    {{ line_form|crispy }}
+                    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add line</button></div>
+                </form>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead><tr><th>Product</th><th>Period</th><th>Forecast</th><th>Firm</th><th>Scheduled</th><th>ATP</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for l in lines %}
+                        <tr>
+                            <td><a href="{% url 'plm:product_detail' l.product.pk %}">{{ l.product.sku }}</a></td>
+                            <td class="small">{{ l.period_start|date:"M j" }} → {{ l.period_end|date:"M j" }}</td>
+                            <td class="small">{{ l.forecast_qty }}</td>
+                            <td class="small">{{ l.firm_planned_qty }}</td>
+                            <td class="small">{{ l.scheduled_qty }}</td>
+                            <td class="small">{{ l.available_to_promise }}</td>
+                            <td class="text-end">
+                                {% if mps.is_editable %}
+                                <a href="{% url 'pps:mps_line_edit' l.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="{% url 'pps:mps_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Delete line?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted">No lines on this MPS yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
