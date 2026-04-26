@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Sync map · {{ sync_map.source_bom.bom_number }} → {{ sync_map.target_bom.bom_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ sync_map.source_bom.bom_number }} → {{ sync_map.target_bom.bom_number }}</h4>
+        <div class="text-muted small">{{ sync_map.source_bom.get_bom_type_display }} → {{ sync_map.target_bom.get_bom_type_display }}</div>
+    </div>
+    <div>
+        <a href="{% url 'bom:sync_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'bom:sync_edit' sync_map.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'bom:sync_run' sync_map.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-refresh-line"></i> Run sync</button>
+        </form>
+        <form method="post" action="{% url 'bom:sync_delete' sync_map.pk %}" style="display:inline" onsubmit="return confirm('Delete this sync map?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body text-center">
+                {% if sync_map.sync_status == 'in_sync' %}<span class="badge bg-success text-white fs-6 px-3 py-2">In Sync</span>
+                {% elif sync_map.sync_status == 'drift_detected' %}<span class="badge bg-danger fs-6 px-3 py-2">Drift Detected</span>
+                {% elif sync_map.sync_status == 'manual_override' %}<span class="badge bg-secondary fs-6 px-3 py-2">Manual Override</span>
+                {% else %}<span class="badge bg-warning fs-6 px-3 py-2">Pending</span>{% endif %}
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><span class="text-muted">Source BOM</span><br><a href="{% url 'bom:bom_detail' sync_map.source_bom.pk %}">{{ sync_map.source_bom.bom_number }}</a> — {{ sync_map.source_bom.product.sku }}</li>
+                <li class="list-group-item"><span class="text-muted">Target BOM</span><br><a href="{% url 'bom:bom_detail' sync_map.target_bom.pk %}">{{ sync_map.target_bom.bom_number }}</a> — {{ sync_map.target_bom.product.sku }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Last sync</span><span class="small">{{ sync_map.last_synced_at|date:"M j, Y H:i"|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Synced by</span><span class="small">{{ sync_map.synced_by|default:"—" }}</span></li>
+            </ul>
+            {% if sync_map.drift_summary %}
+            <div class="card-body bg-danger-subtle small">
+                <strong class="text-danger">Drift summary:</strong><br>
+                {{ sync_map.drift_summary }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-history-line me-1"></i> Sync Log</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>When</th><th>Action</th><th>By</th><th>Notes</th></tr></thead>
+                    <tbody>
+                    {% for entry in log_entries %}
+                        <tr>
+                            <td class="small">{{ entry.timestamp|date:"M j, Y H:i" }}</td>
+                            <td>
+                                {% if entry.action == 'reconciled' %}<span class="badge bg-success-subtle text-success">Reconciled</span>
+                                {% elif entry.action == 'drift' %}<span class="badge bg-danger-subtle text-danger">Drift</span>
+                                {% elif entry.action == 'updated' %}<span class="badge bg-info-subtle text-info">Updated</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ entry.get_action_display }}</span>{% endif %}
+                            </td>
+                            <td class="small">{{ entry.actor|default:"—" }}</td>
+                            <td class="small">{{ entry.notes|truncatechars:80 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No log entries yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
