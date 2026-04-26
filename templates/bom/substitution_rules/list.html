@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Substitution Rules{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Substitution Rules</h4>
+        <div class="text-muted small">Reusable equivalence rules between components.</div>
+    </div>
+    <a href="{% url 'bom:rule_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Rule</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+            <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search name or SKU..."></div>
+            <div class="col-md-3">
+                <select name="active" class="form-select">
+                    <option value="">Any</option>
+                    <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        </form>
+
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Name</th><th>Original</th><th>Substitute</th><th>Approval</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for r in rules %}
+                <tr>
+                    <td class="fw-semibold">{{ r.name }}</td>
+                    <td class="small">{{ r.original_component.sku }}</td>
+                    <td class="small">{{ r.substitute_component.sku }}</td>
+                    <td>{% if r.requires_approval %}<span class="badge bg-warning-subtle text-warning">Required</span>{% else %}<span class="badge bg-success-subtle text-success">Auto</span>{% endif %}</td>
+                    <td>{% if r.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'bom:rule_edit' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'bom:rule_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete rule {{ r.name }}?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No substitution rules yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if is_paginated %}
+        <nav><ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+        </ul></nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
