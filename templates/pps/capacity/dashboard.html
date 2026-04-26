@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Capacity Load{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Capacity Load</h4>
+        <div class="text-muted small">Daily utilization per work center. Bottlenecks flagged at &ge; 95% utilization.</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:order_gantt' %}" class="btn btn-outline-primary"><i class="ri-bar-chart-horizontal-line"></i> Gantt</a>
+        <form method="post" action="{% url 'pps:capacity_recompute' %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-primary"><i class="ri-refresh-line"></i> Recompute (next 14 days)</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <form method="get" class="row g-2">
+        <div class="col-md-4">
+            <select name="work_center" class="form-select">
+                <option value="">All work centers</option>
+                {% for wc in work_centers %}<option value="{{ wc.pk }}" {% if request.GET.work_center == wc.pk|stringformat:"d" %}selected{% endif %}>{{ wc.code }} — {{ wc.name|truncatechars:30 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control"></div>
+        <div class="col-md-3"><input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control"></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+</div></div>
+
+<div class="row g-3">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Utilization Trend ({{ bottleneck_count }} bottleneck day(s))</h6></div>
+            <div class="card-body">
+                <div id="capacity-chart" style="min-height: 320px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Daily Load Detail</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th>Date</th><th>Work Center</th><th>Planned</th><th>Available</th><th>Utilization</th><th>Bottleneck</th></tr></thead>
+                    <tbody>
+                    {% for ld in loads %}
+                        <tr>
+                            <td class="small">{{ ld.period_date|date:"M j, Y" }}</td>
+                            <td><a href="{% url 'pps:work_center_detail' ld.work_center.pk %}">{{ ld.work_center.code }}</a></td>
+                            <td class="small">{{ ld.planned_minutes }}m</td>
+                            <td class="small">{{ ld.available_minutes }}m</td>
+                            <td class="small {% if ld.is_bottleneck %}text-danger fw-semibold{% endif %}">{{ ld.utilization_pct }}%</td>
+                            <td>{% if ld.is_bottleneck %}<span class="badge bg-danger-subtle text-danger">Bottleneck</span>{% else %}—{% endif %}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">No capacity load data — click Recompute.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
+<script>
+(function () {
+    var rawSeries = {{ chart_series_json|safe }};
+    if (!rawSeries || !rawSeries.length) { return; }
+    var firstCategories = rawSeries[0].categories || [];
+    var seriesForChart = rawSeries.map(function (s) {
+        return { name: s.name, data: s.data };
+    });
+    var options = {
+        chart: { type: 'bar', height: 320, toolbar: { show: false } },
+        plotOptions: { bar: { columnWidth: '60%' } },
+        series: seriesForChart,
+        xaxis: { categories: firstCategories, labels: { rotate: -30 } },
+        yaxis: { title: { text: 'Utilization %' }, max: 120 },
+        annotations: {
+            yaxis: [{
+                y: 95, borderColor: '#dc3545', strokeDashArray: 4,
+                label: { text: 'Bottleneck threshold', style: { color: '#fff', background: '#dc3545' } }
+            }]
+        },
+        legend: { position: 'top' },
+        colors: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2', '#20c997']
+    };
+    var chart = new ApexCharts(document.querySelector('#capacity-chart'), options);
+    chart.render();
+})();
+</script>
+{% endblock %}
+{% endblock %}
