@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ order.order_number }} <small class="text-muted">— {{ order.product.sku }} × {{ order.quantity }}</small></h4>
+        <div class="text-muted small">
+            {{ order.product.name|truncatechars:60 }}
+            {% if order.priority == 'rush' %}· <span class="badge bg-danger text-white">Rush</span>{% endif %}
+        </div>
+    </div>
+    <div>
+        <a href="{% url 'pps:order_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+
+        {% if order.status == 'planned' %}
+            <a href="{% url 'pps:order_edit' order.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+            <form method="post" action="{% url 'pps:order_release' order.pk %}" style="display:inline" onsubmit="return confirm('Release order to the shop floor?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-send-plane-line"></i> Release</button>
+            </form>
+            <form method="post" action="{% url 'pps:order_delete' order.pk %}" style="display:inline" onsubmit="return confirm('Delete this order?');">
+                {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+            </form>
+        {% elif order.status == 'released' %}
+            <form method="post" action="{% url 'pps:order_start' order.pk %}" style="display:inline" onsubmit="return confirm('Start production?');">
+                {% csrf_token %}<button class="btn btn-warning"><i class="ri-play-line"></i> Start</button>
+            </form>
+        {% elif order.status == 'in_progress' %}
+            <form method="post" action="{% url 'pps:order_complete' order.pk %}" style="display:inline" onsubmit="return confirm('Mark order complete?');">
+                {% csrf_token %}<button class="btn btn-success"><i class="ri-check-double-line"></i> Complete</button>
+            </form>
+        {% endif %}
+        {% if order.status != 'completed' and order.status != 'cancelled' %}
+            <form method="post" action="{% url 'pps:order_cancel' order.pk %}" style="display:inline" onsubmit="return confirm('Cancel this order?');">
+                {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-close-line"></i> Cancel</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card"><div class="card-body text-center">
+            <div class="mb-2">
+                {% if order.status == 'completed' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Completed</span>
+                {% elif order.status == 'in_progress' %}<span class="badge bg-warning text-dark fs-6 px-3 py-2">In Progress</span>
+                {% elif order.status == 'released' %}<span class="badge bg-info text-white fs-6 px-3 py-2">Released</span>
+                {% elif order.status == 'cancelled' %}<span class="badge bg-secondary fs-6 px-3 py-2">Cancelled</span>
+                {% else %}<span class="badge bg-secondary fs-6 px-3 py-2">Planned</span>{% endif %}
+            </div>
+        </div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span><a href="{% url 'plm:product_detail' order.product.pk %}">{{ order.product.sku }}</a></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Quantity</span><strong>{{ order.quantity }}</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Priority</span>{{ order.get_priority_display }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Method</span>{{ order.get_scheduling_method_display }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Routing</span>{% if order.routing %}<a href="{% url 'pps:routing_detail' order.routing.pk %}">{{ order.routing.routing_number }}</a>{% else %}—{% endif %}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">BOM</span>{% if order.bom %}<a href="{% url 'bom:bom_detail' order.bom.pk %}">{{ order.bom.bom_number }}</a>{% else %}—{% endif %}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Requested start</span><span class="small">{{ order.requested_start|date:"M j, H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Requested end</span><span class="small">{{ order.requested_end|date:"M j, H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scheduled start</span><span class="small">{{ order.scheduled_start|date:"M j, H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scheduled end</span><span class="small">{{ order.scheduled_end|date:"M j, H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Actual start</span><span class="small">{{ order.actual_start|date:"M j, H:i"|default:"—" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Actual end</span><span class="small">{{ order.actual_end|date:"M j, H:i"|default:"—" }}</span></li>
+        </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Scheduled Operations ({{ scheduled_ops|length }})</h6>
+                {% if order.routing %}
+                <form method="post" action="{% url 'pps:order_schedule' order.pk %}">
+                    {% csrf_token %}
+                    <div class="input-group input-group-sm">
+                        <select name="method" class="form-select form-select-sm">
+                            <option value="forward" {% if order.scheduling_method == 'forward' %}selected{% endif %}>Forward</option>
+                            <option value="backward" {% if order.scheduling_method == 'backward' %}selected{% endif %}>Backward</option>
+                            <option value="infinite" {% if order.scheduling_method == 'infinite' %}selected{% endif %}>Infinite</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary"><i class="ri-calendar-2-line"></i> Schedule</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Seq</th><th>Operation</th><th>Work Center</th><th>Start</th><th>End</th><th>Minutes</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for s in scheduled_ops %}
+                        <tr>
+                            <td class="small">{{ s.sequence }}</td>
+                            <td class="small">{{ s.operation_name|default:s.routing_operation.operation_name|truncatechars:40 }}</td>
+                            <td class="small"><a href="{% url 'pps:work_center_detail' s.work_center.pk %}">{{ s.work_center.code }}</a></td>
+                            <td class="small">{{ s.planned_start|date:"M j, H:i" }}</td>
+                            <td class="small">{{ s.planned_end|date:"M j, H:i" }}</td>
+                            <td class="small">{{ s.planned_minutes }}m</td>
+                            <td>
+                                {% if s.status == 'completed' %}<span class="badge bg-success-subtle text-success">Done</span>
+                                {% elif s.status == 'in_progress' %}<span class="badge bg-warning-subtle text-warning">Running</span>
+                                {% elif s.status == 'skipped' %}<span class="badge bg-secondary-subtle text-secondary">Skipped</span>
+                                {% else %}<span class="badge bg-info-subtle text-info">Pending</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">{% if order.routing %}Click Schedule to lay operations onto the calendar.{% else %}No routing assigned to this order.{% endif %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if order.notes %}
+        <div class="card mt-3"><div class="card-body">
+            <h6>Notes</h6><p class="text-muted">{{ order.notes|linebreaks }}</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
