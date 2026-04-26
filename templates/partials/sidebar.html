@@ -74,6 +74,28 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarPPS" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-calendar-schedule-line"></i> <span>Production Planning</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarPPS" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'pps:index' %}" class="nav-link">PPS Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:forecast_list' %}" class="nav-link">Demand Forecasts</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:mps_list' %}" class="nav-link">Master Production Schedule</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:work_center_list' %}" class="nav-link">Work Centers</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:calendar_list' %}" class="nav-link">Capacity Calendars</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:capacity_dashboard' %}" class="nav-link">Capacity Load</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:routing_list' %}" class="nav-link">Routings</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:order_list' %}" class="nav-link">Production Orders</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:order_gantt' %}" class="nav-link">Gantt Schedule</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:scenario_list' %}" class="nav-link">Scenarios</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:objective_list' %}" class="nav-link">Optimizer Objectives</a></li>
+                            <li class="nav-item"><a href="{% url 'pps:run_list' %}" class="nav-link">Optimization Runs</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
