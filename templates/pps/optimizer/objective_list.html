@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Optimization Objectives{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Optimization Objectives</h4>
+        <div class="text-muted small">Weighted goal definitions used by the greedy optimizer (changeovers, idle, lateness, priority).</div>
+    </div>
+    <div>
+        <a href="{% url 'pps:run_list' %}" class="btn btn-outline-primary"><i class="ri-history-line me-1"></i> Runs</a>
+        <a href="{% url 'pps:objective_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Objective</a>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search name or description..."></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Search</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Name</th><th>Changeovers</th><th>Idle</th><th>Lateness</th><th>Priority</th><th>Default</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for obj in objectives %}
+                <tr>
+                    <td class="fw-semibold">{{ obj.name }}</td>
+                    <td class="small">{{ obj.weight_changeovers }}</td>
+                    <td class="small">{{ obj.weight_idle }}</td>
+                    <td class="small">{{ obj.weight_lateness }}</td>
+                    <td class="small">{{ obj.weight_priority }}</td>
+                    <td>{% if obj.is_default %}<span class="badge bg-primary-subtle text-primary">Default</span>{% else %}—{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'pps:objective_edit' obj.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'pps:objective_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete objective?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No objectives configured.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
