@@ -709,6 +709,21 @@ Workflow buttons on the MPS detail page: **Submit for review**, **Approve**, **R
 
 All workflow transitions use the same conditional `UPDATE … WHERE status IN (…)` pattern as Module 3 so two operators racing on the floor cannot double-action.
 
+### Operator vs Admin matrix (post-SQA fix)
+
+The post-Module-4 SQA review flagged that every PPS view used `TenantRequiredMixin` only — any authenticated tenant user could approve, release, or obsolete records. The remediated module separates the two roles:
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages, Gantt, capacity dashboard (read-only) | Authenticated tenant user (operator) | `TenantRequiredMixin` |
+| Create / edit / delete forms; MPS workflow (Submit / Approve / Release / Obsolete); production order workflow (Release / Start / Complete / Cancel / Schedule); scenario Run / Apply / Discard; optimizer Start / Apply / Discard; capacity recompute | Tenant admin (`is_tenant_admin=True`) or Django superuser | `TenantAdminRequiredMixin` |
+
+A regular tenant user attempting any admin-gated POST is redirected to the dashboard with a flash error; the underlying record is not modified. The 58-test pytest suite at [`apps/pps/tests/`](apps/pps/tests/) covers this end-to-end.
+
+### Test suite
+
+Run the PPS test suite with `pytest apps/pps/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory, MD5 hasher, in-memory file storage). The suite covers model invariants, form validation (including the post-review L-01/L-02 regression guards), workflow + tenant isolation + RBAC integration, OWASP A01/A03/A04 + CSRF security tests, pure-function scheduler/optimizer correctness (including the L-05 naive/aware-datetime regression), audit-log emission for configuration mutations, and list-page query budgets. **58 tests, ~6 s runtime.**
+
 ---
 
 ## UI / Theme Customization
@@ -745,7 +760,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
+| `pytest apps/pps/tests/` | Run the PPS test suite (58 tests, ~6 s; covers model bounds, form validation, RBAC, workflow, scheduler/optimizer, audit-log emission, query budgets) |
 | `pytest --cov=apps/plm` | Run with coverage report |
+| `pytest --cov=apps/pps` | Run PPS coverage report (services + signals + forms + models ≥ 84% each) |
 
 ---
 
