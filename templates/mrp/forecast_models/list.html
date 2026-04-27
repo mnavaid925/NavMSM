@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Forecast Models{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Forecast Models</h4>
+        <div class="text-muted small">Reusable statistical forecast configurations — algorithm + parameters + horizon.</div>
+    </div>
+    <a href="{% url 'mrp:forecast_model_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Model</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by name..."></div>
+        <div class="col-md-3">
+            <select name="method" class="form-select">
+                <option value="">Any method</option>
+                {% for v, label in method_choices %}<option value="{{ v }}" {% if request.GET.method == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="period_type" class="form-select">
+                <option value="">Any period</option>
+                {% for v, label in period_choices %}<option value="{{ v }}" {% if request.GET.period_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="active" class="form-select">
+                <option value="">All</option>
+                <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Name</th><th>Method</th><th>Period</th><th>Horizon</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for fm in forecast_models %}
+                <tr>
+                    <td><a href="{% url 'mrp:forecast_model_detail' fm.pk %}">{{ fm.name }}</a></td>
+                    <td><span class="badge bg-info-subtle text-info">{{ fm.get_method_display }}</span></td>
+                    <td class="small">{{ fm.get_period_type_display }}</td>
+                    <td class="small">{{ fm.horizon_periods }} periods</td>
+                    <td>{% if fm.is_active %}<span class="badge bg-success text-white">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:forecast_model_detail' fm.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'mrp:forecast_model_edit' fm.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mrp:forecast_model_run' fm.pk %}" style="display:inline">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-success" title="Run forecast"><i class="ri-play-line"></i></button>
+                        </form>
+                        <form method="post" action="{% url 'mrp:forecast_model_delete' fm.pk %}" style="display:inline" onsubmit="return confirm('Delete this forecast model?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No forecast models yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
