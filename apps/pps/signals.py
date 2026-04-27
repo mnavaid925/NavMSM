@@ -12,8 +12,9 @@ from django.dispatch import receiver
 from apps.core.models import get_current_tenant
 
 from .models import (
-    CapacityLoad, MasterProductionSchedule, OptimizationRun, ProductionOrder,
-    ScheduledOperation, Scenario,
+    CapacityCalendar, CapacityLoad, MasterProductionSchedule, OptimizationRun,
+    ProductionOrder, Routing, RoutingOperation, ScheduledOperation, Scenario,
+    WorkCenter,
 )
 
 
@@ -135,6 +136,105 @@ def log_run_save(sender, instance, created, **kwargs):
             f'optimization.{instance.status}', instance, instance.tenant,
             meta={'name': instance.name, 'from': old, 'to': instance.status},
         )
+
+
+# ---- Configuration mutations -> audit log (D-11) ----
+#
+# Routing, RoutingOperation, WorkCenter, and CapacityCalendar changes are
+# operationally significant — a tenant admin must be able to reconstruct who
+# changed a work center's capacity or removed a routing. The signals emit
+# `<entity>.created` / `<entity>.updated` / `<entity>.deleted` audit rows.
+
+def _audit_config_save(action_prefix, instance, created, **fields):
+    label = 'created' if created else 'updated'
+    _tenant_audit(
+        f'{action_prefix}.{label}', instance, instance.tenant,
+        meta={'pk': instance.pk, **fields},
+    )
+
+
+def _audit_config_delete(action_prefix, instance, **fields):
+    _tenant_audit(
+        f'{action_prefix}.deleted', instance, instance.tenant,
+        meta={'pk': instance.pk, **fields},
+    )
+
+
+@receiver(post_save, sender=Routing)
+def log_routing_save(sender, instance, created, **kwargs):
+    _audit_config_save(
+        'routing', instance, created,
+        routing_number=instance.routing_number,
+        product_id=instance.product_id, version=instance.version,
+        status=instance.status,
+    )
+
+
+@receiver(post_delete, sender=Routing)
+def log_routing_delete(sender, instance, **kwargs):
+    _audit_config_delete(
+        'routing', instance,
+        routing_number=instance.routing_number,
+        product_id=instance.product_id, version=instance.version,
+    )
+
+
+@receiver(post_save, sender=RoutingOperation)
+def log_routing_operation_save(sender, instance, created, **kwargs):
+    _audit_config_save(
+        'routing_operation', instance, created,
+        routing_id=instance.routing_id, sequence=instance.sequence,
+        operation_name=instance.operation_name,
+        work_center_id=instance.work_center_id,
+    )
+
+
+@receiver(post_delete, sender=RoutingOperation)
+def log_routing_operation_delete(sender, instance, **kwargs):
+    _audit_config_delete(
+        'routing_operation', instance,
+        routing_id=instance.routing_id, sequence=instance.sequence,
+        operation_name=instance.operation_name,
+    )
+
+
+@receiver(post_save, sender=WorkCenter)
+def log_work_center_save(sender, instance, created, **kwargs):
+    _audit_config_save(
+        'work_center', instance, created,
+        code=instance.code, name=instance.name,
+        work_center_type=instance.work_center_type,
+        is_active=instance.is_active,
+    )
+
+
+@receiver(post_delete, sender=WorkCenter)
+def log_work_center_delete(sender, instance, **kwargs):
+    _audit_config_delete(
+        'work_center', instance, code=instance.code, name=instance.name,
+    )
+
+
+@receiver(post_save, sender=CapacityCalendar)
+def log_capacity_calendar_save(sender, instance, created, **kwargs):
+    _audit_config_save(
+        'capacity_calendar', instance, created,
+        work_center_id=instance.work_center_id,
+        day_of_week=instance.day_of_week,
+        shift_start=str(instance.shift_start),
+        shift_end=str(instance.shift_end),
+        is_working=instance.is_working,
+    )
+
+
+@receiver(post_delete, sender=CapacityCalendar)
+def log_capacity_calendar_delete(sender, instance, **kwargs):
+    _audit_config_delete(
+        'capacity_calendar', instance,
+        work_center_id=instance.work_center_id,
+        day_of_week=instance.day_of_week,
+        shift_start=str(instance.shift_start),
+    )
 
 
 # ---- Scheduled operation save/delete -> invalidate capacity load ----
