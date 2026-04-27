@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}MRP Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Material Requirements Planning</h4>
+        <div class="text-muted small">Module 5 — forecasting, gross-to-net, exceptions, PR auto-generation, and MRP runs.</div>
+    </div>
+    <div>
+        <a href="{% url 'mrp:run_create' %}" class="btn btn-primary"><i class="ri-play-circle-line me-1"></i> New MRP Run</a>
+        <a href="{% url 'mrp:forecast_model_create' %}" class="btn btn-outline-primary"><i class="ri-add-line me-1"></i> New Forecast</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-primary-subtle rounded p-2 me-3"><i class="ri-flow-chart text-primary fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">MRP Runs</div>
+                    <h4 class="mb-0">{{ open_runs|add:completed_runs|intcomma }}</h4>
+                    <div class="text-muted small">{{ open_runs }} active · {{ completed_runs }} completed</div>
+                </div>
+            </div>
+            <a href="{% url 'mrp:run_list' %}" class="btn btn-sm btn-link p-0 mt-2">All runs <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-danger-subtle rounded p-2 me-3"><i class="ri-error-warning-line text-danger fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Open Exceptions</div>
+                    <h4 class="mb-0">{{ open_exceptions|intcomma }}</h4>
+                    <div class="text-muted small">{{ critical_exceptions }} critical · {{ late_orders }} late</div>
+                </div>
+            </div>
+            <a href="{% url 'mrp:exception_list' %}" class="btn btn-sm btn-link p-0 mt-2">View list <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-warning-subtle rounded p-2 me-3"><i class="ri-shopping-cart-2-line text-warning fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">PR Suggestions</div>
+                    <h4 class="mb-0">{{ pending_prs|intcomma }}</h4>
+                    <div class="text-muted small">draft + approved</div>
+                </div>
+            </div>
+            <a href="{% url 'mrp:pr_list' %}" class="btn btn-sm btn-link p-0 mt-2">Manage PRs <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-pie-chart-2-line text-success fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Last Coverage</div>
+                    <h4 class="mb-0">{% if last_coverage is not None %}{{ last_coverage }}%{% else %}—{% endif %}</h4>
+                    <div class="text-muted small">{% if last_run %}from {{ last_run.run_number }}{% else %}no runs yet{% endif %}</div>
+                </div>
+            </div>
+            <a href="{% url 'mrp:forecast_model_list' %}" class="btn btn-sm btn-link p-0 mt-2">{{ forecast_models_active }} forecast models <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-flow-chart me-1"></i> Recent MRP Runs</h5>
+                <a href="{% url 'mrp:run_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> New Run</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Name</th><th>Type</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for r in recent_runs %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'mrp:run_detail' r.pk %}">{{ r.run_number }}</a></td>
+                            <td class="small">{{ r.name|truncatechars:32 }}</td>
+                            <td><span class="badge bg-info-subtle text-info">{{ r.get_run_type_display }}</span></td>
+                            <td>
+                                {% if r.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                                {% elif r.status == 'applied' %}<span class="badge bg-primary text-white">Applied</span>
+                                {% elif r.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+                                {% elif r.status == 'failed' %}<span class="badge bg-danger text-white">Failed</span>
+                                {% elif r.status == 'discarded' %}<span class="badge bg-secondary-subtle text-secondary">Discarded</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ r.get_status_display }}</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No MRP runs yet — create one to get started.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-error-warning-line me-1"></i> Open Exceptions</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Type</th><th>Product</th><th>Severity</th></tr></thead>
+                    <tbody>
+                    {% for e in recent_exceptions %}
+                        <tr>
+                            <td class="small"><a href="{% url 'mrp:exception_detail' e.pk %}">{{ e.get_exception_type_display }}</a></td>
+                            <td class="small">{{ e.product.sku }}</td>
+                            <td>
+                                {% if e.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                                {% elif e.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                                {% elif e.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-4">No open exceptions.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

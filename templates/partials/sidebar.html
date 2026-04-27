@@ -96,6 +96,26 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarMRP" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-flow-chart"></i> <span>Material Requirements (MRP)</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarMRP" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'mrp:index' %}" class="nav-link">MRP Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:forecast_model_list' %}" class="nav-link">Forecast Models</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:seasonality_list' %}" class="nav-link">Seasonality Profiles</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:forecast_run_list' %}" class="nav-link">Forecast Runs</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:inventory_list' %}" class="nav-link">Inventory Snapshot</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:receipt_list' %}" class="nav-link">Scheduled Receipts</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:calculation_list' %}" class="nav-link">MRP Calculations</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:run_list' %}" class="nav-link">MRP Runs</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:pr_list' %}" class="nav-link">PR Suggestions</a></li>
+                            <li class="nav-item"><a href="{% url 'mrp:exception_list' %}" class="nav-link">Exceptions</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
