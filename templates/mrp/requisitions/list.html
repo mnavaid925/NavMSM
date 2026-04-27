@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}MRP Purchase Requisitions{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">MRP Purchase Requisitions</h4>
+        <div class="text-muted small">MRP-suggested PRs for purchased components. Procurement (Module 9) will later convert approved rows into POs.</div>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by PR # or SKU..."></div>
+        <div class="col-md-2">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="priority" class="form-select">
+                <option value="">Any priority</option>
+                {% for v, label in priority_choices %}<option value="{{ v }}" {% if request.GET.priority == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="product" class="form-select">
+                <option value="">Any product</option>
+                {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>PR #</th><th>Product</th><th>Qty</th><th>Required</th><th>Release</th><th>Priority</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for pr in requisitions %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mrp:pr_detail' pr.pk %}">{{ pr.pr_number }}</a></td>
+                    <td class="small">{{ pr.product.sku }} <span class="text-muted">{{ pr.product.name|truncatechars:25 }}</span></td>
+                    <td class="small fw-semibold">{{ pr.quantity }}</td>
+                    <td class="small">{{ pr.required_by_date|date:"M j, Y" }}</td>
+                    <td class="small">{{ pr.suggested_release_date|date:"M j, Y" }}</td>
+                    <td>
+                        {% if pr.priority == 'rush' %}<span class="badge bg-danger text-white">Rush</span>
+                        {% elif pr.priority == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                        {% elif pr.priority == 'low' %}<span class="badge bg-secondary-subtle text-secondary">Low</span>
+                        {% else %}<span class="badge bg-info-subtle text-info">Normal</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if pr.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                        {% elif pr.status == 'approved' %}<span class="badge bg-success text-white">Approved</span>
+                        {% elif pr.status == 'converted' %}<span class="badge bg-primary text-white">Converted</span>
+                        {% else %}<span class="badge bg-warning-subtle text-warning">{{ pr.get_status_display }}</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:pr_detail' pr.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if pr.is_editable %}<a href="{% url 'mrp:pr_edit' pr.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                        {% if pr.status == 'draft' or pr.status == 'cancelled' %}
+                        <form method="post" action="{% url 'mrp:pr_delete' pr.pk %}" style="display:inline" onsubmit="return confirm('Delete this PR?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No PR suggestions yet — run an MRP calculation to generate them.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
