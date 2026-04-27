@@ -12,6 +12,7 @@ urlpatterns = [
     path('plm/', include('apps.plm.urls')),
     path('bom/', include('apps.bom.urls')),
     path('pps/', include('apps.pps.urls')),
+    path('mrp/', include('apps.mrp.urls')),
 ]
 
 if settings.DEBUG:
