@@ -19,7 +19,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView
 
-from apps.accounts.views import TenantRequiredMixin
+from apps.accounts.views import TenantAdminRequiredMixin, TenantRequiredMixin
 from apps.bom.models import BillOfMaterials
 from apps.plm.models import Product
 
@@ -179,7 +179,7 @@ class DemandForecastListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class DemandForecastCreateView(TenantRequiredMixin, View):
+class DemandForecastCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/forecasts/form.html', {
             'form': DemandForecastForm(tenant=request.tenant),
@@ -205,7 +205,7 @@ class DemandForecastDetailView(TenantRequiredMixin, View):
         return render(request, 'pps/forecasts/detail.html', {'forecast': f})
 
 
-class DemandForecastEditView(TenantRequiredMixin, View):
+class DemandForecastEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         f = get_object_or_404(DemandForecast, pk=pk, tenant=request.tenant)
         return render(request, 'pps/forecasts/form.html', {
@@ -223,7 +223,7 @@ class DemandForecastEditView(TenantRequiredMixin, View):
         return render(request, 'pps/forecasts/form.html', {'form': form, 'forecast': f})
 
 
-class DemandForecastDeleteView(TenantRequiredMixin, View):
+class DemandForecastDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         f = get_object_or_404(DemandForecast, pk=pk, tenant=request.tenant)
         f.delete()
@@ -261,7 +261,7 @@ class MPSListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class MPSCreateView(TenantRequiredMixin, View):
+class MPSCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/mps/form.html', {
             'form': MasterProductionScheduleForm(),
@@ -300,7 +300,7 @@ class MPSDetailView(TenantRequiredMixin, View):
         })
 
 
-class MPSEditView(TenantRequiredMixin, View):
+class MPSEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         mps = get_object_or_404(MasterProductionSchedule, pk=pk, tenant=request.tenant)
         if not mps.is_editable():
@@ -324,7 +324,7 @@ class MPSEditView(TenantRequiredMixin, View):
         return render(request, 'pps/mps/form.html', {'form': form, 'mps': mps})
 
 
-class MPSDeleteView(TenantRequiredMixin, View):
+class MPSDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         mps = get_object_or_404(MasterProductionSchedule, pk=pk, tenant=request.tenant)
         if mps.status == 'released':
@@ -339,7 +339,7 @@ class MPSDeleteView(TenantRequiredMixin, View):
         return redirect('pps:mps_list')
 
 
-class MPSSubmitView(TenantRequiredMixin, View):
+class MPSSubmitView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MasterProductionSchedule, pk, request.tenant, ['draft'], 'under_review',
@@ -349,7 +349,7 @@ class MPSSubmitView(TenantRequiredMixin, View):
         return redirect('pps:mps_detail', pk=pk)
 
 
-class MPSApproveView(TenantRequiredMixin, View):
+class MPSApproveView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MasterProductionSchedule, pk, request.tenant, ['under_review'], 'approved',
@@ -363,7 +363,7 @@ class MPSApproveView(TenantRequiredMixin, View):
         return redirect('pps:mps_detail', pk=pk)
 
 
-class MPSReleaseView(TenantRequiredMixin, View):
+class MPSReleaseView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MasterProductionSchedule, pk, request.tenant, ['approved'], 'released',
@@ -374,7 +374,7 @@ class MPSReleaseView(TenantRequiredMixin, View):
         return redirect('pps:mps_detail', pk=pk)
 
 
-class MPSObsoleteView(TenantRequiredMixin, View):
+class MPSObsoleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MasterProductionSchedule, pk, request.tenant,
@@ -387,7 +387,7 @@ class MPSObsoleteView(TenantRequiredMixin, View):
 
 # ---- MPS Lines (nested) ----
 
-class MPSLineCreateView(TenantRequiredMixin, View):
+class MPSLineCreateView(TenantAdminRequiredMixin, View):
     def post(self, request, mps_id):
         mps = get_object_or_404(MasterProductionSchedule, pk=mps_id, tenant=request.tenant)
         if not mps.is_editable():
@@ -413,7 +413,7 @@ class MPSLineCreateView(TenantRequiredMixin, View):
         return redirect('pps:mps_detail', pk=mps_id)
 
 
-class MPSLineEditView(TenantRequiredMixin, View):
+class MPSLineEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         line = get_object_or_404(MPSLine, pk=pk, tenant=request.tenant)
         return render(request, 'pps/mps_lines/form.html', {
@@ -434,7 +434,7 @@ class MPSLineEditView(TenantRequiredMixin, View):
         return render(request, 'pps/mps_lines/form.html', {'form': form, 'line': line})
 
 
-class MPSLineDeleteView(TenantRequiredMixin, View):
+class MPSLineDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         line = get_object_or_404(MPSLine, pk=pk, tenant=request.tenant)
         if not line.mps.is_editable():
@@ -477,14 +477,14 @@ class WorkCenterListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class WorkCenterCreateView(TenantRequiredMixin, View):
+class WorkCenterCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/work_centers/form.html', {
-            'form': WorkCenterForm(),
+            'form': WorkCenterForm(tenant=request.tenant),
         })
 
     def post(self, request):
-        form = WorkCenterForm(request.POST)
+        form = WorkCenterForm(request.POST, tenant=request.tenant)
         if form.is_valid():
             wc = form.save(commit=False)
             wc.tenant = request.tenant
@@ -512,25 +512,31 @@ class WorkCenterDetailView(TenantRequiredMixin, View):
         })
 
 
-class WorkCenterEditView(TenantRequiredMixin, View):
+class WorkCenterEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         wc = get_object_or_404(WorkCenter, pk=pk, tenant=request.tenant)
         return render(request, 'pps/work_centers/form.html', {
-            'form': WorkCenterForm(instance=wc),
+            'form': WorkCenterForm(instance=wc, tenant=request.tenant),
             'work_center': wc,
         })
 
     def post(self, request, pk):
         wc = get_object_or_404(WorkCenter, pk=pk, tenant=request.tenant)
-        form = WorkCenterForm(request.POST, instance=wc)
+        form = WorkCenterForm(request.POST, instance=wc, tenant=request.tenant)
         if form.is_valid():
-            form.save()
+            try:
+                form.save()
+            except IntegrityError:
+                # Belt-and-braces: form.clean() should have caught this, but
+                # a concurrent insert during validation could still slip through.
+                messages.error(request, f'A work center with code "{form.cleaned_data.get("code")}" already exists.')
+                return render(request, 'pps/work_centers/form.html', {'form': form, 'work_center': wc})
             messages.success(request, 'Work center updated.')
             return redirect('pps:work_center_detail', pk=wc.pk)
         return render(request, 'pps/work_centers/form.html', {'form': form, 'work_center': wc})
 
 
-class WorkCenterDeleteView(TenantRequiredMixin, View):
+class WorkCenterDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         wc = get_object_or_404(WorkCenter, pk=pk, tenant=request.tenant)
         try:
@@ -567,7 +573,7 @@ class CapacityCalendarListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class CapacityCalendarCreateView(TenantRequiredMixin, View):
+class CapacityCalendarCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/calendars/form.html', {
             'form': CapacityCalendarForm(tenant=request.tenant),
@@ -588,7 +594,7 @@ class CapacityCalendarCreateView(TenantRequiredMixin, View):
         return render(request, 'pps/calendars/form.html', {'form': form})
 
 
-class CapacityCalendarEditView(TenantRequiredMixin, View):
+class CapacityCalendarEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         cal = get_object_or_404(CapacityCalendar, pk=pk, tenant=request.tenant)
         return render(request, 'pps/calendars/form.html', {
@@ -606,7 +612,7 @@ class CapacityCalendarEditView(TenantRequiredMixin, View):
         return render(request, 'pps/calendars/form.html', {'form': form, 'calendar': cal})
 
 
-class CapacityCalendarDeleteView(TenantRequiredMixin, View):
+class CapacityCalendarDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         cal = get_object_or_404(CapacityCalendar, pk=pk, tenant=request.tenant)
         cal.delete()
@@ -645,16 +651,16 @@ class CapacityDashboardView(TenantRequiredMixin, View):
         return render(request, self.template_name, {
             'loads': loads,
             'work_centers': WorkCenter.objects.filter(tenant=t, is_active=True).order_by('code'),
-            'chart_series_json': json.dumps([
+            'chart_series': [
                 {'name': wc, 'data': [pt['utilization'] for pt in pts],
                  'categories': [pt['date'] for pt in pts]}
                 for wc, pts in chart_series.items()
-            ]),
+            ],
             'bottleneck_count': sum(1 for ld in loads if ld.is_bottleneck),
         })
 
 
-class CapacityRecomputeView(TenantRequiredMixin, View):
+class CapacityRecomputeView(TenantAdminRequiredMixin, View):
     """Recompute CapacityLoad for the next 14 days across every active work center."""
 
     def post(self, request):
@@ -735,7 +741,7 @@ class RoutingListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class RoutingCreateView(TenantRequiredMixin, View):
+class RoutingCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/routings/form.html', {
             'form': RoutingForm(tenant=request.tenant),
@@ -773,7 +779,7 @@ class RoutingDetailView(TenantRequiredMixin, View):
         })
 
 
-class RoutingEditView(TenantRequiredMixin, View):
+class RoutingEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         routing = get_object_or_404(Routing, pk=pk, tenant=request.tenant)
         return render(request, 'pps/routings/form.html', {
@@ -791,7 +797,7 @@ class RoutingEditView(TenantRequiredMixin, View):
         return render(request, 'pps/routings/form.html', {'form': form, 'routing': routing})
 
 
-class RoutingDeleteView(TenantRequiredMixin, View):
+class RoutingDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         routing = get_object_or_404(Routing, pk=pk, tenant=request.tenant)
         try:
@@ -803,7 +809,7 @@ class RoutingDeleteView(TenantRequiredMixin, View):
         return redirect('pps:routing_list')
 
 
-class RoutingOperationCreateView(TenantRequiredMixin, View):
+class RoutingOperationCreateView(TenantAdminRequiredMixin, View):
     def post(self, request, routing_id):
         routing = get_object_or_404(Routing, pk=routing_id, tenant=request.tenant)
         form = RoutingOperationForm(request.POST, tenant=request.tenant)
@@ -823,7 +829,7 @@ class RoutingOperationCreateView(TenantRequiredMixin, View):
         return redirect('pps:routing_detail', pk=routing_id)
 
 
-class RoutingOperationEditView(TenantRequiredMixin, View):
+class RoutingOperationEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         op = get_object_or_404(RoutingOperation, pk=pk, tenant=request.tenant)
         return render(request, 'pps/routing_operations/form.html', {
@@ -841,7 +847,7 @@ class RoutingOperationEditView(TenantRequiredMixin, View):
         return render(request, 'pps/routing_operations/form.html', {'form': form, 'operation': op})
 
 
-class RoutingOperationDeleteView(TenantRequiredMixin, View):
+class RoutingOperationDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         op = get_object_or_404(RoutingOperation, pk=pk, tenant=request.tenant)
         rid = op.routing_id
@@ -889,7 +895,7 @@ class ProductionOrderListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class ProductionOrderCreateView(TenantRequiredMixin, View):
+class ProductionOrderCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/orders/form.html', {
             'form': ProductionOrderForm(tenant=request.tenant),
@@ -928,7 +934,7 @@ class ProductionOrderDetailView(TenantRequiredMixin, View):
         })
 
 
-class ProductionOrderEditView(TenantRequiredMixin, View):
+class ProductionOrderEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         order = get_object_or_404(ProductionOrder, pk=pk, tenant=request.tenant)
         if not order.is_editable():
@@ -952,7 +958,7 @@ class ProductionOrderEditView(TenantRequiredMixin, View):
         return render(request, 'pps/orders/form.html', {'form': form, 'order': order})
 
 
-class ProductionOrderDeleteView(TenantRequiredMixin, View):
+class ProductionOrderDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         order = get_object_or_404(ProductionOrder, pk=pk, tenant=request.tenant)
         if order.status not in ('planned', 'cancelled'):
@@ -963,7 +969,7 @@ class ProductionOrderDeleteView(TenantRequiredMixin, View):
         return redirect('pps:order_list')
 
 
-class ProductionOrderReleaseView(TenantRequiredMixin, View):
+class ProductionOrderReleaseView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             ProductionOrder, pk, request.tenant, ['planned'], 'released',
@@ -973,7 +979,7 @@ class ProductionOrderReleaseView(TenantRequiredMixin, View):
         return redirect('pps:order_detail', pk=pk)
 
 
-class ProductionOrderStartView(TenantRequiredMixin, View):
+class ProductionOrderStartView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             ProductionOrder, pk, request.tenant, ['released'], 'in_progress',
@@ -984,7 +990,7 @@ class ProductionOrderStartView(TenantRequiredMixin, View):
         return redirect('pps:order_detail', pk=pk)
 
 
-class ProductionOrderCompleteView(TenantRequiredMixin, View):
+class ProductionOrderCompleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             ProductionOrder, pk, request.tenant, ['in_progress'], 'completed',
@@ -995,7 +1001,7 @@ class ProductionOrderCompleteView(TenantRequiredMixin, View):
         return redirect('pps:order_detail', pk=pk)
 
 
-class ProductionOrderCancelView(TenantRequiredMixin, View):
+class ProductionOrderCancelView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             ProductionOrder, pk, request.tenant,
@@ -1006,7 +1012,7 @@ class ProductionOrderCancelView(TenantRequiredMixin, View):
         return redirect('pps:order_detail', pk=pk)
 
 
-class ProductionOrderScheduleView(TenantRequiredMixin, View):
+class ProductionOrderScheduleView(TenantAdminRequiredMixin, View):
     """Schedule an order (forward/backward/infinite). Replaces existing
     ScheduledOperation rows for the order."""
 
@@ -1099,7 +1105,7 @@ class OrderGanttView(TenantRequiredMixin, View):
             })
         chart_series = [{'name': wc, 'data': data} for wc, data in series_map.items()]
         return render(request, self.template_name, {
-            'chart_series_json': json.dumps(chart_series),
+            'chart_series': chart_series,
             'work_centers': WorkCenter.objects.filter(tenant=t).order_by('code'),
             'days': days,
             'scheduled_count': qs.count(),
@@ -1134,7 +1140,7 @@ class ScenarioListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class ScenarioCreateView(TenantRequiredMixin, View):
+class ScenarioCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/scenarios/form.html', {
             'form': ScenarioForm(tenant=request.tenant),
@@ -1167,7 +1173,7 @@ class ScenarioDetailView(TenantRequiredMixin, View):
         })
 
 
-class ScenarioEditView(TenantRequiredMixin, View):
+class ScenarioEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         s = get_object_or_404(Scenario, pk=pk, tenant=request.tenant)
         if not s.is_editable():
@@ -1191,7 +1197,7 @@ class ScenarioEditView(TenantRequiredMixin, View):
         return render(request, 'pps/scenarios/form.html', {'form': form, 'scenario': s})
 
 
-class ScenarioDeleteView(TenantRequiredMixin, View):
+class ScenarioDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         s = get_object_or_404(Scenario, pk=pk, tenant=request.tenant)
         if s.status == 'applied':
@@ -1202,7 +1208,7 @@ class ScenarioDeleteView(TenantRequiredMixin, View):
         return redirect('pps:scenario_list')
 
 
-class ScenarioRunView(TenantRequiredMixin, View):
+class ScenarioRunView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         scenario = get_object_or_404(
             Scenario.objects.select_related('base_mps'),
@@ -1234,7 +1240,7 @@ class ScenarioRunView(TenantRequiredMixin, View):
         return redirect('pps:scenario_detail', pk=pk)
 
 
-class ScenarioApplyView(TenantRequiredMixin, View):
+class ScenarioApplyView(TenantAdminRequiredMixin, View):
     """'Apply' is a soft action — records intent, does not mutate the base MPS.
 
     Real apply (push scenario lines into base_mps) is intentionally out of
@@ -1254,7 +1260,7 @@ class ScenarioApplyView(TenantRequiredMixin, View):
         return redirect('pps:scenario_detail', pk=pk)
 
 
-class ScenarioDiscardView(TenantRequiredMixin, View):
+class ScenarioDiscardView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             Scenario, pk, request.tenant,
@@ -1265,7 +1271,7 @@ class ScenarioDiscardView(TenantRequiredMixin, View):
         return redirect('pps:scenario_detail', pk=pk)
 
 
-class ScenarioChangeCreateView(TenantRequiredMixin, View):
+class ScenarioChangeCreateView(TenantAdminRequiredMixin, View):
     def post(self, request, scenario_id):
         scenario = get_object_or_404(Scenario, pk=scenario_id, tenant=request.tenant)
         if not scenario.is_editable():
@@ -1298,7 +1304,7 @@ class ScenarioChangeCreateView(TenantRequiredMixin, View):
         return redirect('pps:scenario_detail', pk=scenario_id)
 
 
-class ScenarioChangeEditView(TenantRequiredMixin, View):
+class ScenarioChangeEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         ch = get_object_or_404(ScenarioChange, pk=pk, tenant=request.tenant)
         return render(request, 'pps/scenario_changes/form.html', {
@@ -1326,7 +1332,7 @@ class ScenarioChangeEditView(TenantRequiredMixin, View):
         return render(request, 'pps/scenario_changes/form.html', {'form': form, 'change': ch})
 
 
-class ScenarioChangeDeleteView(TenantRequiredMixin, View):
+class ScenarioChangeDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ch = get_object_or_404(ScenarioChange, pk=pk, tenant=request.tenant)
         sid = ch.scenario_id
@@ -1353,14 +1359,14 @@ class OptimizationObjectiveListView(TenantRequiredMixin, ListView):
         return qs
 
 
-class OptimizationObjectiveCreateView(TenantRequiredMixin, View):
+class OptimizationObjectiveCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/optimizer/objective_form.html', {
-            'form': OptimizationObjectiveForm(),
+            'form': OptimizationObjectiveForm(tenant=request.tenant),
         })
 
     def post(self, request):
-        form = OptimizationObjectiveForm(request.POST)
+        form = OptimizationObjectiveForm(request.POST, tenant=request.tenant)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.tenant = request.tenant
@@ -1374,25 +1380,29 @@ class OptimizationObjectiveCreateView(TenantRequiredMixin, View):
         return render(request, 'pps/optimizer/objective_form.html', {'form': form})
 
 
-class OptimizationObjectiveEditView(TenantRequiredMixin, View):
+class OptimizationObjectiveEditView(TenantAdminRequiredMixin, View):
     def get(self, request, pk):
         obj = get_object_or_404(OptimizationObjective, pk=pk, tenant=request.tenant)
         return render(request, 'pps/optimizer/objective_form.html', {
-            'form': OptimizationObjectiveForm(instance=obj),
+            'form': OptimizationObjectiveForm(instance=obj, tenant=request.tenant),
             'objective': obj,
         })
 
     def post(self, request, pk):
         obj = get_object_or_404(OptimizationObjective, pk=pk, tenant=request.tenant)
-        form = OptimizationObjectiveForm(request.POST, instance=obj)
+        form = OptimizationObjectiveForm(request.POST, instance=obj, tenant=request.tenant)
         if form.is_valid():
-            form.save()
+            try:
+                form.save()
+            except IntegrityError:
+                messages.error(request, f'An objective named "{form.cleaned_data.get("name")}" already exists.')
+                return render(request, 'pps/optimizer/objective_form.html', {'form': form, 'objective': obj})
             messages.success(request, 'Objective updated.')
             return redirect('pps:objective_list')
         return render(request, 'pps/optimizer/objective_form.html', {'form': form, 'objective': obj})
 
 
-class OptimizationObjectiveDeleteView(TenantRequiredMixin, View):
+class OptimizationObjectiveDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         obj = get_object_or_404(OptimizationObjective, pk=pk, tenant=request.tenant)
         try:
@@ -1428,7 +1438,7 @@ class OptimizationRunListView(TenantRequiredMixin, ListView):
         return ctx
 
 
-class OptimizationRunCreateView(TenantRequiredMixin, View):
+class OptimizationRunCreateView(TenantAdminRequiredMixin, View):
     def get(self, request):
         return render(request, 'pps/optimizer/run_form.html', {
             'form': OptimizationRunForm(tenant=request.tenant),
@@ -1459,7 +1469,7 @@ class OptimizationRunDetailView(TenantRequiredMixin, View):
         })
 
 
-class OptimizationRunDeleteView(TenantRequiredMixin, View):
+class OptimizationRunDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         run = get_object_or_404(OptimizationRun, pk=pk, tenant=request.tenant)
         run.delete()
@@ -1500,7 +1510,7 @@ def _orders_for_run(run, tenant):
     return payload
 
 
-class OptimizationStartView(TenantRequiredMixin, View):
+class OptimizationStartView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         run = get_object_or_404(
             OptimizationRun.objects.select_related('mps', 'objective'),
@@ -1544,7 +1554,7 @@ class OptimizationStartView(TenantRequiredMixin, View):
         return redirect('pps:run_detail', pk=pk)
 
 
-class OptimizationApplyView(TenantRequiredMixin, View):
+class OptimizationApplyView(TenantAdminRequiredMixin, View):
     """Marks the result as applied. v1 does not mutate orders — see scenario apply."""
 
     def post(self, request, pk):
@@ -1562,7 +1572,7 @@ class OptimizationApplyView(TenantRequiredMixin, View):
         return redirect('pps:run_detail', pk=pk)
 
 
-class OptimizationDiscardView(TenantRequiredMixin, View):
+class OptimizationDiscardView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         run = get_object_or_404(OptimizationRun, pk=pk, tenant=request.tenant)
         if run.status == 'queued':
