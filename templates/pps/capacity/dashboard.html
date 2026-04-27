@@ -65,11 +65,13 @@
     </div>
 </div>
 
+{{ chart_series|json_script:"capacity-chart-data" }}
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
 <script>
 (function () {
-    var rawSeries = {{ chart_series_json|safe }};
+    var dataEl = document.getElementById('capacity-chart-data');
+    var rawSeries = dataEl ? JSON.parse(dataEl.textContent) : [];
     if (!rawSeries || !rawSeries.length) { return; }
     var firstCategories = rawSeries[0].categories || [];
     var seriesForChart = rawSeries.map(function (s) {
