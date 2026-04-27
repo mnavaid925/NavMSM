@@ -87,3 +87,27 @@ Running log of corrections and rules. New lessons go to the bottom. Each entry i
 **How to apply:** in views, return the raw Python list/dict (NOT a json.dumps string). In templates, `{{ obj|json_script:"chart-id" }}` BEFORE the `<script>` block that consumes it. In JS, read with `JSON.parse(document.getElementById('chart-id').textContent)`. Add a grep guard in code review: `chart_series_json|safe` is a smell.
 
 **Concrete example in repo:** [templates/pps/orders/gantt.html](../../templates/pps/orders/gantt.html), [templates/pps/capacity/dashboard.html](../../templates/pps/capacity/dashboard.html) — fixed 2026-04-28 in [.claude/tasks/pps_sqa_fixes_todo.md](pps_sqa_fixes_todo.md) F-01 (defect D-01).
+
+---
+
+## L-08 — When seeding cross-module data, align horizons or the consuming engine looks broken
+
+**Rule:** When a seeder for module B reads date-bounded data produced by module A's seeder (e.g. MRP reading MPS lines), the consumer's horizon MUST overlap the producer's data window. Otherwise the engine runs cleanly with zero output and looks broken. Either align horizons explicitly in the seeder, or extend the producer's data window so any reasonable consumer horizon hits it.
+
+**Why:** The MRP seeder's first run produced **0 planned orders, 0 PRs, 0 exceptions** for all 3 tenants. The engine ran fine — but the seeded `MasterProductionSchedule` only carries 2 weeks of lines starting from the first day of the current month, and my MRP horizon was `today → today + 28 days`. When today is past day 14 of the month, those windows never overlap, so the engine collected zero demand. A green "completed" status with empty results is much harder to debug than an outright failure.
+
+**How to apply:** when wiring a seeder that consumes another module's data, either pull the source module's actual horizon and use it (`mrp.MRPCalculation.horizon_start = mps.horizon_start` if `mps` is linked) or extend the producer's data to span ±60 days from today so any reasonable consumer horizon hits it. ALWAYS print a non-zero result count in the seeder output (e.g. `19 planned orders, 10 PRs, 35 exceptions`) so a zero count is visible immediately, not buried in a "completed" status.
+
+**Concrete example in repo:** [apps/mrp/management/commands/seed_mrp.py — `_seed_mrp_run`](../../apps/mrp/management/commands/seed_mrp.py) — fixed 2026-04-28 during initial Module 5 seeding. The fix sets `horizon_start = mps.horizon_start` and `horizon_end = mps.horizon_end` whenever a source MPS exists.
+
+---
+
+## L-09 — Console output: keep seeder strings ASCII-safe; Windows cp1252 chokes on Unicode arrows
+
+**Rule:** Management command stdout must be ASCII-only (or explicitly utf-8-safe) on Windows. The default Windows console (cp1252) cannot encode `→`, `·`, `✓`, `←`, `★`, etc. and crashes the entire seeder with `UnicodeEncodeError: 'charmap' codec can't encode character`.
+
+**Why:** I copied the dashboard's `→` arrow into the MRP seeder output. The seeder ran fine until the first `self.stdout.write(...)` call, then crashed mid-tenant. The existing PPS seeder uses `->` for exactly this reason; I should have noticed and matched.
+
+**How to apply:** in any `BaseCommand.handle()` that writes to `self.stdout`, restrict to ASCII characters. Use `->` not `→`, prefer ` - ` or `*` over `·`, and avoid emoji entirely. Templates and other text rendered via Django's HTTP response are utf-8 by default and safe — this rule applies *only* to direct `stdout.write()` paths.
+
+**Concrete example in repo:** [apps/mrp/management/commands/seed_mrp.py:326](../../apps/mrp/management/commands/seed_mrp.py) — fixed 2026-04-28 by changing `→ Tenant:` to `-> Tenant:`. Pattern reference: [apps/pps/management/commands/seed_pps.py:487](../../apps/pps/management/commands/seed_pps.py).
