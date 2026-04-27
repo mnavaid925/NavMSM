@@ -75,3 +75,15 @@ Running log of corrections and rules. New lessons go to the bottom. Each entry i
 **How to apply:** when generating commit snippets, output one block per file. **Never** put two file paths after a single `git add`. Even shared `__init__.py` files, even three near-identical sibling templates. The signal that I should bundle is **always wrong** — resist it. Re-read [.claude/CLAUDE.md → GIT Commit Rule → "STRICT — ONE FILE PER COMMIT (no exceptions)"](../../.claude/CLAUDE.md) before producing the final block.
 
 **Concrete example in repo:** the Module 4 (PPS) commit snippet bundle was rejected on 2026-04-27 because of this; the corrected snippet block in [.claude/tasks/todo.md](todo.md) review section is the new reference shape.
+
+---
+
+## L-07 — When embedding server data in inline JS, use `{{ data|json_script:"id" }}`, never `{{ json_dumps_string|safe }}`
+
+**Rule:** To pass server-side Python data into an inline `<script>` block, ALWAYS use Django's `{{ data|json_script:"some-id" }}` template tag and read it via `JSON.parse(document.getElementById('some-id').textContent)`. Never call `json.dumps()` in the view and emit it as `{{ chart_series_json|safe }}`.
+
+**Why:** `json.dumps` does not escape `</script>`, `<`, `>`, `&`, or `'` — these aren't required for valid JSON-as-data, but they ARE required for safe embedding inside an HTML `<script>` tag. A user-controlled string like a Product SKU containing `</script><img src=x onerror=alert(1)>` will close the script tag and execute the injected `<img>` payload. The `json_script` template tag wraps the data in `<script type="application/json">` and HTML-escapes the dangerous characters automatically.
+
+**How to apply:** in views, return the raw Python list/dict (NOT a json.dumps string). In templates, `{{ obj|json_script:"chart-id" }}` BEFORE the `<script>` block that consumes it. In JS, read with `JSON.parse(document.getElementById('chart-id').textContent)`. Add a grep guard in code review: `chart_series_json|safe` is a smell.
+
+**Concrete example in repo:** [templates/pps/orders/gantt.html](../../templates/pps/orders/gantt.html), [templates/pps/capacity/dashboard.html](../../templates/pps/capacity/dashboard.html) — fixed 2026-04-28 in [.claude/tasks/pps_sqa_fixes_todo.md](pps_sqa_fixes_todo.md) F-01 (defect D-01).
