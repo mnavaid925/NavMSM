@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if snapshot %}Edit{% else %}New{% endif %} Inventory Snapshot{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if snapshot %}Edit Inventory Snapshot{% else %}New Inventory Snapshot{% endif %}</h4>
+    <a href="{% url 'mrp:inventory_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="alert alert-info small mt-2">
+            <strong>Lot-sizing methods:</strong>
+            <code>L4L</code> — order exactly each net req (lot_size_value ignored) ·
+            <code>FOQ</code> — multiples of <em>lot_size_value</em> ·
+            <code>POQ</code> — group every <em>lot_size_value</em> periods ·
+            <code>Min-Max</code> — stay between <em>lot_size_value</em> and <em>lot_size_max</em>.
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+            <a href="{% url 'mrp:inventory_list' %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
