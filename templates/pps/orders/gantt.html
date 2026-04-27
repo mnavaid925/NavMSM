@@ -35,11 +35,13 @@
     {% endif %}
 </div></div>
 
+{{ chart_series|json_script:"gantt-chart-data" }}
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.2/dist/apexcharts.min.js"></script>
 <script>
 (function () {
-    var series = {{ chart_series_json|safe }};
+    var dataEl = document.getElementById('gantt-chart-data');
+    var series = dataEl ? JSON.parse(dataEl.textContent) : [];
     if (!series || !series.length) { return; }
     var options = {
         chart: { type: 'rangeBar', height: Math.max(360, series.length * 80), toolbar: { show: true } },
