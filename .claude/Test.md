@@ -1,826 +1,1219 @@
-# Product Lifecycle Management (PLM) — Comprehensive SQA Test Report
+# Production Planning & Scheduling — Comprehensive SQA Test Report
 
-> Reviewer: Senior SQA Engineer
-> Target: [apps/plm/](apps/plm/) — Module 2 (Product Lifecycle Management)
-> Date: 2026-04-25
-> Scope: Full module review (models / forms / views / templates / signals / seed)
-> Codebase: NavMSM (Django 4.2 + MySQL + Bootstrap 5, multi-tenant)
-> LoC reviewed: ~2,869 across 13 Python files + 16 templates
+**Module:** [apps/pps/](../apps/pps/) (Module 4 of NavMSM)
+**Reviewer:** Senior SQA Engineer (15+ yrs)
+**Date:** 2026-04-28
+**Build under review:** `main` @ `b04a16b` plus the unmerged Module 4 working tree (commit snippets generated, not yet pushed)
+**Scope mode:** Module review (default) — end-to-end across the 5 sub-modules: MPS, Capacity, Scheduling, Simulation, APO.
+**Verification:** every High / Critical defect reproduced in the Django shell against the seeded `admin_acme` tenant before being recorded. Speculation-only findings are marked `DEFECT CANDIDATE`.
 
 ---
 
 ## 1. Module Analysis
 
-### 1.1 Module surface
+### 1.1 Surface area
 
-| Layer | File | Lines | Responsibility |
+| Layer | File | LoC (approx.) | Notes |
 |---|---|---|---|
-| Models | [apps/plm/models.py](apps/plm/models.py) | 554 | 17 models across 5 sub-modules |
-| Views | [apps/plm/views.py](apps/plm/views.py) | 970 | Full CRUD + workflow actions |
-| Forms | [apps/plm/forms.py](apps/plm/forms.py) | 298 | ModelForms + file allowlists |
-| URLs | [apps/plm/urls.py](apps/plm/urls.py) | 76 | 50 URL patterns |
-| Admin | [apps/plm/admin.py](apps/plm/admin.py) | 141 | Inline-rich admin |
-| Signals | [apps/plm/signals.py](apps/plm/signals.py) | 90 | Audit-log on ECO + Compliance status |
-| Seed | [apps/plm/management/commands/seed_plm.py](apps/plm/management/commands/seed_plm.py) | 335 | Idempotent demo data per tenant |
-| Migration | [apps/plm/migrations/0001_initial.py](apps/plm/migrations/0001_initial.py) | 394 | Schema |
-| Templates | [templates/plm/](templates/plm/) | 16 files | List / form / detail per sub-module |
+| Models | [apps/pps/models.py](../apps/pps/models.py) | ~640 | 16 models across 5 sub-modules; all inherit `TenantAwareModel + TimeStampedModel` |
+| Forms | [apps/pps/forms.py](../apps/pps/forms.py) | ~245 | 11 ModelForms; cross-field validation present, model-level validators absent |
+| Views | [apps/pps/views.py](../apps/pps/views.py) | ~870 | 50 CBVs; full CRUD + workflow + scheduling + Gantt + capacity dashboard |
+| URLs | [apps/pps/urls.py](../apps/pps/urls.py) | ~95 | 53 routes under `/pps/` |
+| Signals | [apps/pps/signals.py](../apps/pps/signals.py) | ~135 | Audit-log writers + capacity load invalidation |
+| Admin | [apps/pps/admin.py](../apps/pps/admin.py) | ~145 | All 16 models registered with inlines |
+| Services | [apps/pps/services/scheduler.py](../apps/pps/services/scheduler.py), [simulator.py](../apps/pps/services/simulator.py), [optimizer.py](../apps/pps/services/optimizer.py) | ~330 | Pure functions, no ORM imports at module level |
+| Seeder | [apps/pps/management/commands/seed_pps.py](../apps/pps/management/commands/seed_pps.py) | ~545 | Idempotent; `--flush` supported; hooked into `seed_data` orchestrator |
+| Templates | [templates/pps/](../templates/pps/) | 25 files | Dashboard, forecasts, MPS, work centers, calendars, capacity, routings, orders, Gantt, scenarios, optimizer |
+| Sidebar | [templates/partials/sidebar.html](../templates/partials/sidebar.html) | (delta) | "Production Planning" group with 12 nav links |
 
-### 1.2 Sub-module inventory
+### 1.2 Business rules (each linked to source)
 
-| Sub-module | Models | Workflow actions |
+| # | Rule | Enforced at | Reference |
+|---|---|---|---|
+| BR-1 | MPS workflow: `draft → under_review → approved → released → obsolete` | Atomic conditional `UPDATE` | `_atomic_status_transition` + transition views in [apps/pps/views.py](../apps/pps/views.py) |
+| BR-2 | Released MPS cannot be edited or deleted; only Obsoleted | View gate by `is_editable()` / status check | [apps/pps/views.py](../apps/pps/views.py) — MPSEditView, MPSDeleteView |
+| BR-3 | Production order workflow: `planned → released → in_progress → completed` (or `cancelled`) | Atomic conditional `UPDATE` | [apps/pps/views.py](../apps/pps/views.py) — Production order workflow views |
+| BR-4 | Scheduling action requires a routing on the order; replaces existing `ScheduledOperation` rows atomically | View guard + `transaction.atomic` | [apps/pps/views.py](../apps/pps/views.py) — ProductionOrderScheduleView |
+| BR-5 | Phantom-unaware: PPS does not collapse phantom BOM components in scheduling (out of scope; Module 3's BOM explosion is the consumer of phantoms) | n/a | n/a |
+| BR-6 | Scenario apply / Optimization apply record intent only; never mutate the base MPS | View comment + signal | [apps/pps/views.py](../apps/pps/views.py) — ScenarioApplyView, OptimizationApplyView |
+| BR-7 | Capacity load is computed; `ScheduledOperation` save/delete invalidates `CapacityLoad.computed_at` (UI surfaces "Stale") | `post_save` / `post_delete` signal | [apps/pps/signals.py](../apps/pps/signals.py) — `_invalidate_load` |
+| BR-8 | Audit-log entry on every status transition for MPS, ProductionOrder, Scenario, OptimizationRun | `pre_save` + `post_save` signals | [apps/pps/signals.py](../apps/pps/signals.py) |
+| BR-9 | Forward / backward / infinite scheduling — calendar-walk pure functions; naive vs aware datetimes normalized at boundaries | `_strip_tz` / `_attach_tz` helpers | [apps/pps/services/scheduler.py](../apps/pps/services/scheduler.py) |
+| BR-10 | Optimizer is a deterministic greedy heuristic (priority bucket → group by product) — not ML | Service comment + algorithm | [apps/pps/services/optimizer.py](../apps/pps/services/optimizer.py) |
+
+### 1.3 Multi-tenant boundaries
+
+- Every model inherits `TenantAwareModel`, so `tenant` FK is mandatory and the default `objects` manager auto-scopes via thread-local.
+- Every view uses `TenantRequiredMixin` ([apps/accounts/views.py](../apps/accounts/views.py) — class around line 28) — login + tenant present.
+- All detail/edit/delete views call `get_object_or_404(Model, pk=pk, tenant=request.tenant)` — verified via grep; all 50 CBVs comply.
+- **Cross-tenant smoke test passed** during the build: `admin_globex` requesting an Acme-owned MPS → `404`.
+
+### 1.4 Pre-test risk profile
+
+| Area | Risk | Why |
 |---|---|---|
-| **2.1 Master Data** | ProductCategory, Product, ProductRevision, ProductSpecification, ProductVariant | Promote revision to active (auto-supersedes prior) |
-| **2.2 ECO** | EngineeringChangeOrder, ECOImpactedItem, ECOApproval, ECOAttachment | submit → approve / reject → implement |
-| **2.3 CAD** | CADDocument, CADDocumentVersion | upload version → release (auto-obsoletes prior) |
-| **2.4 Compliance** | ComplianceStandard (shared), ProductCompliance, ComplianceAuditLog | status changes auto-logged |
-| **2.5 NPI** | NPIProject, NPIStage, NPIDeliverable | edit stage → set gate decision; complete deliverable |
-
-### 1.3 Business rules identified (linked to source)
-
-| # | Rule | Location |
-|---|---|---|
-| BR-01 | Every non-shared model is tenant-scoped via `TenantAwareModel` | [models.py](apps/plm/models.py) |
-| BR-02 | Product SKU is unique per tenant | [models.py:78](apps/plm/models.py#L78) |
-| BR-03 | Revision codes unique per product | [models.py:103](apps/plm/models.py#L103) |
-| BR-04 | ECO numbers auto-generated `ECO-NNNNN` per tenant | [views.py:34](apps/plm/views.py#L34) `_next_sequence_number` |
-| BR-05 | ECO editable only when `status='draft'` | [views.py:332](apps/plm/views.py#L332) `is_editable()` |
-| BR-06 | Approve/reject only when status in `{submitted, under_review}` | [views.py:355-376](apps/plm/views.py#L355-L376) |
-| BR-07 | Implement only when `status='approved'` | [views.py:393](apps/plm/views.py#L393) |
-| BR-08 | Promoting a revision to `active` auto-supersedes prior actives | [views.py:233-241](apps/plm/views.py#L233-L241) |
-| BR-09 | Releasing a CAD version auto-obsoletes prior released versions | [views.py:534-541](apps/plm/views.py#L534-L541) |
-| BR-10 | NPI project creation auto-creates all 7 stage rows | [views.py:756-762](apps/plm/views.py#L756-L762) |
-| BR-11 | Compliance status change writes `ComplianceAuditLog` | [signals.py:73-79](apps/plm/signals.py#L73-L79) |
-| BR-12 | ECO status change writes `TenantAuditLog` | [signals.py:42-50](apps/plm/signals.py#L42-L50) |
-| BR-13 | File uploads must match per-feature allowlist + 25 MB cap | [forms.py:18-32](apps/plm/forms.py#L18-L32) |
-| BR-14 | `ComplianceStandard` is global, not tenant-scoped | [models.py:283](apps/plm/models.py#L283) |
-| BR-15 | Cross-tenant access raises 404 via `get_object_or_404(..., tenant=request.tenant)` | every detail/edit/delete view |
-
-### 1.4 Risk profile (pre-test)
-
-| Surface | Risk | Why |
-|---|---|---|
-| **File uploads** (CAD / ECO / Compliance) | **HIGH** | User-controlled bytes; extension-only allowlist; SVG accepted; no magic-byte check |
-| **Media file URLs** | **HIGH** | `MEDIA_URL` served via `static()` helper without auth gate — anonymous URL fetch returns 200 |
-| **Sequence number generation** | MEDIUM | `aggregate(Max)` is racy under concurrent inserts |
-| **Workflow status transitions** | MEDIUM | Not wrapped in `select_for_update`; concurrent approve/reject possible |
-| **Cross-tenant data leak** | LOW | Mostly mitigated by `TenantRequiredMixin` + `get_object_or_404(tenant=...)` |
-| **Form-level data integrity** | MEDIUM | `ECOImpactedItem` accepts revisions belonging to a different product (verified) |
-| **Authorization escalation** | LOW-MED | All PLM actions gated by `TenantRequiredMixin` only — any tenant user can delete |
-| **N+1 queries** | LOW | List views use `select_related()`; detail views use `prefetch_related` |
-| **XSS** | LOW | Django auto-escape verified against variant `attributes` JSON |
+| **Authorization** | High | `TenantRequiredMixin` only checks login + has-tenant — does NOT distinguish tenant admin from regular staff. Workflow actions (release/approve/obsolete) are accessible to any authenticated user. |
+| **Form-vs-DB uniqueness** | High | The L-01 lesson trifecta — three views surface `IntegrityError` as a 500 because their forms don't run `clean()` against `(tenant, <field>)` unique-together constraints. |
+| **Numeric input bounds** | High | The L-02 lesson recurrence — no `MinValueValidator` / `MaxValueValidator` on any of the 16 models. Negative `capacity_per_hour`, `cost_per_hour`, percentages > 100, negative quantities are all accepted. |
+| **Template XSS** | High | Gantt + capacity dashboard render `{{ chart_series_json\|safe }}` containing user-controlled SKU / order_number / operation_name strings. `json.dumps` does not escape `</script>`. |
+| **Date sanity** | Medium | Production order `requested_end < requested_start` accepted. No model `clean()` either. |
+| **Race conditions** | Low | Status-transition views use atomic `UPDATE … WHERE status IN (…)` patterns. The exception: `ScenarioRunView` and `OptimizationStartView` set `status='running'` unconditionally between an `if` check and an unguarded `update()` — narrow race window producing duplicate compute, not corruption. |
+| **N+1 queries** | Low | List views use `select_related` + annotated counts. Spot-checked all 12 list views; no N+1 detected. |
+| **Audit-log coverage** | Medium | MPS / order / scenario / optimization status transitions are audited. `Routing`, `WorkCenter`, `RoutingOperation`, `CapacityCalendar`, `CapacityLoad` mutations are NOT audited — non-trivial state changes leave no trail. |
 
 ---
 
 ## 2. Test Plan
 
-### 2.1 Test types and coverage targets
-
-| Test type | Target coverage | Tools |
+| Layer | What is tested | Tooling |
 |---|---|---|
-| Unit (models / forms / helpers) | ≥ 90 % line | pytest + pytest-django |
-| Integration (view + form + DB) | ≥ 80 % branch | pytest + Django test client |
-| Functional (multi-step workflows) | All ECO + CAD + NPI workflows | pytest scenarios |
-| Regression | Every defect in §6 has a guard test | pytest |
-| Boundary | Field length, decimal, file-size limits | pytest parametrize |
-| Edge | Empty / null / unicode / emoji / whitespace | pytest parametrize |
-| Negative | Invalid input, duplicates, IDOR, workflow bypass | pytest |
-| Security (OWASP) | A01-A10 mapping (see §2.3) | pytest + bandit + ZAP baseline |
-| Performance | N+1 guards on every list view; p95 < 400 ms at 10k products | `django_assert_max_num_queries` + Locust |
-| E2E (smoke) | Login → create product → ECO → approve → CAD upload → release | Playwright |
-
-### 2.2 Entry / Exit criteria
-
-**Entry**
-- Migrations apply cleanly on fresh DB (verified ✓).
-- `seed_plm` runs idempotently (verified ✓).
-- Smoke test (`/plm/*` → HTTP 200/302 as `admin_acme`) passes (verified ✓).
-
-**Exit (Release Gate)**
-- 0 Critical / High defects open.
-- ≥ 90 % unit coverage on models + forms.
-- ≥ 80 % integration coverage on views.
-- All workflow transition guards test-locked (BR-05, 06, 07).
-- Cross-tenant isolation tested for every detail/edit/delete URL (no 200 for foreign tenant's PK).
-- Suite total runtime < 60 s on dev box.
-
-### 2.3 OWASP Top 10 — applicability matrix
-
-| OWASP | Applicable | Where to focus |
-|---|---|---|
-| **A01 Broken Access Control** | YES | IDOR on every `<int:pk>` URL; `TenantAdminRequiredMixin` should gate destructive ops? |
-| **A02 Crypto failures** | LOW | Compliance certificates and CAD files stored unencrypted in `MEDIA_ROOT` |
-| **A03 Injection / XSS** | YES | `Q()` lookups in list filters; auto-escape verified |
-| **A04 Insecure design** | YES | Workflow bypass via direct URL POST; sequence number race |
-| **A05 Misconfig** | YES | `DEBUG=True` exposes media via `static()` helper; production posture untested |
-| **A06 Vulnerable deps** | OUT-OF-SCOPE | Whole-app concern, not module-specific |
-| **A07 Auth failures** | NO | Auth lives in `apps/accounts`, not PLM |
-| **A08 Data integrity / file upload** | YES | Extension-only allowlist; SVG accepted; no magic-byte check; no zip-bomb guard |
-| **A09 Logging failures** | YES | Audit signals on ECO + compliance only — product / CAD / NPI deletes write no audit |
-| **A10 SSRF** | NO | No outbound URL fetches in module |
+| **Unit** | Model invariants (status helpers, `effective_quantity`, `total_minutes`, `is_editable`); pure-function scheduler / simulator / optimizer | pytest + pytest-django |
+| **Integration** | View + form + model + DB flow; status transitions; tenant isolation; CSRF; audit-log signal emission | pytest-django + Django `Client` |
+| **Functional / E2E** | User journey: create MPS → add lines → submit → approve → release → schedule order → run scenario → run optimizer → verify Gantt / capacity dashboards | Playwright (smoke) |
+| **Regression** | Defect register guards (D-01 through D-12 below) | pytest, one test per defect |
+| **Boundary** | Decimal precision (qty up to 14,2; minutes up to 10,4); date boundaries (period_end == period_start; horizon_end == horizon_start + 1 day); empty calendar | pytest |
+| **Edge** | Empty / null / unicode / emoji on free-text fields; SKU containing `</script>`; routing with 0 operations; production order with no routing; release MPS with 0 lines | pytest |
+| **Negative** | IDOR (cross-tenant pk substitution); duplicate code / name / version; negative quantities / percentages / minutes; date inversions; concurrent workflow transitions | pytest + threading |
+| **Security** | OWASP A01–A10 (see §6.4 mapping) | pytest, bandit, OWASP ZAP (manual) |
+| **Performance** | List-page query counts; Gantt page with 1000+ scheduled operations; capacity recompute over 30 active work centers | pytest `django_assert_max_num_queries` + Locust |
+| **Reliability** | Scheduler determinism — same inputs produce same `ScheduledOperation` placements across two runs | pytest property-based check |
+| **Usability** | Filter retention across pagination; Stale-rollup indicator on capacity load; visible "v1 stub" disclaimer on the optimizer page | manual |
 
 ---
 
 ## 3. Test Scenarios
 
-### 3.1 Product Master Data
+### 3.1 Master Production Schedule (M-NN)
 
 | # | Scenario | Type |
 |---|---|---|
-| C-01 | Create category with unique code per tenant | Functional |
-| C-02 | Create category with duplicate code in same tenant | Negative |
-| C-03 | Create category with same code across two tenants | Multi-tenant |
-| C-04 | Self-reference parent (parent = self) | Edge |
-| C-05 | Delete category with assigned products | Negative |
-| C-06 | Delete empty category | Functional |
-| P-01 | Create product with valid data | Functional |
-| P-02 | Create product with duplicate SKU same tenant | Negative |
-| P-03 | Create product with same SKU different tenants | Multi-tenant |
-| P-04 | Edit product changing category to PROTECT-ed FK | Edge |
-| P-05 | Delete product cascades revisions/specs/variants/CAD/compliance/NPI | Boundary |
-| P-06 | List page with `q` search | Functional |
-| P-07 | List page with category + status + type filters combined | Functional |
-| P-08 | Pagination preserves filters across pages | **Regression / D-06** |
-| P-09 | Cross-tenant: globex admin GETs `/plm/products/<acme_pk>/` | Security (A01) |
-| R-01 | Add revision A as draft, then activate | Functional |
-| R-02 | Add revision B as active — A auto-superseded | Functional / BR-08 |
-| R-03 | Two revisions with same code rejected | Negative |
-| S-01 | Add specification key/value/unit | Functional |
-| S-02 | Specification with empty key | Negative |
-| S-03 | Specification with unicode value (中文 / 🔥) | Edge |
-| V-01 | Create variant with attributes JSON | Functional |
-| V-02 | Variant SKU collision across tenants | Multi-tenant |
-| V-03 | Malformed `attributes_text` (no `=`) silently dropped | Edge |
-| V-04 | Variant attributes containing `<script>` rendered safely | Security (A03) |
+| M-01 | Create MPS with valid horizon and weekly bucket | Positive |
+| M-02 | Create MPS with `horizon_end == horizon_start` | Boundary |
+| M-03 | Create MPS with `horizon_end < horizon_start` | Negative |
+| M-04 | Submit a Draft MPS → Under Review | Workflow |
+| M-05 | Submit an already-Released MPS (no-op expected) | Negative |
+| M-06 | Approve under_review → approved | Workflow |
+| M-07 | Release approved → released; stamps `released_at` | Workflow |
+| M-08 | Edit a Released MPS — refused | Negative |
+| M-09 | Delete a Released MPS — refused | Negative |
+| M-10 | Concurrent approve from two browsers — only one wins | Race |
+| M-11 | Cross-tenant: globex user requests acme MPS pk → 404 | Security |
+| M-12 | Add line with `period_end < period_start` | Negative |
+| M-13 | Add line with negative `forecast_qty` | Negative |
+| M-14 | Add duplicate line `(mps, product, period_start)` — caught at view | Negative |
+| M-15 | Audit log entry written on each status transition | Regression |
 
-### 3.2 Engineering Change Orders
+### 3.2 Capacity (W-NN)
 
 | # | Scenario | Type |
 |---|---|---|
-| E-01 | Create ECO as draft | Functional |
-| E-02 | Auto-numbering: `ECO-00001`, `ECO-00002`, … | Functional / BR-04 |
-| E-03 | Auto-numbering race: two concurrent creates → IntegrityError | **Concurrency / D-04** |
-| E-04 | Edit ECO in draft | Functional |
-| E-05 | Edit ECO not in draft | Negative / BR-05 |
-| E-06 | Delete ECO not in draft | Negative |
-| E-07 | Submit draft ECO → status `submitted` + `submitted_at` stamped | Functional |
-| E-08 | Submit non-draft ECO | Negative |
-| E-09 | Approve submitted ECO → status `approved` + ECOApproval row written | Functional |
-| E-10 | Approve already approved ECO | Negative / BR-06 |
-| E-11 | Reject submitted ECO → status `rejected` | Functional |
-| E-12 | Implement approved ECO → status `implemented` + `implemented_at` stamped | Functional / BR-07 |
-| E-13 | Implement non-approved ECO | Negative |
-| E-14 | Add impacted item with `before_revision` belonging to a *different* product | **D-01 (verified)** |
-| E-15 | Add impacted item — change_summary unicode + emoji | Edge |
-| E-16 | Upload attachment with `.exe` | Negative / Security (A08) |
-| E-17 | Upload attachment with `.svg` containing `<script>` | **D-02** / Security (A08) |
-| E-18 | Upload attachment > 25 MB | Boundary |
-| E-19 | Upload attachment with unicode filename `测试.pdf` | Edge |
-| E-20 | Concurrent approve by two admins (same submitted ECO) | **D-05** |
-| E-21 | TenantAuditLog entry written on every status change | Functional / BR-12 |
-| E-22 | Cross-tenant: approve another tenant's ECO via direct URL | Security (A01) |
+| W-01 | Create work center with valid fields | Positive |
+| W-02 | Create work center with duplicate `code` (same tenant) — must NOT 500 | Negative ⚠ D-02 |
+| W-03 | Edit work center to a colliding code — must NOT 500 | Negative ⚠ D-02 |
+| W-04 | Create work center with `capacity_per_hour=-5` — must reject | Negative ⚠ D-04 |
+| W-05 | Create work center with `efficiency_pct=999` — must reject | Negative ⚠ D-04 |
+| W-06 | Create work center with `cost_per_hour=-100` — must reject | Negative ⚠ D-04 |
+| W-07 | Add calendar shift `shift_end <= shift_start` — refused | Negative |
+| W-08 | Add duplicate calendar `(work_center, day, shift_start)` | Negative |
+| W-09 | Capacity recompute populates `CapacityLoad` rows for next 14 days | Positive |
+| W-10 | `ScheduledOperation` save invalidates the matching `CapacityLoad.computed_at` | Regression |
+| W-11 | Capacity dashboard renders with no calendars (zero available_minutes) | Edge |
+| W-12 | Capacity dashboard chart series filtered by work center query param | Positive |
+| W-13 | Bottleneck threshold (95%) flagged correctly; 94.99% is not | Boundary |
+| W-14 | Cross-tenant: globex user views acme capacity dashboard → returns globex's empty dataset, never acme's | Security |
 
-### 3.3 CAD Repository
+### 3.3 Routings & Scheduling (R-NN, P-NN)
 
 | # | Scenario | Type |
 |---|---|---|
-| K-01 | Create CAD document, link to product | Functional |
-| K-02 | Drawing number unique per tenant | Negative |
-| K-03 | Upload first version → auto-set `current_version` | Functional |
-| K-04 | Release draft version → prior released auto-obsoleted | Functional / BR-09 |
-| K-05 | Delete current version → `document.current_version` set to NULL | Functional |
-| K-06 | Upload `.bat` file (not in allowlist) | Negative / Security (A08) |
-| K-07 | Upload `.svg` containing JS payload | **D-02** / Security |
-| K-08 | Upload renamed `.exe` → `.pdf` (magic-byte mismatch) | Security — known accepted gap (D-08) |
-| K-09 | Upload zip bomb | Security (A08) |
-| K-10 | Upload at exactly 25 MB | Boundary |
-| K-11 | Upload at 25 MB + 1 byte | Boundary |
-| K-12 | Anonymous user fetches `/media/plm/cad/<file>` directly | **D-03** / Security (A01, A05) |
-| K-13 | Cross-tenant: globex user fetches acme's CAD file by URL | **D-03** / Security (A01) |
+| R-01 | Create routing with valid product + version | Positive |
+| R-02 | Create routing duplicating `(tenant, product, version='A')` — must NOT 500 | Negative ⚠ D-03 |
+| R-03 | Add operation with `run_minutes_per_unit < 0` — refused | Negative |
+| R-04 | Add operation with `setup_minutes < 0` — must reject | Negative ⚠ D-04 |
+| R-05 | Delete routing referenced by a production order → `routing` is `SET_NULL`; existing scheduled ops orphan-protected | Regression |
+| R-06 | Edit routing while production orders reference it — scheduled ops are NOT auto-cleared (UI does not warn) | Edge ⚠ D-08 |
+| P-01 | Create production order with valid routing + bom + qty | Positive |
+| P-02 | Create order with `quantity = 0` — refused | Negative |
+| P-03 | Create order with `requested_end < requested_start` — must reject | Negative ⚠ D-05 |
+| P-04 | Schedule forward — produces N `ScheduledOperation` rows where N = #operations | Positive |
+| P-05 | Schedule backward — last op `planned_end <= requested_end` | Positive |
+| P-06 | Schedule infinite — capacity-blind; no shift-walking | Positive |
+| P-07 | Schedule with timezone-aware `requested_start` — naive/aware boundary handled correctly | Regression (L-05) |
+| P-08 | Re-schedule replaces existing scheduled operations atomically | Regression |
+| P-09 | Schedule order with no routing — refused | Negative |
+| P-10 | Schedule order with routing that has zero operations — refused | Edge |
+| P-11 | Release order → `released`; status update is atomic-conditional | Workflow |
+| P-12 | Start order without releasing — refused | Negative |
+| P-13 | Cancel a completed order — refused | Negative |
+| P-14 | Concurrent release of same order from two clients — only one wins | Race |
+| P-15 | Cross-tenant access to scheduled operations on `/pps/orders/gantt/` | Security |
+| P-16 | Gantt rendering with 1000 scheduled operations (perf) | Performance |
+| P-17 | Gantt page contains user-controlled SKU `</script>...` — must NOT execute | Security ⚠ D-01 |
 
-### 3.4 Compliance
-
-| # | Scenario | Type |
-|---|---|---|
-| M-01 | Create record with status `compliant` | Functional |
-| M-02 | Edit record from `pending` → `compliant` writes ComplianceAuditLog `status_changed` | Functional / BR-11 |
-| M-03 | Duplicate `(tenant, product, standard)` rejected | Negative |
-| M-04 | Expiry within 30 days flagged in list | Functional |
-| M-05 | Expiry in past + status still `compliant` (data inconsistency) | Edge / D-14 |
-| M-06 | Upload `.exe` as certificate file | Negative / Security (A08) |
-| M-07 | Cross-tenant: read foreign tenant's compliance record | Security (A01) |
-| M-08 | Audit trail is append-only (no edit/delete UI exposed) | Functional |
-| M-09 | `ComplianceStandard` shared across tenants — both tenants see same record | Functional / BR-14 |
-
-### 3.5 NPI / Stage-Gate
+### 3.4 Scenarios (Simulation) (S-NN)
 
 | # | Scenario | Type |
 |---|---|---|
-| N-01 | Create NPI project — 7 stages auto-created with sequence 1-7 | Functional / BR-10 |
-| N-02 | Auto-numbering `NPI-00001` per tenant | Functional |
-| N-03 | Edit stage with gate_decision=`go` stamps `gate_decided_by/at` | Functional |
-| N-04 | Edit stage with status `in_progress` updates project's `current_stage` | Functional |
-| N-05 | Add deliverable with owner from another tenant | Negative |
-| N-06 | Mark deliverable done → `completed_at` stamped | Functional |
-| N-07 | Delete project cascades stages and deliverables | Boundary |
+| S-01 | Create scenario from a released MPS | Positive |
+| S-02 | Add change of type `change_qty` with valid JSON payload | Positive |
+| S-03 | Add change with malformed JSON payload — refused | Negative |
+| S-04 | Run scenario → `ScenarioResult` populated, `ran_at` stamped | Positive |
+| S-05 | Run scenario twice consecutively — second run replaces result | Positive |
+| S-06 | Run scenario from `running` state — refused | Negative |
+| S-07 | Concurrent run on same scenario — at most one compute proceeds | Race ⚠ D-06 |
+| S-08 | Apply scenario records intent (status=`applied`) but does NOT mutate base MPS | Regression ⚠ D-09 (UX) |
+| S-09 | Discard scenario — terminal state, cannot be re-run | Workflow |
+| S-10 | Delete an `applied` scenario — refused | Negative |
+| S-11 | Cross-tenant: globex user requests acme scenario pk → 404 | Security |
+
+### 3.5 Optimization (O-NN)
+
+| # | Scenario | Type |
+|---|---|---|
+| O-01 | Create optimization objective with at least one weight > 0 | Positive |
+| O-02 | Create objective with all weights = 0 — refused | Negative |
+| O-03 | Edit objective to a colliding `(tenant, name)` — must NOT 500 | Negative ⚠ D-02 |
+| O-04 | Start a queued run → status `running` → `completed`; `OptimizationResult` populated | Positive |
+| O-05 | Concurrent start on same run — at most one compute proceeds | Race ⚠ D-06 |
+| O-06 | Start a `completed` run — refused | Negative |
+| O-07 | Optimizer with `weight_idle = 5` produces a different result than `weight_idle = 0` | Regression ⚠ D-10 (currently fails — weight_idle is unused) |
+| O-08 | Apply result records `applied_at` + `applied_by` but does NOT mutate orders | Regression ⚠ D-09 (UX) |
+| O-09 | Run with no candidate orders — recorded as `failed` with error message | Edge |
+| O-10 | Improvement `< 0` clamped to 0 (no negative gain shown) | Boundary |
+| O-11 | Cross-tenant: globex user requests acme run pk → 404 | Security |
+
+### 3.6 Authorization & Audit (A-NN)
+
+| # | Scenario | Type |
+|---|---|---|
+| A-01 | Anonymous user GET `/pps/` → 302 to login | Security |
+| A-02 | Tenant admin can release MPS → succeeds | Positive |
+| A-03 | Regular staff (`is_tenant_admin=False`) can release / obsolete MPS — currently allowed; should require admin | Security ⚠ D-07 |
+| A-04 | Audit log entry written on MPS release | Regression |
+| A-05 | Audit log entry written on production order release / start / complete | Regression |
+| A-06 | Audit log entry written on scenario apply / discard | Regression |
+| A-07 | Audit log entry NOT written on Routing / WorkCenter / RoutingOperation create / delete | Gap ⚠ D-11 |
+| A-08 | Superuser with `tenant=None` sees empty PPS pages (BY DESIGN) | Regression |
 
 ---
 
-## 4. Detailed Test Cases (representative)
+## 4. Detailed Test Cases
 
-> Format: `ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions`. The cases below are the highest-priority ones; the full test plan covers all scenarios from §3.
+> Naming convention: `TC-PPS-<entity>-<NNN>`. Highest-priority cases shown here; the remaining cases are parametrised in §5.
 
-### 4.1 IDOR / cross-tenant (Security)
+### 4.1 Status-transition concurrency (Critical regression)
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-SEC-001 | Cross-tenant product detail read | Acme + Globex tenants seeded, Globex admin logged in | GET `/plm/products/<acme_product_pk>/` | `acme_pk = Product.objects.filter(tenant=acme).first().pk` | HTTP 404 | No data leak |
-| TC-SEC-002 | Cross-tenant ECO approve | Globex admin logged in, Acme ECO in `submitted` | POST `/plm/eco/<acme_eco_pk>/approve/` | CSRF token | HTTP 404 (not 403, not 500); ECO status unchanged | Acme ECO still `submitted` |
-| TC-SEC-003 | Cross-tenant compliance edit | Globex admin logged in | POST `/plm/compliance/<acme_comp_pk>/edit/` with valid form data | Form fields | HTTP 404 | Acme record unchanged |
-| TC-SEC-004 | Direct media file fetch (anonymous) | CAD version uploaded with file `cad_secret.pdf` | GET `/media/plm/cad/cad_secret.pdf` (no session cookie) | — | **Currently HTTP 200 — DEFECT D-03.** Expected: 401/403 | — |
-| TC-SEC-005 | Direct media file fetch (cross-tenant logged-in) | CAD file uploaded by Acme; Globex admin logged in | GET `/media/plm/cad/<acme_file>` | — | **Currently HTTP 200 — DEFECT D-03.** Expected: 403 | — |
+| ID | TC-PPS-MPS-007 |
+|---|---|
+| **Description** | Two users approve the same MPS concurrently — exactly one wins; no DB inconsistency |
+| **Pre-conditions** | MPS pk=K in `under_review` status; tenant admin Alice and Bob both authenticated |
+| **Steps** | 1. Open two `Client` sessions in parallel threads<br>2. Both POST `/pps/mps/<K>/approve/`<br>3. Wait for both responses |
+| **Test data** | seeded MPS, tenant admin × 2 |
+| **Expected result** | One response succeeds (`messages.success`); the other receives `messages.warning('MPS is not awaiting review.')`. DB state: `status='approved'`, exactly one `mps.status.approved` audit-log entry. |
+| **Post-conditions** | MPS in `approved`; `approved_by` set to one of the two users |
 
-### 4.2 ECO impacted item integrity (DEFECT D-01)
+### 4.2 Cross-tenant IDOR (Security)
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-ECO-014 | ECOImpactedItem rejects revision belonging to a different product | Two products A, B with revisions; ECO in draft | POST `/plm/eco/<eco_pk>/items/new/` with `product=A.pk`, `before_revision=B_rev.pk` | `product=SKU-1001`, `before_revision=SKU-1002 rev A` | Form invalid: error "Revision does not belong to selected product" | No `ECOImpactedItem` created |
-| TC-ECO-014b | Same product/revision pair accepted | Product A with rev `A_1` | POST with matching pair | matched pair | HTTP 302 to detail; row created | `eco.impacted_items.count() += 1` |
+| ID | TC-PPS-SEC-001 |
+|---|---|
+| **Description** | Globex tenant admin attempts to read / mutate an Acme-owned production order |
+| **Pre-conditions** | `acme` and `globex` tenants seeded; production order pk=K belongs to acme |
+| **Steps** | 1. Log in as `admin_globex`<br>2. GET `/pps/orders/<K>/`<br>3. POST `/pps/orders/<K>/release/`<br>4. POST `/pps/orders/<K>/cancel/` |
+| **Test data** | Acme PO pk |
+| **Expected result** | All three return 404; no audit-log entry written; order unchanged |
+| **Post-conditions** | Acme PO untouched |
 
-### 4.3 ECO sequence number race (DEFECT D-04)
+### 4.3 XSS via Gantt SKU (Critical security — D-01)
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-ECO-003 | Two concurrent ECO creates from same tenant | Tenant has 5 ECOs (`ECO-00001..00005`) | Spawn 2 threads, each POST `/plm/eco/new/` simultaneously | Both threads use valid form payload | Both succeed → numbers `ECO-00006` and `ECO-00007` | DB has 7 ECOs, all unique |
+| ID | TC-PPS-SEC-002 |
+|---|---|
+| **Description** | A product SKU containing `</script><img src=x onerror=alert(1)>` reaches the Gantt page; verify NO script execution |
+| **Pre-conditions** | Tenant admin can create products via PLM (or shell-create one) with the malicious SKU; one production order references that product; the order has scheduled operations |
+| **Steps** | 1. Create `Product(sku='</script><img src=x onerror=alert(1)>', tenant=acme, ...)`<br>2. Create production order for that product, schedule it<br>3. GET `/pps/orders/gantt/`<br>4. Inspect rendered HTML for the literal `</script>` outside of a JSON string |
+| **Test data** | malicious SKU above |
+| **Expected result** | Rendered HTML escapes the SKU so it cannot break out of the `<script>` tag (e.g. served via `{{ data\|json_script:"id" }}`); no `<img>` is created in the live DOM. |
+| **Current behaviour (verified 2026-04-28)** | `json.dumps` does not escape `</script>`; literal sequence reaches the page; browser parses it as a real `</script>` tag and the following `<img onerror=...>` executes |
+| **Post-conditions** | After fix: page renders Gantt for non-malicious orders; XSS payload does not run |
 
-> Currently `_next_sequence_number` reads `Max(number)` without lock, the second insert fails with `IntegrityError 1062 Duplicate entry`. The view does not catch this → HTTP 500. Test must initially fail.
+### 4.4 Form-vs-DB unique gap on Edit (High — D-02)
 
-### 4.4 File upload boundary
+| ID | TC-PPS-WC-006 |
+|---|---|
+| **Description** | Editing a work center to a code that already exists must produce a friendly form error, not a 500 |
+| **Pre-conditions** | Work centers `CNC-01` and `LBR-01` exist in tenant Acme |
+| **Steps** | 1. Log in as `admin_acme`<br>2. POST `/pps/work-centers/<LBR-01.pk>/edit/` with `code=CNC-01` |
+| **Test data** | colliding code |
+| **Expected result** | Response 200 with form error `"A work center with code CNC-01 already exists."`; DB unchanged |
+| **Current behaviour (verified)** | 500 with `IntegrityError (1062)` from MySQL |
+| **Post-conditions** | After fix: original LBR-01 unchanged; user receives the error |
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-CAD-010 | Upload exactly at 25 MB | Logged-in admin, drawing exists | POST `/plm/cad/<pk>/versions/new/` with file_size = 26 214 400 bytes | random PDF padded to 25 MB | HTTP 302 success | Version created |
-| TC-CAD-011 | Upload at 25 MB + 1 byte | as above | POST with file_size = 26 214 401 | as above + 1 byte | Form invalid: "file too large" | No version created |
-| TC-CAD-007 | Upload SVG with `<script>` | Logged-in admin | POST with file `evil.svg` containing `<script>alert(1)</script>` | crafted SVG | Currently accepted → DEFECT D-02. Expected: rejected or sanitized | — |
-| TC-CAD-008 | Renamed `.exe` → `.pdf` | Logged-in admin | POST with `payload.pdf` whose magic bytes are `MZ` | Windows EXE renamed | Currently accepted (extension-only check). Expected: rejected via magic-byte sniff | — |
+### 4.5 Negative numeric input (High — D-04)
 
-### 4.5 Workflow guard (negative)
+| ID | TC-PPS-WC-008 |
+|---|---|
+| **Description** | A work center cannot be created with negative capacity, negative cost, or efficiency > 100 |
+| **Pre-conditions** | tenant admin authenticated |
+| **Steps** | POST `/pps/work-centers/new/` with `capacity_per_hour=-5, efficiency_pct=999, cost_per_hour=-100` |
+| **Test data** | negative + out-of-range values |
+| **Expected result** | Response 200 with form errors on each invalid field; no DB row created |
+| **Current behaviour (verified)** | DB row created with the bad values; downstream `compute_load` divides by `available_minutes` and produces nonsensical `utilization_pct` |
+| **Post-conditions** | After fix: row not created; user sees three field errors |
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-ECO-013 | Implement non-approved ECO | ECO in `submitted` (not `approved`) | POST `/plm/eco/<pk>/implement/` | CSRF only | HTTP 302 with warning; status unchanged | `eco.status == 'submitted'`, `implemented_at is None` |
-| TC-ECO-005 | Edit non-draft ECO via GET | ECO in `approved` | GET `/plm/eco/<pk>/edit/` | — | HTTP 302 to detail with warning | — |
-| TC-ECO-005b | Edit non-draft ECO via direct POST | ECO in `approved` | POST `/plm/eco/<pk>/edit/` with new `title` | new title | Title unchanged in DB | — |
+### 4.6 RBAC — non-admin workflow access (High — D-07)
 
-### 4.6 Pagination filter retention (DEFECT D-06)
+| ID | TC-PPS-AUTH-002 |
+|---|---|
+| **Description** | A regular tenant user (`is_tenant_admin=False`) attempts to obsolete a released MPS |
+| **Pre-conditions** | `acme_supervisor_2` is a non-admin staff user with a tenant |
+| **Steps** | 1. Log in as `acme_supervisor_2`<br>2. POST `/pps/mps/<released_pk>/obsolete/` |
+| **Test data** | released MPS pk |
+| **Expected result** | Response 403 (or 302 → `/accounts/login/?next=...` if pattern follows existing tenants module); MPS remains `released`; no audit-log entry |
+| **Current behaviour (verified)** | Request succeeds; MPS flips to `obsolete`; audit-log entry written attributing the action to the non-admin user |
+| **Post-conditions** | After fix: MPS unchanged; user sees a "permission denied" page |
 
-| ID | Description | Pre-conditions | Steps | Test Data | Expected Result | Post-conditions |
-|---|---|---|---|---|---|---|
-| TC-PROD-008 | Filter `status=obsolete` and click page 2 | Tenant has > 20 obsolete products | GET `/plm/products/?status=obsolete` → click "next" link | rendered href | href = `?page=2&status=obsolete&q=&category=&product_type=` | Page 2 shows obsolete only |
+### 4.7 Backward scheduling correctness
 
-> Currently the `status` filter is NOT preserved in next/prev links → page 2 lists ALL products. Same defect on ECO/CAD/Compliance/NPI list pages.
+| ID | TC-PPS-SCHED-002 |
+|---|---|
+| **Description** | A backward-scheduled order's last operation finishes at exactly `requested_end` |
+| **Pre-conditions** | Order with routing of 3 operations and full Mon–Fri 08:00–17:00 calendars |
+| **Steps** | POST `/pps/orders/<pk>/schedule/` with `method=backward`, `requested_end=2026-05-15T16:00` |
+| **Test data** | requested_end fits within shift |
+| **Expected result** | `ScheduledOperation` ordered by sequence; the last row's `planned_end == 2026-05-15T16:00` (within ±1 minute); each preceding op `planned_end <= next op planned_start` |
+| **Post-conditions** | order.scheduled_end == requested_end |
+
+### 4.8 Filter retention across pagination
+
+| ID | TC-PPS-LIST-003 |
+|---|---|
+| **Description** | Apply status filter on `/pps/orders/`, paginate, return — filter persists |
+| **Pre-conditions** | 25+ production orders, mix of statuses |
+| **Steps** | 1. GET `/pps/orders/?status=released`<br>2. Click "Next" → URL becomes `/pps/orders/?status=released&page=2`<br>3. Verify only `released` orders shown<br>4. Use the form to add `priority=high`; verify both filters retained |
+| **Expected result** | Pagination links carry `status=released&page=N`; combined filter URLs work |
+| **Post-conditions** | n/a |
+
+### 4.9 Naive vs aware datetime in scheduler (Regression — L-05)
+
+| ID | TC-PPS-SCHED-005 |
+|---|---|
+| **Description** | Scheduling an order whose `requested_start = timezone.now()` (aware) does not raise `TypeError` |
+| **Pre-conditions** | Order with routing; `USE_TZ=True` (project default) |
+| **Steps** | Order's `requested_start` is `timezone.now()`; POST `/pps/orders/<pk>/schedule/` with `method=forward` |
+| **Expected result** | 302 redirect; ScheduledOperation rows created with aware `planned_start` / `planned_end` |
+| **Post-conditions** | n/a (regression guard) |
+
+### 4.10 N+1 on `/pps/orders/`
+
+| ID | TC-PPS-PERF-001 |
+|---|---|
+| **Description** | Order list with 200 rows + filters fits within a fixed query budget |
+| **Pre-conditions** | 200 orders seeded |
+| **Steps** | Use `django_assert_max_num_queries(10)` around `client.get('/pps/orders/?status=released')` |
+| **Expected result** | ≤ 10 queries (auth + tenant + count + select_related joins + paginator + messages) |
+| **Post-conditions** | n/a |
 
 ---
 
 ## 5. Automation Strategy
 
-### 5.1 Tool stack
+### 5.1 Tooling
 
-| Concern | Tool | Why |
-|---|---|---|
-| Test runner | `pytest` + `pytest-django` | De-facto Django standard |
-| Factories | `factory-boy` + `Faker` | Avoid hand-built model graphs |
-| HTTP client | `Client` (Django) | Built-in; supports `force_login` |
-| E2E browser | `playwright` (chromium) | Multi-step + file upload |
-| Load | `locust` | List-page p95, concurrent ECO creates |
-| Static security | `bandit` | Catch raw SQL / unsafe deserialization |
-| DAST | OWASP ZAP baseline scan | Per-route active scan |
-| Coverage | `pytest-cov` | line + branch |
-| DB | SQLite in-memory + MD5 hasher (test settings) | Keep suite < 60 s |
+| Tool | Purpose |
+|---|---|
+| **pytest 7.4 + pytest-django 4.6** | Unit, integration, regression |
+| **factory-boy 3.3** | Fixture builders (Tenant, User, Product, MPS, Order) |
+| **pytest-cov** | Line + branch coverage |
+| **pytest-xdist** | Parallel execution for the integration suite |
+| **freezegun** | Deterministic `timezone.now()` for scheduler tests |
+| **Playwright 1.42** (smoke only) | E2E user-journey on the seeded tenant |
+| **Locust 2.x** | Load test on `/pps/orders/gantt/` and capacity recompute |
+| **bandit + pip-audit** | SAST + dependency CVE scan |
+| **OWASP ZAP** | Manual DAST for A03/A05/A07 |
 
 ### 5.2 Suite layout
 
 ```
-apps/plm/tests/
+apps/pps/tests/
 ├── __init__.py
-├── conftest.py                # shared fixtures
-├── factories.py               # factory-boy classes
-├── test_models.py             # invariants, save logic, signals
-├── test_forms.py              # validation + cross-field rules
-├── test_views_products.py
-├── test_views_eco.py
-├── test_views_cad.py
-├── test_views_compliance.py
-├── test_views_npi.py
-├── test_workflow_eco.py       # multi-step state machine
-├── test_workflow_npi.py       # stage advance
-├── test_security.py           # OWASP-mapped
-├── test_performance.py        # N+1 + max queries per view
-└── test_e2e_smoke.py          # playwright
-
-config/
-└── settings_test.py           # SQLite + MD5 hasher
-
-pytest.ini
-locustfile.py
+├── conftest.py
+├── factories.py
+├── test_models.py
+├── test_forms.py
+├── test_views_mps.py
+├── test_views_orders.py
+├── test_views_capacity.py
+├── test_views_scenarios.py
+├── test_views_optimizer.py
+├── test_workflow_concurrency.py
+├── test_security.py
+├── test_performance.py
+└── test_services.py            # pure-function scheduler/simulator/optimizer
 ```
 
-### 5.3 Runnable scaffolding (drop-in)
+Plus a top-level `pytest.ini` and a test-only `config/settings_test.py` (SQLite in-memory + MD5 hasher).
 
-#### 5.3.1 `config/settings_test.py`
-```python
-from .settings import *  # noqa
+### 5.3 Runnable code — `pytest.ini` (project root)
 
-DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
-PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
-DEFAULT_FILE_STORAGE = 'django.core.files.storage.InMemoryStorage'
-```
-
-#### 5.3.2 `pytest.ini`
 ```ini
 [pytest]
 DJANGO_SETTINGS_MODULE = config.settings_test
-python_files = test_*.py
-addopts = -ra --strict-markers --tb=short --reuse-db
+python_files = tests.py test_*.py *_tests.py
+addopts = -ra --strict-markers --tb=short
 markers =
-    slow: long-running tests
-    e2e: playwright end-to-end
-    security: OWASP-aligned tests
+    slow: tests that take more than 1s
+    e2e: end-to-end browser tests (Playwright)
+    perf: query-budget / load-shape tests
 ```
 
-#### 5.3.3 `apps/plm/tests/conftest.py`
+### 5.4 Runnable code — `config/settings_test.py` (project)
+
+> Mirrors the existing PLM test settings shape per repo convention.
+
 ```python
+"""Test settings — SQLite in-memory + MD5 hasher for speed."""
+from .settings import *  # noqa: F401,F403
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+}
+
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+DEBUG = False
+SECRET_KEY = 'test-only'
+PAYMENT_GATEWAY = 'mock'
+```
+
+### 5.5 Runnable code — `apps/pps/tests/conftest.py`
+
+```python
+"""Shared fixtures for the PPS test suite."""
+from datetime import date, time, timedelta
+from decimal import Decimal
+
 import pytest
-from django.test import Client
-from apps.accounts.models import User, UserProfile
+from django.utils import timezone
+
+from apps.accounts.models import User
 from apps.core.models import Tenant, set_current_tenant
-from apps.plm.models import (
-    ComplianceStandard, Product, ProductCategory, ProductRevision,
+from apps.plm.models import Product
+from apps.pps.models import (
+    CapacityCalendar, MasterProductionSchedule, ProductionOrder,
+    Routing, RoutingOperation, WorkCenter,
 )
 
 
-@pytest.fixture
-def acme(db):
-    t = Tenant.objects.create(name='Acme', slug='acme', is_active=True)
-    set_current_tenant(t)
-    yield t
+@pytest.fixture(autouse=True)
+def _clear_tenant():
+    """Reset thread-local tenant between tests."""
+    yield
     set_current_tenant(None)
 
 
 @pytest.fixture
+def acme(db):
+    return Tenant.objects.create(name='Acme Test', slug='acme-test', is_active=True)
+
+
+@pytest.fixture
 def globex(db):
-    return Tenant.objects.create(name='Globex', slug='globex', is_active=True)
+    return Tenant.objects.create(name='Globex Test', slug='globex-test', is_active=True)
 
 
 @pytest.fixture
-def acme_admin(acme):
-    u = User.objects.create_user(
-        username='admin_acme', password='pw', tenant=acme,
-        is_tenant_admin=True, role='tenant_admin', email='a@a.com',
+def acme_admin(db, acme):
+    return User.objects.create_user(
+        username='admin_acme_test', password='pw', tenant=acme, is_tenant_admin=True,
     )
-    UserProfile.objects.create(user=u)
-    return u
 
 
 @pytest.fixture
-def globex_admin(globex):
-    u = User.objects.create_user(
-        username='admin_globex', password='pw', tenant=globex,
-        is_tenant_admin=True, role='tenant_admin', email='g@g.com',
+def acme_staff(db, acme):
+    return User.objects.create_user(
+        username='staff_acme_test', password='pw', tenant=acme, is_tenant_admin=False,
     )
-    UserProfile.objects.create(user=u)
-    return u
 
 
 @pytest.fixture
-def client_acme(acme_admin):
-    c = Client(); c.force_login(acme_admin); return c
+def globex_admin(db, globex):
+    return User.objects.create_user(
+        username='admin_globex_test', password='pw', tenant=globex, is_tenant_admin=True,
+    )
 
 
 @pytest.fixture
-def client_globex(globex_admin):
-    c = Client(); c.force_login(globex_admin); return c
+def admin_client(client, acme_admin):
+    client.force_login(acme_admin)
+    return client
 
 
 @pytest.fixture
-def category(acme):
-    return ProductCategory.objects.create(tenant=acme, code='CMP', name='Components')
+def staff_client(client, acme_staff):
+    client.force_login(acme_staff)
+    return client
 
 
 @pytest.fixture
-def product(acme, category):
+def globex_client(client, globex_admin):
+    client.force_login(globex_admin)
+    return client
+
+
+@pytest.fixture
+def product(db, acme):
     return Product.objects.create(
-        tenant=acme, sku='SKU-T001', name='Test Widget',
-        category=category, product_type='component', status='active',
+        tenant=acme, sku='SKU-T1', name='Test product', product_type='finished_good',
+        unit_of_measure='ea', status='active',
     )
 
 
 @pytest.fixture
-def standard(db):
-    return ComplianceStandard.objects.create(code='RoHS', name='RoHS', region='eu')
+def work_center(db, acme):
+    wc = WorkCenter.objects.create(
+        tenant=acme, code='WC-T1', name='Test WC', work_center_type='machine',
+        capacity_per_hour=Decimal('5'), efficiency_pct=Decimal('100'),
+        cost_per_hour=Decimal('50'), is_active=True,
+    )
+    for dow in range(5):
+        CapacityCalendar.objects.create(
+            tenant=acme, work_center=wc, day_of_week=dow,
+            shift_start=time(8, 0), shift_end=time(17, 0), is_working=True,
+        )
+    return wc
+
+
+@pytest.fixture
+def routing(db, acme, product, work_center, acme_admin):
+    r = Routing.objects.create(
+        tenant=acme, product=product, version='A',
+        routing_number='ROUT-T1', status='active', is_default=True,
+        created_by=acme_admin,
+    )
+    RoutingOperation.objects.create(
+        tenant=acme, routing=r, sequence=10, operation_name='Cut',
+        work_center=work_center,
+        setup_minutes=Decimal('15'), run_minutes_per_unit=Decimal('5'),
+        queue_minutes=Decimal('5'), move_minutes=Decimal('3'),
+    )
+    RoutingOperation.objects.create(
+        tenant=acme, routing=r, sequence=20, operation_name='Assemble',
+        work_center=work_center,
+        setup_minutes=Decimal('10'), run_minutes_per_unit=Decimal('8'),
+        queue_minutes=Decimal('5'), move_minutes=Decimal('3'),
+    )
+    return r
+
+
+@pytest.fixture
+def draft_mps(db, acme, acme_admin):
+    return MasterProductionSchedule.objects.create(
+        tenant=acme, mps_number='MPS-T1', name='Test MPS',
+        horizon_start=date.today(), horizon_end=date.today() + timedelta(days=28),
+        time_bucket='week', status='draft', created_by=acme_admin,
+    )
+
+
+@pytest.fixture
+def planned_order(db, acme, product, routing, draft_mps, acme_admin):
+    return ProductionOrder.objects.create(
+        tenant=acme, order_number='PO-T1', product=product, routing=routing,
+        quantity=Decimal('10'), status='planned', priority='normal',
+        scheduling_method='forward',
+        requested_start=timezone.now(),
+        requested_end=timezone.now() + timedelta(days=2),
+        created_by=acme_admin,
+    )
 ```
 
-#### 5.3.4 `apps/plm/tests/test_models.py`
+### 5.6 Runnable code — `apps/pps/tests/test_models.py`
+
 ```python
+"""Unit tests on PPS model invariants."""
+from decimal import Decimal
+
 import pytest
-from django.db import IntegrityError
-from apps.plm.models import Product, ProductRevision
 
 
 @pytest.mark.django_db
-class TestProduct:
+class TestMPSStatus:
+    def test_draft_is_editable(self, draft_mps):
+        assert draft_mps.is_editable() is True
 
-    def test_sku_unique_per_tenant(self, acme, category):
-        Product.objects.create(tenant=acme, sku='X-1', name='A', category=category)
-        with pytest.raises(IntegrityError):
-            Product.objects.create(tenant=acme, sku='X-1', name='B', category=category)
-
-    def test_sku_can_repeat_across_tenants(self, acme, globex, category):
-        Product.objects.create(tenant=acme, sku='X-1', name='A', category=category)
-        Product.objects.create(tenant=globex, sku='X-1', name='B')
-
-    def test_str(self, product):
-        assert product.sku in str(product)
+    def test_released_is_not_editable(self, draft_mps):
+        draft_mps.status = 'released'
+        draft_mps.save()
+        assert draft_mps.is_editable() is False
 
 
 @pytest.mark.django_db
-class TestProductRevision:
+class TestProductionOrderTransitions:
+    def test_planned_can_release(self, planned_order):
+        assert planned_order.can_release() is True
 
-    def test_revision_unique_per_product(self, acme, product):
-        ProductRevision.objects.create(tenant=acme, product=product, revision_code='A')
-        with pytest.raises(IntegrityError):
-            ProductRevision.objects.create(tenant=acme, product=product, revision_code='A')
+    def test_released_cannot_release_again(self, planned_order):
+        planned_order.status = 'released'
+        planned_order.save()
+        assert planned_order.can_release() is False
+
+    def test_in_progress_can_complete(self, planned_order):
+        planned_order.status = 'in_progress'
+        planned_order.save()
+        assert planned_order.can_complete() is True
+
+
+@pytest.mark.django_db
+class TestRoutingOperationMath:
+    def test_total_minutes_setup_plus_run_plus_queue_plus_move(self, routing):
+        op = routing.operations.first()
+        # 15 setup + 5 * 10 run + 5 queue + 3 move = 73
+        assert op.total_minutes(Decimal('10')) == Decimal('73')
+
+
+# Regression for D-04 — model-level validators MUST exist after the fix
+@pytest.mark.django_db
+class TestModelLevelBounds:
+    @pytest.mark.xfail(reason='D-04: model has no MinValueValidator yet', strict=True)
+    def test_negative_capacity_rejected(self, acme):
+        from django.core.exceptions import ValidationError
+        from apps.pps.models import WorkCenter
+        wc = WorkCenter(
+            tenant=acme, code='X', name='X', work_center_type='machine',
+            capacity_per_hour=Decimal('-5'),
+            efficiency_pct=Decimal('100'), cost_per_hour=Decimal('10'),
+        )
+        with pytest.raises(ValidationError):
+            wc.full_clean()
 ```
 
-#### 5.3.5 `apps/plm/tests/test_forms.py`
+### 5.7 Runnable code — `apps/pps/tests/test_forms.py`
+
 ```python
+"""Form-level validation tests including the unique-trifecta regression."""
+from datetime import date, timedelta
+from decimal import Decimal
+
 import pytest
-from django.core.files.uploadedfile import SimpleUploadedFile
-from apps.plm.forms import CADDocumentVersionForm, ECOImpactedItemForm
-from apps.plm.models import Product, ProductRevision
+
+from apps.pps.forms import (
+    DemandForecastForm, MasterProductionScheduleForm,
+    OptimizationObjectiveForm, ProductionOrderForm, WorkCenterForm,
+)
 
 
 @pytest.mark.django_db
-class TestECOImpactedItemForm:
-
-    def test_revision_must_belong_to_selected_product(self, acme, product, category):
-        # DEFECT D-01: form should fail when before_revision belongs to a different product
-        prod_other = Product.objects.create(
-            tenant=acme, sku='SKU-OTHER', name='Other', category=category,
-        )
-        rev_other = ProductRevision.objects.create(
-            tenant=acme, product=prod_other, revision_code='A',
-        )
-        f = ECOImpactedItemForm(
-            data={'product': product.pk, 'before_revision': rev_other.pk,
-                  'after_revision': '', 'change_summary': 'x'},
-            tenant=acme,
-        )
-        assert not f.is_valid(), 'Form must reject mismatched product/revision'
-        assert 'before_revision' in f.errors
-
-
-@pytest.mark.django_db
-class TestCADUpload:
-
-    @pytest.mark.parametrize('ext,allowed', [
-        ('pdf', True), ('dwg', True), ('step', True),
-        ('exe', False), ('bat', False), ('php', False),
-    ])
-    def test_extension_allowlist(self, ext, allowed):
-        f = CADDocumentVersionForm(
-            data={'version': '1.0', 'change_notes': '', 'status': 'draft'},
-            files={'file': SimpleUploadedFile(f'test.{ext}', b'\x00' * 100)},
-        )
-        assert f.is_valid() == allowed
-
-    def test_size_cap_25mb(self):
-        big = b'\x00' * (25 * 1024 * 1024 + 1)
-        f = CADDocumentVersionForm(
-            data={'version': '1.0', 'change_notes': '', 'status': 'draft'},
-            files={'file': SimpleUploadedFile('big.pdf', big)},
-        )
-        assert not f.is_valid()
-        assert 'too large' in str(f.errors).lower()
-```
-
-#### 5.3.6 `apps/plm/tests/test_security.py`
-```python
-import pytest
-from django.urls import reverse
-from apps.plm.models import EngineeringChangeOrder, Product
-
-
-@pytest.mark.django_db
-@pytest.mark.security
-class TestCrossTenantIDOR:
-
-    def test_product_detail(self, client_globex, product):
-        r = client_globex.get(reverse('plm:product_detail', args=[product.pk]))
-        assert r.status_code == 404
-
-    def test_product_edit_get(self, client_globex, product):
-        r = client_globex.get(reverse('plm:product_edit', args=[product.pk]))
-        assert r.status_code == 404
-
-    def test_product_delete_post(self, client_globex, product):
-        r = client_globex.post(reverse('plm:product_delete', args=[product.pk]))
-        assert r.status_code == 404
-        assert Product.objects.filter(pk=product.pk).exists()
-
-    @pytest.mark.parametrize('action', [
-        'plm:eco_detail', 'plm:eco_edit', 'plm:eco_submit',
-        'plm:eco_approve', 'plm:eco_reject', 'plm:eco_implement',
-    ])
-    def test_eco_actions(self, client_globex, acme, acme_admin, action):
-        eco = EngineeringChangeOrder.objects.create(
-            tenant=acme, number='ECO-T001', title='x',
-            requested_by=acme_admin, status='submitted',
-        )
-        r = client_globex.post(reverse(action, args=[eco.pk]))
-        assert r.status_code == 404
-
-
-@pytest.mark.django_db
-@pytest.mark.security
-class TestWorkflowBypass:
-
-    def test_implement_non_approved_eco_blocked(self, client_acme, acme, acme_admin):
-        eco = EngineeringChangeOrder.objects.create(
-            tenant=acme, number='ECO-T002', title='x',
-            requested_by=acme_admin, status='submitted',
-        )
-        r = client_acme.post(reverse('plm:eco_implement', args=[eco.pk]))
-        eco.refresh_from_db()
-        assert eco.status == 'submitted'
-        assert eco.implemented_at is None
-```
-
-#### 5.3.7 `apps/plm/tests/test_performance.py`
-```python
-import pytest
-from django.urls import reverse
-
-
-@pytest.mark.django_db
-class TestNoNPlusOne:
-
-    @pytest.mark.parametrize('url_name,seed_count', [
-        ('plm:product_list', 50),
-        ('plm:eco_list', 50),
-        ('plm:cad_list', 50),
-        ('plm:compliance_list', 50),
-        ('plm:npi_list', 50),
-    ])
-    def test_list_view_query_ceiling(
-        self, django_assert_max_num_queries, client_acme,
-        url_name, seed_count, acme, category, acme_admin, standard,
-    ):
-        # Arrange: factory-boy seed N rows for the relevant model.
-        with django_assert_max_num_queries(15):
-            r = client_acme.get(reverse(url_name))
-            assert r.status_code == 200
-```
-
-#### 5.3.8 `apps/plm/tests/test_workflow_eco.py`
-```python
-import pytest
-from django.urls import reverse
-from apps.plm.models import EngineeringChangeOrder
-
-
-@pytest.mark.django_db
-class TestECOLifecycle:
-
-    def test_full_happy_path(self, client_acme, acme, acme_admin):
-        # 1. create
-        r = client_acme.post(reverse('plm:eco_create'), data={
-            'title': 'Material upgrade',
-            'description': 'x', 'change_type': 'material', 'priority': 'high',
-            'reason': 'cost reduction',
+class TestMPSForm:
+    def test_horizon_end_before_start_rejected(self, acme):
+        form = MasterProductionScheduleForm(data={
+            'name': 'X',
+            'horizon_start': date.today(),
+            'horizon_end': date.today() - timedelta(days=1),
+            'time_bucket': 'week',
+            'description': '',
         })
-        assert r.status_code == 302
-        eco = EngineeringChangeOrder.objects.get(tenant=acme, title='Material upgrade')
-        assert eco.status == 'draft'
-        assert eco.number.startswith('ECO-')
+        assert not form.is_valid()
+        assert 'horizon_end' in form.errors
 
-        # 2. submit
-        client_acme.post(reverse('plm:eco_submit', args=[eco.pk]))
-        eco.refresh_from_db()
-        assert eco.status == 'submitted' and eco.submitted_at is not None
 
-        # 3. approve
-        client_acme.post(reverse('plm:eco_approve', args=[eco.pk]),
-                         data={'comment': 'LGTM'})
-        eco.refresh_from_db()
-        assert eco.status == 'approved' and eco.approved_at is not None
-        assert eco.approvals.filter(decision='approved').exists()
+@pytest.mark.django_db
+class TestForecastForm:
+    def test_period_end_before_start_rejected(self, acme, product):
+        form = DemandForecastForm(tenant=acme, data={
+            'product': product.pk,
+            'period_start': date.today(),
+            'period_end': date.today() - timedelta(days=1),
+            'forecast_qty': '10',
+            'source': 'manual',
+            'confidence_pct': '80',
+            'notes': '',
+        })
+        assert not form.is_valid()
+        assert 'period_end' in form.errors
 
-        # 4. implement
-        client_acme.post(reverse('plm:eco_implement', args=[eco.pk]))
-        eco.refresh_from_db()
-        assert eco.status == 'implemented' and eco.implemented_at is not None
+
+@pytest.mark.django_db
+class TestOptimizationObjectiveForm:
+    def test_all_zero_weights_rejected(self):
+        form = OptimizationObjectiveForm(data={
+            'name': 'Zero',
+            'description': '',
+            'weight_changeovers': '0',
+            'weight_idle': '0',
+            'weight_lateness': '0',
+            'weight_priority': '0',
+            'is_default': False,
+        })
+        assert not form.is_valid()
+
+
+# ⚠ D-02 / D-04 — these tests demonstrate the bugs.
+# After remediation they should pass; until then they're xfail(strict=True).
+@pytest.mark.django_db
+class TestUniqueTrifectaRegression:
+    @pytest.mark.xfail(reason='D-02: WorkCenterForm does not validate (tenant, code)', strict=True)
+    def test_workcenter_form_catches_duplicate_code(self, acme):
+        from apps.pps.models import WorkCenter
+        WorkCenter.objects.create(
+            tenant=acme, code='DUP', name='A', work_center_type='machine',
+            capacity_per_hour=Decimal('1'), efficiency_pct=Decimal('100'),
+            cost_per_hour=Decimal('1'),
+        )
+        form = WorkCenterForm(data={
+            'code': 'DUP', 'name': 'B', 'work_center_type': 'machine',
+            'capacity_per_hour': '1', 'efficiency_pct': '100',
+            'cost_per_hour': '1', 'description': '', 'is_active': True,
+        })
+        assert not form.is_valid()
+        assert 'code' in form.errors
+
+    @pytest.mark.xfail(reason='D-04: WorkCenterForm has no MinValueValidator', strict=True)
+    def test_workcenter_form_rejects_negative_capacity(self, acme):
+        form = WorkCenterForm(data={
+            'code': 'NEG', 'name': 'A', 'work_center_type': 'machine',
+            'capacity_per_hour': '-5', 'efficiency_pct': '100',
+            'cost_per_hour': '1', 'description': '', 'is_active': True,
+        })
+        assert not form.is_valid()
+        assert 'capacity_per_hour' in form.errors
+
+
+@pytest.mark.django_db
+class TestProductionOrderDateValidation:
+    @pytest.mark.xfail(reason='D-05: form does not validate requested_end > requested_start', strict=True)
+    def test_requested_end_before_start_rejected(self, acme, product):
+        from django.utils import timezone
+        from datetime import timedelta
+        form = ProductionOrderForm(tenant=acme, data={
+            'product': product.pk,
+            'quantity': '5',
+            'priority': 'normal',
+            'scheduling_method': 'forward',
+            'requested_start': (timezone.now()).strftime('%Y-%m-%dT%H:%M'),
+            'requested_end': (timezone.now() - timedelta(days=1)).strftime('%Y-%m-%dT%H:%M'),
+            'notes': '',
+        })
+        assert not form.is_valid()
 ```
 
-### 5.4 Smoke E2E (Playwright) — `apps/plm/tests/test_e2e_smoke.py`
+### 5.8 Runnable code — `apps/pps/tests/test_views_orders.py`
+
 ```python
+"""Integration tests covering production order workflow + tenant isolation."""
 import pytest
-from playwright.sync_api import Page
 
 
-@pytest.mark.e2e
-def test_login_and_create_product(page: Page, live_server):
-    page.goto(f'{live_server.url}/accounts/login/')
-    page.fill('input[name="username"]', 'admin_acme')
-    page.fill('input[name="password"]', 'Welcome@123')
-    page.click('button[type="submit"]')
-    page.goto(f'{live_server.url}/plm/products/new/')
-    page.fill('input[name="sku"]', 'SKU-E2E-001')
-    page.fill('input[name="name"]', 'E2E Widget')
-    page.click('button:has-text("Save")')
-    assert 'SKU-E2E-001' in page.content()
+@pytest.mark.django_db
+class TestProductionOrderWorkflow:
+    def test_release_planned_order(self, admin_client, planned_order):
+        r = admin_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        assert r.status_code == 302
+        planned_order.refresh_from_db()
+        assert planned_order.status == 'released'
+
+    def test_cannot_start_a_planned_order(self, admin_client, planned_order):
+        admin_client.post(f'/pps/orders/{planned_order.pk}/start/')
+        planned_order.refresh_from_db()
+        assert planned_order.status == 'planned'  # rejected
+
+    def test_schedule_forward_creates_operations(self, admin_client, planned_order):
+        admin_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        r = admin_client.post(
+            f'/pps/orders/{planned_order.pk}/schedule/',
+            {'method': 'forward'},
+        )
+        assert r.status_code == 302
+        assert planned_order.scheduled_operations.count() == 2
+
+    def test_concurrent_release_only_one_wins(self, admin_client, planned_order):
+        admin_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        admin_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        planned_order.refresh_from_db()
+        assert planned_order.status == 'released'
+
+
+@pytest.mark.django_db
+class TestTenantIsolation:
+    def test_globex_cannot_view_acme_order(self, globex_client, planned_order):
+        r = globex_client.get(f'/pps/orders/{planned_order.pk}/')
+        assert r.status_code == 404
+
+    def test_globex_cannot_release_acme_order(self, globex_client, planned_order):
+        r = globex_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        assert r.status_code == 404
+        planned_order.refresh_from_db()
+        assert planned_order.status == 'planned'
 ```
 
-### 5.5 Load (Locust) — `locustfile.py`
+### 5.9 Runnable code — `apps/pps/tests/test_security.py`
+
 ```python
+"""OWASP-mapped security tests."""
+import pytest
+
+
+@pytest.mark.django_db
+class TestA01_BrokenAccessControl:
+    def test_anonymous_redirected_to_login(self, client):
+        r = client.get('/pps/')
+        assert r.status_code == 302
+        assert '/accounts/login/' in r.url
+
+    def test_authenticated_user_without_tenant_blocked(self, db, client):
+        from apps.accounts.models import User
+        user = User.objects.create_user(
+            username='no_tenant', password='pw', tenant=None,
+        )
+        client.force_login(user)
+        r = client.get('/pps/')
+        assert r.status_code in (302, 403)
+
+    @pytest.mark.xfail(reason='D-07: regular staff can perform admin-only workflow actions', strict=True)
+    def test_non_admin_cannot_obsolete_mps(self, staff_client, draft_mps):
+        from apps.pps.models import MasterProductionSchedule
+        MasterProductionSchedule.objects.filter(pk=draft_mps.pk).update(status='released')
+        r = staff_client.post(f'/pps/mps/{draft_mps.pk}/obsolete/')
+        assert r.status_code in (403, 302)
+        draft_mps.refresh_from_db()
+        assert draft_mps.status == 'released'
+
+
+@pytest.mark.django_db
+class TestA03_XSS:
+    @pytest.mark.xfail(reason='D-01: chart_series_json|safe lets </script> through', strict=True)
+    def test_gantt_escapes_user_controlled_sku(self, admin_client, acme, work_center, acme_admin):
+        from apps.plm.models import Product
+        from apps.pps.models import (
+            ProductionOrder, ScheduledOperation, Routing, RoutingOperation,
+        )
+        from datetime import timedelta
+        from decimal import Decimal
+        from django.utils import timezone
+
+        bad = '</script><img src=x onerror=alert(1)>'
+        product = Product.objects.create(
+            tenant=acme, sku=bad, name='Malicious', product_type='finished_good',
+            unit_of_measure='ea', status='active',
+        )
+        routing = Routing.objects.create(
+            tenant=acme, product=product, version='A', routing_number='ROUT-X',
+            status='active', is_default=True, created_by=acme_admin,
+        )
+        op = RoutingOperation.objects.create(
+            tenant=acme, routing=routing, sequence=10, operation_name='Test',
+            work_center=work_center, setup_minutes=Decimal('5'),
+            run_minutes_per_unit=Decimal('1'),
+            queue_minutes=Decimal('1'), move_minutes=Decimal('1'),
+        )
+        order = ProductionOrder.objects.create(
+            tenant=acme, order_number='PO-X', product=product, routing=routing,
+            quantity=Decimal('1'), status='released', priority='normal',
+            scheduling_method='forward', created_by=acme_admin,
+        )
+        ScheduledOperation.objects.create(
+            tenant=acme, production_order=order, routing_operation=op,
+            work_center=work_center, sequence=10,
+            planned_start=timezone.now(),
+            planned_end=timezone.now() + timedelta(hours=1),
+            planned_minutes=60,
+        )
+
+        r = admin_client.get('/pps/orders/gantt/')
+        assert r.status_code == 200
+        # The literal closing-script sequence must NOT appear in the rendered body
+        assert b'</script><img src=x' not in r.content
+
+
+@pytest.mark.django_db
+class TestA04_InsecureDesign:
+    @pytest.mark.xfail(reason='D-04: model accepts negative numeric values', strict=True)
+    def test_workcenter_rejects_negative_capacity(self, admin_client):
+        admin_client.post('/pps/work-centers/new/', {
+            'code': 'BAD', 'name': 'Bad', 'work_center_type': 'machine',
+            'capacity_per_hour': '-5', 'efficiency_pct': '999',
+            'cost_per_hour': '-100', 'description': '', 'is_active': True,
+        })
+        from apps.pps.models import WorkCenter
+        assert not WorkCenter.objects.filter(code='BAD').exists()
+
+    @pytest.mark.xfail(reason='D-02: form-vs-DB unique gap on Edit', strict=True)
+    def test_workcenter_edit_to_duplicate_code_does_not_500(self, admin_client, acme):
+        from apps.pps.models import WorkCenter
+        from decimal import Decimal
+        WorkCenter.objects.create(
+            tenant=acme, code='A', name='A', work_center_type='machine',
+            capacity_per_hour=Decimal('1'), efficiency_pct=Decimal('100'),
+            cost_per_hour=Decimal('1'),
+        )
+        b = WorkCenter.objects.create(
+            tenant=acme, code='B', name='B', work_center_type='machine',
+            capacity_per_hour=Decimal('1'), efficiency_pct=Decimal('100'),
+            cost_per_hour=Decimal('1'),
+        )
+        r = admin_client.post(f'/pps/work-centers/{b.pk}/edit/', {
+            'code': 'A',  # collides
+            'name': 'B-renamed', 'work_center_type': 'machine',
+            'capacity_per_hour': '1', 'efficiency_pct': '100',
+            'cost_per_hour': '1', 'description': '', 'is_active': True,
+        })
+        assert r.status_code == 200  # must NOT be 500
+
+
+@pytest.mark.django_db
+class TestCSRF:
+    def test_post_without_csrf_rejected(self, admin_client, planned_order):
+        admin_client.handler.enforce_csrf_checks = True
+        r = admin_client.post(f'/pps/orders/{planned_order.pk}/release/')
+        assert r.status_code == 403
+```
+
+### 5.10 Runnable code — `apps/pps/tests/test_services.py`
+
+```python
+"""Pure-function tests on scheduler / simulator / optimizer."""
+from datetime import datetime, time
+from decimal import Decimal
+
+import pytest
+from django.utils import timezone
+
+from apps.pps.services import optimizer, scheduler
+
+
+def _calendars(work_center_id):
+    """Mon–Fri 08:00–17:00, no weekends."""
+    cal = {dow: [(time(8, 0), time(17, 0), True)] for dow in range(5)}
+    cal.update({5: [], 6: []})
+    return {work_center_id: cal}
+
+
+def _ops():
+    return [
+        scheduler.OperationRequest(
+            sequence=10, operation_name='Op1', work_center_id=1,
+            work_center_code='WC-1',
+            setup_minutes=Decimal('15'), run_minutes_per_unit=Decimal('5'),
+            queue_minutes=Decimal('5'), move_minutes=Decimal('3'),
+        ),
+        scheduler.OperationRequest(
+            sequence=20, operation_name='Op2', work_center_id=1,
+            work_center_code='WC-1',
+            setup_minutes=Decimal('10'), run_minutes_per_unit=Decimal('8'),
+            queue_minutes=Decimal('5'), move_minutes=Decimal('3'),
+        ),
+    ]
+
+
+class TestForwardScheduling:
+    def test_aware_datetime_input_handled(self):
+        slots = scheduler.schedule_forward(
+            _ops(), start=timezone.now().replace(hour=9, minute=0),
+            quantity=Decimal('10'), calendars=_calendars(1),
+        )
+        assert len(slots) == 2
+        assert slots[0].planned_start.tzinfo is not None
+
+    def test_op2_starts_after_op1_ends(self):
+        start = datetime(2026, 5, 4, 8, 0)  # Monday 08:00
+        slots = scheduler.schedule_forward(
+            _ops(), start=start, quantity=Decimal('10'),
+            calendars=_calendars(1),
+        )
+        assert slots[1].planned_start >= slots[0].planned_end
+
+    def test_walk_skips_weekend(self):
+        start = datetime(2026, 5, 8, 16, 30)  # Friday 16:30
+        slots = scheduler.schedule_forward(
+            _ops(), start=start, quantity=Decimal('10'),
+            calendars=_calendars(1),
+        )
+        assert slots[-1].planned_start.weekday() < 5  # never Sat / Sun
+
+
+class TestBackwardScheduling:
+    def test_last_op_ends_at_target(self):
+        end = datetime(2026, 5, 15, 16, 0)  # Friday 16:00
+        slots = scheduler.schedule_backward(
+            _ops(), end=end, quantity=Decimal('10'),
+            calendars=_calendars(1),
+        )
+        assert abs((slots[-1].planned_end - end).total_seconds()) < 60
+
+
+class TestOptimizer:
+    @pytest.mark.django_db
+    def test_rush_orders_first(self, acme, draft_mps):
+        from apps.pps.models import OptimizationObjective, OptimizationRun
+        obj = OptimizationObjective.objects.create(
+            tenant=acme, name='X',
+            weight_changeovers=Decimal('1'), weight_idle=Decimal('1'),
+            weight_lateness=Decimal('2'), weight_priority=Decimal('2'),
+        )
+        run = OptimizationRun.objects.create(
+            tenant=acme, name='R', mps=draft_mps, objective=obj, status='queued',
+        )
+        orders = [
+            {'id': 1, 'product_id': 100, 'priority': 'low', 'requested_end': None, 'minutes': 60},
+            {'id': 2, 'product_id': 100, 'priority': 'rush', 'requested_end': None, 'minutes': 60},
+            {'id': 3, 'product_id': 200, 'priority': 'normal', 'requested_end': None, 'minutes': 60},
+        ]
+        result = optimizer.run_optimization(run, orders=orders)
+        sequence = result['suggestion_json']['sequence']
+        assert sequence.index(2) < sequence.index(1)
+        assert sequence.index(2) < sequence.index(3)
+
+    @pytest.mark.django_db
+    @pytest.mark.xfail(reason='D-10: weight_idle is currently unused by the heuristic', strict=True)
+    def test_weight_idle_changes_output(self, acme, draft_mps):
+        from apps.pps.models import OptimizationObjective, OptimizationRun
+        orders = [
+            {'id': 1, 'product_id': 100, 'priority': 'normal', 'requested_end': None, 'minutes': 60},
+            {'id': 2, 'product_id': 200, 'priority': 'normal', 'requested_end': None, 'minutes': 60},
+            {'id': 3, 'product_id': 100, 'priority': 'normal', 'requested_end': None, 'minutes': 60},
+        ]
+        obj_lo = OptimizationObjective.objects.create(
+            tenant=acme, name='LowIdle',
+            weight_changeovers=Decimal('1'), weight_idle=Decimal('0'),
+            weight_lateness=Decimal('1'), weight_priority=Decimal('1'),
+        )
+        obj_hi = OptimizationObjective.objects.create(
+            tenant=acme, name='HighIdle',
+            weight_changeovers=Decimal('1'), weight_idle=Decimal('5'),
+            weight_lateness=Decimal('1'), weight_priority=Decimal('1'),
+        )
+        run_lo = OptimizationRun.objects.create(tenant=acme, name='lo', mps=draft_mps, objective=obj_lo, status='queued')
+        run_hi = OptimizationRun.objects.create(tenant=acme, name='hi', mps=draft_mps, objective=obj_hi, status='queued')
+        out_lo = optimizer.run_optimization(run_lo, orders=orders)
+        out_hi = optimizer.run_optimization(run_hi, orders=orders)
+        assert out_lo['suggestion_json']['sequence'] != out_hi['suggestion_json']['sequence']
+```
+
+### 5.11 Runnable code — `apps/pps/tests/test_performance.py`
+
+```python
+"""N+1 and query-budget tests."""
+import pytest
+
+
+@pytest.mark.django_db
+class TestQueryBudget:
+    def test_orders_list_query_budget(self, admin_client, django_assert_max_num_queries):
+        with django_assert_max_num_queries(12):
+            r = admin_client.get('/pps/orders/')
+        assert r.status_code == 200
+
+    def test_routings_list_query_budget(self, admin_client, django_assert_max_num_queries):
+        with django_assert_max_num_queries(10):
+            r = admin_client.get('/pps/routings/')
+        assert r.status_code == 200
+
+    def test_capacity_dashboard_query_budget(self, admin_client, django_assert_max_num_queries):
+        with django_assert_max_num_queries(15):
+            r = admin_client.get('/pps/capacity/')
+        assert r.status_code == 200
+```
+
+### 5.12 Runnable code — `apps/pps/tests/test_workflow_concurrency.py`
+
+```python
+"""Demonstrate atomic transitions are race-safe."""
+import threading
+
+import pytest
+from django.test import Client
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_clients_approving_same_mps_only_one_wins(acme_admin, draft_mps):
+    """Atomic UPDATE … WHERE status IN (under_review) protects against
+    two concurrent approvals."""
+    from apps.pps.models import MasterProductionSchedule
+    MasterProductionSchedule.objects.filter(pk=draft_mps.pk).update(status='under_review')
+
+    results = []
+
+    def hit():
+        c = Client()
+        c.force_login(acme_admin)
+        r = c.post(f'/pps/mps/{draft_mps.pk}/approve/')
+        results.append(r.status_code)
+
+    threads = [threading.Thread(target=hit) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    draft_mps.refresh_from_db()
+    assert draft_mps.status == 'approved'
+    from apps.tenants.models import TenantAuditLog
+    assert TenantAuditLog.objects.filter(
+        action='mps.status.approved', target_id=str(draft_mps.pk),
+    ).count() == 1
+```
+
+### 5.13 Optional — Locust load shape (top-level `locustfile.py`)
+
+```python
+"""Lightweight load profile for the Gantt + capacity dashboards."""
 from locust import HttpUser, task, between
 
 
-class PLMUser(HttpUser):
-    wait_time = between(0.5, 2.0)
+class PPSUser(HttpUser):
+    wait_time = between(1, 3)
 
     def on_start(self):
         self.client.post('/accounts/login/', {
             'username': 'admin_acme', 'password': 'Welcome@123',
         })
 
-    @task(5)
-    def list_products(self):
-        self.client.get('/plm/products/?status=active')
+    @task(3)
+    def gantt(self):
+        self.client.get('/pps/orders/gantt/?days=14')
 
     @task(2)
-    def list_ecos(self):
-        self.client.get('/plm/eco/?status=submitted')
+    def capacity(self):
+        self.client.get('/pps/capacity/')
 
     @task(1)
-    def create_eco_concurrent(self):
-        # Stress sequence-number race
-        self.client.post('/plm/eco/new/', {
-            'title': 'load', 'description': 'x', 'change_type': 'design',
-            'priority': 'low', 'reason': 'load', 'target_implementation_date': '',
-        })
+    def order_list(self):
+        self.client.get('/pps/orders/?status=released')
 ```
 
 ---
 
 ## 6. Defects, Risks & Recommendations
 
-### 6.1 Defect register
+### 6.1 Defect register (verified)
 
-| ID | Severity | Location | OWASP | Finding | Recommendation |
+| ID | Severity | OWASP | Location | Finding | Recommendation |
 |---|---|---|---|---|---|
-| **D-01** | ~~HIGH~~ ✅ **FIXED** 2026-04-25 | [forms.py:147-159](apps/plm/forms.py#L147-L159) `ECOImpactedItemForm.clean()` | A04 | *FIX VERIFIED.* `clean()` now cross-validates `revision.product_id == product.pk` for both `before_revision` and `after_revision`. Pytest case `test_rejects_cross_product_revision` + manual TC-ECO-014 both pass. |
-| **D-02** | ~~HIGH~~ ✅ **FIXED** 2026-04-25 | [forms.py:13-19](apps/plm/forms.py#L13-L19) `CAD_ALLOWED_EXTS` | A03 / A08 | *FIX VERIFIED.* `.svg` removed from `CAD_ALLOWED_EXTS` (transitively from `ECO_ATTACH_ALLOWED_EXTS`). Pytest parametrised allowlist + manual TC-CAD-007 both confirm SVG payload now rejected. |
-| **D-03** | ~~CRITICAL~~ ✅ **FIXED** 2026-04-25 | [views.py:1051-1078](apps/plm/views.py#L1051-L1078) auth-gated download views + URLs + template updates | A01 / A05 | *FIX VERIFIED.* Three new auth-gated views (`CADVersionDownloadView`, `ECOAttachmentDownloadView`, `ComplianceCertificateDownloadView`) at `plm/cad/versions/<pk>/download/`, `plm/eco/attachments/<pk>/download/`, `plm/compliance/<pk>/certificate/`. Each uses `get_object_or_404(..., tenant=request.tenant)` then streams via `FileResponse`. Templates ([cad/detail.html](templates/plm/cad/detail.html), [eco/detail.html](templates/plm/eco/detail.html), [compliance/detail.html](templates/plm/compliance/detail.html)) updated to use `{% url %}` instead of `.file.url`. Production-hardening note added in [views.py:1-18](apps/plm/views.py#L1-L18) (remove `static()` mount + Nginx `internal;`). Manual TC-SEC-004/005 pass: anonymous → 302 to login, cross-tenant → 404, owner → 200. |
-| **D-04** | ~~MEDIUM~~ ✅ **FIXED** 2026-04-25 | [views.py:51-77](apps/plm/views.py#L51-L77) `_save_with_unique_number` | A04 | *FIX VERIFIED.* New helper `_save_with_unique_number(make_obj, max_attempts=5)` catches `IntegrityError` and retries up to 5 times, re-reading the next sequence number on each attempt. Applied to both `ECOCreateView` and `NPICreateView`. Sequential creates after a manual collision-bait verified to allocate unique numbers. |
-| **D-05** | ~~MEDIUM~~ ✅ **FIXED** 2026-04-25 | [views.py:382-403](apps/plm/views.py#L382-L403) `_atomic_eco_transition` | A01 / A04 | *FIX VERIFIED.* New helper performs a conditional `UPDATE WHERE status IN (from_states)` inside `transaction.atomic()` and checks rowcount; if zero, the caller surfaces "another reviewer may have actioned it" warning. Applied uniformly to `ECOSubmitView`, `ECOApproveView`, `ECORejectView`, `ECOImplementView`. Double-approve test confirms only one `ECOApproval` row is created. |
-| **D-06** | ~~MEDIUM~~ ✅ **FIXED** 2026-04-25 | All [templates/plm/*/list.html](templates/plm/) | A04 | *VERIFIED FIX:* New template tag [apps/core/templatetags/url_tags.py](apps/core/templatetags/url_tags.py) `querystring_replace` (Django 5.1 `{% querystring %}` backport for 4.2). All 6 PLM list pages now render `?{% querystring_replace page=... %}` which preserves all other GET params. Plan documented in [.claude/tasks/plm_manual_fixes_todo.md](.claude/tasks/plm_manual_fixes_todo.md). | Add a regression test (TC-PROD-008 in §4.6) to lock the fix in. |
-| **D-07** | ~~MEDIUM~~ ✅ **FIXED** 2026-04-25 | [views.py:39-49](apps/plm/views.py#L39-L49) `_next_sequence_number` | A04 | *FIX VERIFIED.* Now uses `_SEQ_RE = re.compile(r'^[A-Z]+-(\d+)$')` with fallback to `count() + 1` when match fails. Tested with `None`, `ECO-00005`, and legacy `ECO-Q1-00001` — produces `ECO-00001`, `ECO-00006`, and `ECO-00013` respectively. |
-| **D-08** | **MEDIUM** | [forms.py:14-17](apps/plm/forms.py#L14-L17) extension-only allowlist | A08 | `payload.exe` renamed to `payload.pdf` passes validation. No magic-byte sniffing. No zip-bomb heuristic. | Add `python-magic` validation (or built-in `mimetypes.guess_type` + first-bytes signature). For ZIP, reject nested compression ratio > 100x. |
-| **D-09** | LOW-MED | All PLM views guarded by `TenantRequiredMixin` only | A01 RBAC | Any tenant user (operator, viewer) can create / edit / **delete** products, ECOs, NPI projects, etc. No `TenantAdminRequiredMixin` on destructive actions. | Decide policy: if PLM should be admin-only, swap to `TenantAdminRequiredMixin` on Create/Edit/Delete views. If not, document the role matrix in [README.md](README.md). |
-| **D-10** | LOW ⚠ partially fixed | [views.py:239-256](apps/plm/views.py#L239-L256) `ProductDeleteView` + [models.py:266-280](apps/plm/models.py#L266-L280) `Product` cascades | A09 | **Update 2026-04-25:** `ProductDeleteView.post()` now catches `ProtectedError` and surfaces a friendly error message — *good UX defence against accidental deletion of FK-protected products*. However the broader concern remains: deleting a product still cascades silently to revisions/specs/variants/compliance/eco_items with no audit-log entry. | Add `pre_delete` signal emitting `TenantAuditLog` of `product.deleted` with cascade counts; or convert hard-delete to soft-delete (`is_deleted` flag) for products with regulatory records. |
-| **D-11** | LOW | [views.py:316-321](apps/plm/views.py#L316-L321) `VariantCreateView` | A04 | Calls `form.save()` *twice* — first via `commit=False`, then again. Currently works because `tenant`/`product` were already set on instance. Brittle. | Refactor to `obj = form.save(commit=False); obj.tenant = ...; obj.product = ...; obj.save(); form.save_m2m()`. |
-| **D-12** | LOW | [views.py:288-300](apps/plm/views.py#L288-L300) `RevisionCreateView` | A04 | Promoting a revision uses raw `update(status='superseded')` which **bypasses signals**. Future audit hooks on `ProductRevision` would be silent on these. | Iterate-and-`save()` (signal-aware) or document the design decision. |
-| **D-13** | LOW | [views.py:520-533](apps/plm/views.py#L520-L533) `CADVersionUploadView` error handler | — | Inner loop variable `v` shadows outer `v` (the saved version). Confusing but not bugged. | Rename to avoid shadowing. |
-| **D-14** | LOW | [models.py:298-320](apps/plm/models.py#L298-L320) `ProductCompliance.expiry_date` | A04 | A record can have `status='compliant'` and `expiry_date < today` simultaneously. No model-level invariant; no scheduled job flips compliant → expired. | Add management command `check_compliance_expiry` (run via cron alongside `capture_health`) that flips records past expiry to `status='expired'` and emits the audit-log entry. |
-| **D-15** | LOW | [seed_plm.py:130-160](apps/plm/management/commands/seed_plm.py#L130-L160) | — | Seed creates `ECO-NNNNN` via index-based padding. Two seeders running in parallel (CI) would race. | Already protected by `unique_together` so failure is loud. Document and accept. |
-| **D-16** | INFO | [forms.py:96-118](apps/plm/forms.py#L96-L118) `ProductVariantForm.attributes_text` | — | Malformed lines (no `=`) silently dropped. User has no feedback that input was discarded. | Surface "invalid line skipped" as a non-blocking warning. |
-| **D-17** | INFO | [admin.py](apps/plm/admin.py) | A05 | Django admin `list_display` exposes `tenant` column. Fine for superuser, but if a non-superuser tenant admin gets admin access they'd see other tenants' rows. | Override `get_queryset()` to filter by `request.user.tenant` for non-superusers. |
+| **D-01** | **High** | A03 (XSS) | [templates/pps/orders/gantt.html](../templates/pps/orders/gantt.html), [templates/pps/capacity/dashboard.html](../templates/pps/capacity/dashboard.html) | `{{ chart_series_json\|safe }}` ships raw JSON inside a `<script>` block. `json.dumps` does not escape `</script>`, so a Product SKU or order_number containing `</script><img onerror=...>` breaks out of the script tag. **Verified** — `json.dumps([{...sku: '</script>...'}])` retains literal `</script>` | Switch both templates to Django's `{{ payload\|json_script:"chart-data" }}` and read in JS via `JSON.parse(document.getElementById('chart-data').textContent)`. `json_script` HTML-escapes `<`, `>`, `&` automatically. |
+| **D-02** | **High** | A04 (Insecure design) / L-01 | [apps/pps/views.py](../apps/pps/views.py) — `WorkCenterEditView` and `OptimizationObjectiveEditView` | Both call `form.save()` with no `try/except IntegrityError`. Editing to a colliding `(tenant, code)` / `(tenant, name)` raises a 1062 IntegrityError that escapes as a 500. **Verified** in shell. | Add the same `try/except IntegrityError` pattern used in the matching create views, OR (preferred) add a `clean_<field>()` to each form that scopes uniqueness against `self._tenant` (matches the L-01 fix shape on `BillOfMaterialsForm`). |
+| **D-03** | **High** | A04 (Insecure design) / L-01 | [apps/pps/views.py](../apps/pps/views.py) — `RoutingCreateView` | Uses `_save_with_unique_number` which retries on `routing_number` collisions but cannot distinguish them from `(tenant, product, version)` collisions. After 5 retries it `raise last_err` and 500s. **Verified** — second routing on same `(product, version='A')` 500s. | Add `clean()` on `RoutingForm` to validate `(tenant, product, version)` uniqueness with a friendly error before reaching the DB. The retry loop should remain only for genuine `routing_number` collisions. |
+| **D-04** | **High** | A04 (Insecure design) / L-02 | [apps/pps/models.py](../apps/pps/models.py) — all numeric fields | Zero `MinValueValidator` / `MaxValueValidator` across 16 models. **Verified**: a work center saved with `capacity_per_hour=-5, efficiency_pct=999, cost_per_hour=-100` makes it through; `compute_load` then divides minutes by `available_minutes` and emits nonsense `utilization_pct`. | Add validators to: `WorkCenter.capacity_per_hour` ≥ 0; `WorkCenter.efficiency_pct` ∈ [0, 100]; `WorkCenter.cost_per_hour` ≥ 0; `RoutingOperation.{setup_minutes, run_minutes_per_unit, queue_minutes, move_minutes}` ≥ 0; `ProductionOrder.quantity` > 0; `MPSLine.{forecast_qty, firm_planned_qty, scheduled_qty, available_to_promise}` ≥ 0; `DemandForecast.confidence_pct` ∈ [0, 100]; `OptimizationObjective.weight_*` ≥ 0. Mirror the validators in the corresponding form widgets. |
+| **D-05** | **Medium** | A04 | [apps/pps/forms.py](../apps/pps/forms.py) — `ProductionOrderForm` | Form does not validate `requested_end > requested_start`. **Verified** — order saved with end 5 days before start. | Add `clean()` to `ProductionOrderForm` mirroring the `MasterProductionScheduleForm.clean()` pattern. |
+| **D-06** | **Low** | A04 (race) | [apps/pps/views.py](../apps/pps/views.py) — `ScenarioRunView`, `OptimizationStartView` | Race window between `if scenario.status not in (...)` check and the unconditional `update(status='running')`. Two concurrent clicks both pass the check; both proceed to compute. End state is correct (`update_or_create` is idempotent), but the simulator runs twice. | Use the existing `_atomic_status_transition` helper instead of the unconditional update, gated on `from_states=['draft','completed']`. |
+| **D-07** | **High** | A01 (Broken Access Control) | [apps/pps/views.py](../apps/pps/views.py) — every workflow CBV | All views use `TenantRequiredMixin` (login + has-tenant) only. **Verified**: a non-admin staff user (`is_tenant_admin=False`) successfully obsoleted a released MPS. No RBAC layer separates admin from operator. | Introduce a `TenantAdminRequiredMixin` (mirroring [apps/tenants — TenantAdminRequiredMixin](../apps/tenants/views.py)) and apply to: all workflow transition views (Submit/Approve/Release/Obsolete on MPS; Release/Cancel on orders; Run/Apply/Discard on scenarios; Start/Apply on optimization runs), and to delete views. Read-only list / detail views remain on `TenantRequiredMixin`. Document the operator-vs-admin matrix in the README. |
+| **D-08** | **Low** | A04 (Insecure design / data integrity) | [apps/pps/views.py](../apps/pps/views.py) — `RoutingEditView`, [apps/pps/signals.py](../apps/pps/signals.py) | Editing a routing while production orders reference it leaves their `ScheduledOperation` rows pointing at the old structure. UI does not warn; capacity load may be subtly wrong. | On `RoutingOperation.save` / `delete` (or on `RoutingEditView.post`), enumerate non-terminal production orders that reference the routing and either (a) clear their scheduled operations + flag them for re-schedule, or (b) refuse the edit if any planned/released order exists. |
+| **D-09** | **Low / UX** | n/a (potential L-04 silent-drop) | [apps/pps/views.py](../apps/pps/views.py) — `ScenarioApplyView`, `OptimizationApplyView`; [templates/pps/scenarios/detail.html](../templates/pps/scenarios/detail.html); [templates/pps/optimizer/run_detail.html](../templates/pps/optimizer/run_detail.html) | "Apply" actions display a green toast ("Marked as applied. Audit trail recorded.") but do NOT mutate the base MPS or production orders. Operationally similar to the L-04 silent-drop pattern. | Either: (a) implement real apply (push scenario change deltas into the base MPS lines; reorder production orders per optimizer suggestion), or (b) tone down the success message to "Result snapshot recorded — no plan changes were made (v1)" and add a clear info card on both pages explaining v1 limitations. |
+| **D-10** | **Low** | n/a | [apps/pps/services/optimizer.py](../apps/pps/services/optimizer.py) | `weight_idle` is read from the objective but never used in the scoring function. The UI advertises it as a knob; turning it has zero effect. | Either: (a) wire it in by adding an idle-time penalty term during the secondary sort, or (b) remove the field from `OptimizationObjective` and the form / templates. (a) is preferred — keeps the data model forward-compatible. |
+| **D-11** | **Medium** | A09 (Logging failures) | [apps/pps/signals.py](../apps/pps/signals.py) | Audit log writes for MPS / order / scenario / optimization status — but NOT for `Routing`, `RoutingOperation`, `WorkCenter`, `CapacityCalendar` create/update/delete. Tenant admin cannot reconstruct who removed a routing or changed a work-center's capacity. | Add `post_save` + `post_delete` audit emitters for the four models above. Match the existing `bom.created` / `bom.updated` shape from [apps/bom/signals.py](../apps/bom/signals.py). |
+| **D-12** | **Info** | n/a | [apps/pps/management/commands/seed_pps.py](../apps/pps/management/commands/seed_pps.py) | The idempotency gate is `if MasterProductionSchedule.objects.filter(tenant=tenant).exists()`. If the MPS row exists but other PPS data was hand-deleted, the seeder won't repair partial state without `--flush`. | Switch to per-section gating (each `_seed_*` already uses `get_or_create` / existence-checks for its own rows) — drop the top-level early return. Or document that `--flush` is the only supported repair path. |
 
-### 6.2 Risk register
+### 6.2 Risks (no defect, but worth tracking)
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| Concurrent ECO creates → 500 (D-04) | Medium | Medium | Atomic + retry |
-| CAD/IP file leakage via direct media URL (D-03) | High | Critical | Auth-gated download view before production cutover |
-| SVG XSS via attachment (D-02) | Low | High | Drop `.svg` from allowlist |
-| Mismatched product/revision audit trail (D-01) | High | Medium | Form `clean()` |
-| Compliance records remaining "compliant" past expiry (D-14) | High | Medium | Cron-driven `check_compliance_expiry` |
+| ID | Risk | Mitigation |
+|---|---|---|
+| **R-01** | Backward scheduler probe-buffer is `total * 3` — for very long-running operations on tight calendars the slide could push start before today | Replace probe with iterative calendar walk; cap at 90-day horizon |
+| **R-02** | `services/scheduler.py` falls back to a 60-day safety horizon when consuming minutes; high-quantity orders (10000+ units) can silently get capped at `start + total_minutes` (clock time, ignoring shifts) | Add an explicit warning in `views.ProductionOrderScheduleView` if the schedule extended past the safety horizon |
+| **R-03** | Optimizer "no negative improvement" clamp at `max(0, raw)` masks regressions during heuristic tuning | Persist raw `improvement_pct` in `suggestion_json.raw_improvement` for telemetry, keep clamped value as the public KPI |
+| **R-04** | `StreamingHttpResponse` is not used by the Gantt — page payload grows linearly with the time window. Locust load shape recommended (§5.13) | Add server-side pagination on Gantt for windows > 30 days |
+| **R-05** | Forecast / MPSLine accept emoji + 4-byte UTF-8 in `notes`; existing MySQL DB is `utf8mb4` so this is safe — but a partner deployment on `utf8` would 500 | Document `utf8mb4` requirement in README |
 
-### 6.3 Recommendations beyond defects
+### 6.3 Recommendations (prioritised)
 
-1. **Centralise audit emission** — add `core/services/audit.py` taking tenant + action + meta and writing `TenantAuditLog`. Current pattern is duplicated across [tenants/signals.py](apps/tenants/signals.py) and [plm/signals.py](apps/plm/signals.py).
-2. **Centralise file-upload validation** — `core/forms/file_validators.py` with `validate_extension(allow, label)`, `validate_size(max_mb, label)`, `validate_magic_bytes(label)`. Reduces drift across modules.
-3. **Add a partial template** `templates/partials/pagination.html` consumed by every list page — fixes D-06 globally.
-4. **Document role/permission matrix** for PLM in [README.md](README.md): which roles can create products / submit ECOs / approve ECOs / release CAD.
-5. **Wire up `TenantAdminRequiredMixin`** on destructive endpoints (delete, implement, release) once the role matrix is finalised.
-6. **Production media handling** — when `DEBUG=False`, document an Nginx `internal;` location with `X-Accel-Redirect` from the auth-gated Django view.
+1. **Fix D-01 (XSS) immediately** — single template change × 2 files, biggest blast radius if a malicious admin or imported product list slips a `</script>` SKU through.
+2. **Fix D-02 / D-03 / D-04 together** — all are L-01/L-02 lesson recurrences; one PR adds form `clean()` methods + model validators + migration. Add an L-01 / L-02 self-audit checklist to the SQA review skill.
+3. **Fix D-07 (RBAC)** — small but important: introduce `TenantAdminRequiredMixin`, audit each view, document the operator/admin matrix.
+4. **Fix D-09 (UX)** — soften the "applied" copy to "result recorded" until the real apply is built, OR commit to building real apply in the next iteration.
+5. **Add D-11 audit coverage** — minimal code, big operational visibility win.
+6. **Defer D-08, D-10, D-12** to follow-up iterations.
+
+### 6.4 OWASP Top 10 mapping
+
+| OWASP | Status | Notes |
+|---|---|---|
+| **A01 Broken Access Control** | ⚠ D-07 | Login enforced; tenant scoping enforced; **role separation missing** |
+| **A02 Crypto failures** | ✅ | No new crypto introduced; relies on Django session + `SECRET_KEY` from `.env` |
+| **A03 Injection / XSS** | ⚠ D-01 | SQL injection: clean (Q-objects + ORM); XSS: chart_series leak |
+| **A04 Insecure design** | ⚠ D-02, D-03, D-04, D-05, D-06 | Missing validators + form/DB unique gap |
+| **A05 Security misconfig** | ✅ (out of scope here; project-wide) | `DEBUG=False` + `ALLOWED_HOSTS` already enforced via `.env` |
+| **A06 Vulnerable deps** | ⚪ Not assessed in this review (no `requirements.txt` change) | Run `pip-audit` separately |
+| **A07 Auth failures** | ✅ | Django default password hashing + session expiry; no rate-limit gap introduced by PPS |
+| **A08 Data integrity / file upload** | ✅ | PPS introduces no file uploads |
+| **A09 Logging failures** | ⚠ D-11 | Workflow events audited; configuration changes not |
+| **A10 SSRF** | ✅ | No external URL fetches |
 
 ---
 
 ## 7. Test Coverage Estimation & Success Metrics
 
-### 7.1 Coverage targets per file
+### 7.1 Coverage targets
 
-| File | Lines | Target line cov | Target branch cov | Notes |
+| File | Line target | Branch target | Mutation target | Notes |
 |---|---|---|---|---|
-| [models.py](apps/plm/models.py) | 554 | 95 % | 90 % | Mostly declarative — focus on `__str__`, `is_editable`, `is_expiring_soon`, custom `save()` |
-| [forms.py](apps/plm/forms.py) | 298 | 95 % | 95 % | All `clean_*`, all `__init__` queryset filters, parametrised file types |
-| [views.py](apps/plm/views.py) | 970 | 85 % | 80 % | Workflow guards, tenant filtering, error branches |
-| [signals.py](apps/plm/signals.py) | 90 | 100 % | 100 % | High blast radius — must be 100 % |
-| [seed_plm.py](apps/plm/management/commands/seed_plm.py) | 335 | 70 % | 60 % | Idempotency + flush test sufficient |
+| [apps/pps/models.py](../apps/pps/models.py) | 95% | 90% | 80% | Helpers (`is_editable`, `total_minutes`, `effective_quantity`) — easy targets |
+| [apps/pps/forms.py](../apps/pps/forms.py) | 95% | 90% | 80% | Once D-02..D-05 fixes land, the new `clean()` blocks are testable |
+| [apps/pps/views.py](../apps/pps/views.py) | 85% | 75% | 65% | 50 CBVs; aim for every `if` branch covered with a positive + negative test |
+| [apps/pps/services/scheduler.py](../apps/pps/services/scheduler.py) | 95% | 90% | 85% | Pure functions — high mutation target reasonable |
+| [apps/pps/services/simulator.py](../apps/pps/services/simulator.py) | 90% | 85% | 75% | |
+| [apps/pps/services/optimizer.py](../apps/pps/services/optimizer.py) | 90% | 80% | 70% | |
+| [apps/pps/signals.py](../apps/pps/signals.py) | 90% | 85% | 70% | Audit-log emission + capacity-load invalidation |
+| **Module overall** | **≥ 88%** | **≥ 80%** | **≥ 70%** | |
 
-Aggregate target: **≥ 85 % line, ≥ 80 % branch** for `apps/plm/`.
-
-### 7.2 KPI thresholds
+### 7.2 KPI table — Green / Amber / Red thresholds
 
 | KPI | Green | Amber | Red |
 |---|---|---|---|
-| Functional pass rate | ≥ 99 % | 95-99 % | < 95 % |
+| Functional pass rate (after fixes) | ≥ 99% | 95–98% | < 95% |
 | Open Critical defects | 0 | 0 | ≥ 1 |
-| Open High defects | 0 | 1-2 | ≥ 3 |
-| Suite total runtime (unit + integration) | < 60 s | 60-180 s | > 180 s |
-| Queries per list view (10k rows) | ≤ 12 | 13-25 | > 25 |
-| p95 list-view latency (10k rows) | < 250 ms | 250-500 ms | > 500 ms |
-| Regression escape rate (defects in next sprint that were testable here) | 0 | 1 | ≥ 2 |
-| Coverage (line) | ≥ 85 % | 75-85 % | < 75 % |
-| Coverage (branch) | ≥ 80 % | 70-80 % | < 70 % |
+| Open High defects | 0 | 1 | ≥ 2 |
+| Test suite runtime (pytest, full PPS) | < 30 s | 30–90 s | > 90 s |
+| Query count `/pps/orders/` (200 rows) | ≤ 10 | 11–15 | > 15 |
+| Query count `/pps/orders/gantt/` (500 ops) | ≤ 8 | 9–12 | > 12 |
+| Query count `/pps/capacity/` (30 WCs × 14 days) | ≤ 12 | 13–20 | > 20 |
+| p95 latency `/pps/orders/gantt/?days=14` | < 400 ms | 400–900 ms | > 900 ms |
+| Regression escape rate (defects re-opened ≥ 2× per release) | 0 | 1 | ≥ 2 |
+| Audit-log emission gap | 0 | 1 | ≥ 2 |
 
 ### 7.3 Release Exit Gate
 
-Module 2 is releasable to staging when **all** of the following hold:
+The Module 4 PPS shipment may be tagged `v0.4.0` only when ALL of the following are true:
 
-- [ ] D-01, D-02, D-03 closed (Critical + High). Fix verified by pertinent test cases above.
-- [ ] D-04, D-05, D-06 either fixed OR explicitly accepted with risk-owner sign-off.
-- [ ] Unit + integration coverage ≥ 85 % on [apps/plm/](apps/plm/).
-- [ ] Cross-tenant IDOR tested for all 50 PLM URL patterns (parametrised, not sampled).
-- [ ] N+1 ceiling test green for all 6 list views (`product_list`, `category_list`, `eco_list`, `cad_list`, `compliance_list`, `npi_list`).
-- [ ] `seed_plm` runs idempotently (already verified ✓).
-- [ ] OWASP ZAP baseline scan against `/plm/*` returns 0 High alerts.
-- [ ] Bandit scan on [apps/plm/](apps/plm/) returns 0 High findings.
-- [ ] Manual smoke walk: login as `admin_acme`, complete the full ECO workflow (draft → submit → approve → implement) and the CAD workflow (upload → release).
+- [ ] D-01 (XSS) is fixed and `TestA03_XSS::test_gantt_escapes_user_controlled_sku` passes (xfail removed)
+- [ ] D-02, D-03 (form-vs-DB unique trifecta) are fixed; `TestUniqueTrifectaRegression` passes for WorkCenter, Routing, OptimizationObjective
+- [ ] D-04 (numeric validators) is fixed; `TestModelLevelBounds::test_negative_capacity_rejected` passes
+- [ ] D-05 (order date validation) is fixed; `TestProductionOrderDateValidation` passes
+- [ ] D-07 (RBAC) is fixed; `TestA01_BrokenAccessControl::test_non_admin_cannot_obsolete_mps` passes
+- [ ] No open Critical defects; ≤ 1 open High defect (must be tracked and triaged)
+- [ ] `pytest apps/pps/tests/` runs green in < 30 s on the test settings
+- [ ] `pytest --cov=apps/pps` reports ≥ 88% line coverage and ≥ 80% branch coverage
+- [ ] `bandit -r apps/pps/` returns 0 high-severity findings
+- [ ] OWASP Top-10 matrix in §6.4 has no remaining ⚠ rows except where explicitly accepted by the product owner
+- [ ] README's Module 4 section accurately describes the operator-vs-admin RBAC matrix introduced by the D-07 fix
+- [ ] The 26-URL smoke test from the build session continues to return 200 across all detail pages, filtered by tenant
+- [ ] Cross-tenant guard test (`admin_globex` requesting `admin_acme` resources) returns 404 on every detail / mutation endpoint
 
 ---
 
 ## 8. Summary
 
-PLM (Module 2) is functionally complete, smoke-tested, and now hardened against the High/Critical and Medium defects identified in this review.
+Module 4 (Production Planning & Scheduling) ships a working end-to-end planning + scheduling stack — 16 models, 50 CBVs, 25 templates, 3 pure-function services, 53 routes, an idempotent seeder, and an ApexCharts Gantt — with the architectural shape proven by the seeded smoke-test (26/26 URLs returning 200, cross-tenant isolation enforced, scheduled operations laid down across forward / backward / infinite methods, scenarios and optimization runs wired through to KPI deltas).
 
-### Closed in this round (2026-04-25)
+The QA review surfaced **12 defects**, of which **5 are High** and verified in the Django shell:
 
-| Defect | Severity | Fix |
-|---|---|---|
-| D-01 | HIGH | `ECOImpactedItemForm.clean()` cross-validates revision↔product |
-| D-02 | HIGH | `.svg` removed from `CAD_ALLOWED_EXTS` |
-| D-03 | CRITICAL | Auth-gated download views for CAD versions, ECO attachments, compliance certificates; templates link via `{% url %}`; production hardening note added in views.py |
-| D-04 | MEDIUM | `_save_with_unique_number(...)` retry-on-IntegrityError |
-| D-05 | MEDIUM | `_atomic_eco_transition(...)` conditional UPDATE with rowcount check |
-| D-06 | MEDIUM | (already fixed in parallel manual-fixes pass) `querystring_replace` template tag |
-| D-07 | MEDIUM | Regex-based sequence parser with loud fallback |
-| D-10 | LOW | (partial — `ProtectedError` catch in `ProductDeleteView`) |
+1. **D-01** — XSS via unescaped `chart_series_json|safe` in Gantt + capacity dashboard
+2. **D-02 / D-03** — Three form-vs-DB unique-together gaps that surface as 500 errors (L-01 lesson recurrence)
+3. **D-04** — Zero `MinValueValidator` / `MaxValueValidator` on any of the 16 models — negative capacity / cost / quantity all accepted (L-02 lesson recurrence)
+4. **D-07** — `TenantRequiredMixin`-only authorization; non-admin staff can obsolete MPS, cancel production orders, apply optimizer results
 
-### Test automation shipped
+The remaining 7 are Medium/Low/Info — UX softening on "Apply" verbs, race-window tightening on simulation/optimization start, audit-log coverage extension to routing/work-center mutations, and the unused `weight_idle` knob.
 
-- `pytest.ini` + `config/settings_test.py` (SQLite in-memory, MD5 hasher, in-memory file storage)
-- `apps/plm/tests/`: `conftest.py` + 5 test files (`test_models.py`, `test_forms.py`, `test_security.py`, `test_workflow_eco.py`, `test_views_basic.py`)
-- **51 tests, all green, 2.4 s runtime**
-- Coverage: forms 79 %, models 93 %, admin 100 %, all defect-fix code paths locked
+Recommended sequencing for remediation:
 
-### Manual verification
+1. **Same-day:** D-01 (template change × 2 files; ~30 LoC).
+2. **Next iteration (one PR):** D-02, D-03, D-04, D-05 — all share the L-01/L-02 lesson shape; one set of form `clean()` methods + model validators + migration.
+3. **Next iteration (separate PR):** D-07 — introduce `TenantAdminRequiredMixin`, audit each view, document the operator/admin matrix in the README.
+4. **Follow-up:** D-08, D-09, D-10, D-11, D-12.
 
-Walked 10 high-severity test cases against `python manage.py runserver` via real HTTP (`requests` library), all PASS:
+The automation suite outlined in §5 — `pytest`-based, mirroring the existing PLM/BOM v1 test conventions — is runnable against the current codebase. Roughly 60% of the test bodies are written here verbatim and will run; the remaining cases are parametrised templates.
 
-| Case | Observed | Expected |
-|---|---|---|
-| LOGIN admin_acme / admin_globex | 302 → / | 302 |
-| TC-SEC-001 cross-tenant product detail | 404 | 404 |
-| TC-SEC-002 cross-tenant ECO detail | 404 | 404 |
-| TC-SEC-004 anonymous CAD download | 302 → /accounts/login | redirect |
-| TC-SEC-005 cross-tenant CAD download | 404 | 404 |
-| TC-ECO-014 cross-product revision rejected | impacted_items unchanged | rejected |
-| TC-CAD-007 SVG upload blocked | version not persisted | rejected |
-| TC-ECO-013 implement non-approved blocked | status=submitted, implemented_at=None | unchanged |
-| TC-PROD-008 D-06 filter preserved | 200 OK | 200 |
+The L-01 (form-vs-DB unique gap) and L-02 (missing decimal validators) lesson recurrences in this module suggest the SQA review skill should add a pre-build self-audit checklist that scans every new model + form pair for these two specific gaps. Captured separately as a process improvement; not a defect against PPS.
 
-### Remaining open items (lower priority)
-
-- **D-08** Magic-byte validation (extension-only allowlist still bypassable with renamed binaries) — sprint 3.
-- **D-09** RBAC matrix decision (any tenant user can delete; should this be admin-only?) — needs product owner input.
-- **D-10 residual** Cascade-without-audit on `Product` deletion — sprint 3 (soft-delete or `pre_delete` audit signal).
-- **D-11..D-17** Low/Info polish — backlog.
-
-### Release Exit Gate status
-
-- [x] D-01, D-02, D-03 closed and verified
-- [x] D-04, D-05, D-06, D-07 closed and verified
-- [x] Cross-tenant IDOR parametrised across ECO endpoints (`test_security.py`)
-- [x] `seed_plm` runs idempotently
-- [x] Manual smoke walk: full ECO workflow draft → submit → approve → implement
-- [ ] Coverage ≥ 85 %/80 % across [apps/plm/](apps/plm/) — currently 66 % aggregate (driven down by uncovered seed_plm + parts of views.py); models/forms/admin already at target. Sprint 2 work.
-- [ ] OWASP ZAP baseline scan (out of scope for this round)
-- [ ] Bandit scan (out of scope for this round)
-
-**Module 2 is now releasable to staging** pending D-09 product-owner RBAC decision.
+The module is **NOT release-ready** in its current state. With the High-severity fixes above, it will be.
 
 ---
 
-*Report ends. To continue: tell me "fix the defects" (I'll implement D-01..D-06 with verification tests), "build the tests" (scaffold §5 and run it), or "manual verification" (walk through high-severity cases against `runserver`).*
+**Report end.** Follow-up modes available: `fix the defects` (implement and verify), `build the automation` (scaffold the test suite end-to-end), or `manual verification` (walk the high-severity test cases through `runserver`).
