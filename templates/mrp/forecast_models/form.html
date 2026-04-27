@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if forecast_model %}Edit{% else %}New{% endif %} Forecast Model{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if forecast_model %}Edit Forecast Model{% else %}New Forecast Model{% endif %}</h4>
+    <a href="{% url 'mrp:forecast_model_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="alert alert-info small mt-2">
+            <strong>Params hints (JSON):</strong>
+            <code>{"window": 3}</code> for moving avg ·
+            <code>{"weights": [0.2,0.3,0.5]}</code> for weighted MA ·
+            <code>{"alpha": 0.3}</code> for exp smoothing ·
+            <code>{"season_length": 12}</code> for naive seasonal.
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+            <a href="{% url 'mrp:forecast_model_list' %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
