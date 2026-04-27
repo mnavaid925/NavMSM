@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}MRP Exceptions{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">MRP Exceptions</h4>
+        <div class="text-muted small">Action messages from the MRP engine — late orders, expedite, defer, BOM/inventory gaps.</div>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by SKU or message..."></div>
+        <div class="col-md-3">
+            <select name="exception_type" class="form-select">
+                <option value="">Any type</option>
+                {% for v, label in type_choices %}<option value="{{ v }}" {% if request.GET.exception_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="severity" class="form-select">
+                <option value="">Any severity</option>
+                {% for v, label in severity_choices %}<option value="{{ v }}" {% if request.GET.severity == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Type</th><th>Product</th><th>Severity</th><th>Action</th><th>Message</th><th>Status</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for e in exceptions %}
+                <tr>
+                    <td class="small"><a href="{% url 'mrp:exception_detail' e.pk %}">{{ e.get_exception_type_display }}</a></td>
+                    <td class="small">{{ e.product.sku }}</td>
+                    <td>
+                        {% if e.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                        {% elif e.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                        {% elif e.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                    </td>
+                    <td class="small">{{ e.get_recommended_action_display }}</td>
+                    <td class="small text-muted">{{ e.message|truncatechars:60 }}</td>
+                    <td>
+                        {% if e.status == 'open' %}<span class="badge bg-warning-subtle text-warning">Open</span>
+                        {% elif e.status == 'acknowledged' %}<span class="badge bg-info-subtle text-info">Ack</span>
+                        {% elif e.status == 'resolved' %}<span class="badge bg-success text-white">Resolved</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Ignored</span>{% endif %}
+                    </td>
+                    <td class="small text-muted">{{ e.created_at|date:"M j" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:exception_detail' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <form method="post" action="{% url 'mrp:exception_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete this exception?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No exceptions match the current filters.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
