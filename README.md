@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, and **Module 4 — Production Planning & Scheduling**. The remaining 18 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, and **Module 5 — Material Requirements Planning (MRP)**. The remaining 17 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -23,13 +23,14 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 13. [Module 2 — Product Lifecycle Management (PLM)](#module-2--product-lifecycle-management-plm)
 14. [Module 3 — Bill of Materials (BOM) Management](#module-3--bill-of-materials-bom-management)
 15. [Module 4 — Production Planning & Scheduling](#module-4--production-planning--scheduling)
-16. [UI / Theme Customization](#ui--theme-customization)
-17. [Management Commands](#management-commands)
-18. [Payment Gateway Integration](#payment-gateway-integration)
-19. [Security Notes](#security-notes)
-20. [Roadmap](#roadmap)
-21. [Troubleshooting](#troubleshooting)
-22. [License](#license)
+16. [Module 5 — Material Requirements Planning (MRP)](#module-5--material-requirements-planning-mrp)
+17. [UI / Theme Customization](#ui--theme-customization)
+18. [Management Commands](#management-commands)
+19. [Payment Gateway Integration](#payment-gateway-integration)
+20. [Security Notes](#security-notes)
+21. [Roadmap](#roadmap)
+22. [Troubleshooting](#troubleshooting)
+23. [License](#license)
 
 ---
 
@@ -42,6 +43,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 2 — Product Lifecycle Management (PLM)** — product master data with revisions, specs and variants; engineering change orders with submit/approve/reject/implement workflow; CAD/drawing repository with version control; product compliance tracking against global regulatory standards (ISO, RoHS, REACH, CE, UL, FCC, IPC); NPI/Stage-Gate project management with 7-stage gate reviews and deliverables.
 - **Module 3 — Bill of Materials (BOM) Management** — multi-level BOMs with self-referencing tree and phantom assemblies; transparent recursive explosion; immutable revision snapshots with one-click rollback; alternate / substitute material catalog with approval workflow; per-component cost elements (material / labor / overhead / tooling) with cascading roll-up through default released sub-assembly BOMs; EBOM / MBOM / SBOM discriminator with sync mappings and automated drift detection.
 - **Module 4 — Production Planning & Scheduling** — Master Production Schedule with horizon + time-bucket planning and draft → released workflow; demand forecasts (manual / sales-order / historical); work centers, working calendars, and recomputable capacity load with bottleneck flagging; routings with sequenced operations; production orders with forward / backward / infinite scheduling laid down on the calendar by a pure-function scheduler service; ApexCharts Gantt of scheduled operations; what-if scenario simulator that never mutates the base MPS; deterministic greedy optimizer with weighted objectives (changeovers / idle / lateness / priority) and before/after KPI deltas.
+- **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -147,6 +149,28 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/pps/optimizer/runs/` | Optimization run list |
 | `/pps/optimizer/runs/<pk>/` | Run detail with before/after changeovers / lateness / minutes and improvement % |
 | `/pps/optimizer/runs/<pk>/start/` · `/apply/` | POST — start the greedy heuristic / mark result as applied |
+| `/mrp/` | MRP dashboard — KPI cards (open runs, exceptions, late orders, PR suggestions, last coverage), recent runs + open exceptions |
+| `/mrp/forecast-models/` | Forecast model list with method / period / active filters; create, edit, delete, and **Run** action |
+| `/mrp/forecast-models/<pk>/` | Forecast model detail with config + recent runs + run-now button |
+| `/mrp/forecast-models/<pk>/run/` | POST — execute the forecast and create a `ForecastRun` + `ForecastResult` rows |
+| `/mrp/seasonality/` | Seasonality profile list (per-product per-period multipliers used by naive_seasonal) |
+| `/mrp/forecast-runs/` | Forecast run list filterable by status / forecast model |
+| `/mrp/forecast-runs/<pk>/` | Forecast run detail with all generated `ForecastResult` rows |
+| `/mrp/inventory/` | Inventory snapshot list with lot-sizing-method filter; create, edit, delete |
+| `/mrp/inventory/<pk>/` | Inventory snapshot detail with upcoming receipts panel |
+| `/mrp/receipts/` | Scheduled receipt list filterable by type / product |
+| `/mrp/calculations/` | MRP calculation list filterable by status |
+| `/mrp/calculations/<pk>/` | MRP calculation detail with tabs for **Net Requirements**, **PR Suggestions**, **Exceptions** |
+| `/mrp/runs/` | MRP run list filterable by run type / status |
+| `/mrp/runs/new/` | Two-pane form — create the run + its calculation in one step |
+| `/mrp/runs/<pk>/` | MRP run detail with KPI sidebar (coverage, planned orders, PR count, exceptions, late count) |
+| `/mrp/runs/<pk>/start/` | POST — execute the regenerative / net-change / simulation engine and record `MRPRunResult` |
+| `/mrp/runs/<pk>/apply/` | POST — commit the calculation (regenerative or net-change only — simulations are read-only) |
+| `/mrp/runs/<pk>/discard/` | POST — discard the run; calculation marked `discarded` |
+| `/mrp/requisitions/` | MRP-suggested PR list with status / priority / product filters |
+| `/mrp/requisitions/<pk>/` | PR detail with Approve / Cancel / Delete actions |
+| `/mrp/exceptions/` | MRP exception list with type / severity / status filters |
+| `/mrp/exceptions/<pk>/` | Exception detail with Acknowledge / Resolve / Ignore actions |
 
 ---
 
@@ -234,29 +258,52 @@ NavMSM/
 │   │   └── management/commands/
 │   │       └── seed_bom.py       # Idempotent demo data per tenant (BOMs + costs + alternates + sync)
 │   │
-│   └── pps/                      # MODULE 4 — Production Planning & Scheduling
-│       ├── models.py             # DemandForecast, MasterProductionSchedule, MPSLine,
-│       │                         # WorkCenter, CapacityCalendar, CapacityLoad,
-│       │                         # Routing, RoutingOperation, ProductionOrder,
-│       │                         # ScheduledOperation, Scenario, ScenarioChange,
-│       │                         # ScenarioResult, OptimizationObjective,
-│       │                         # OptimizationRun, OptimizationResult
+│   ├── pps/                      # MODULE 4 — Production Planning & Scheduling
+│   │   ├── models.py             # DemandForecast, MasterProductionSchedule, MPSLine,
+│   │   │                         # WorkCenter, CapacityCalendar, CapacityLoad,
+│   │   │                         # Routing, RoutingOperation, ProductionOrder,
+│   │   │                         # ScheduledOperation, Scenario, ScenarioChange,
+│   │   │                         # ScenarioResult, OptimizationObjective,
+│   │   │                         # OptimizationRun, OptimizationResult
+│   │   ├── services/
+│   │   │   ├── scheduler.py      # Pure-function forward/backward/infinite scheduler
+│   │   │   │                     # + per-day load summary; no ORM imports at module level
+│   │   │   ├── simulator.py      # apply_scenario(scenario) — never mutates real data
+│   │   │   └── optimizer.py      # Greedy priority-then-product-grouping heuristic (v1)
+│   │   ├── signals.py            # Audit-log receivers on MPS / ProductionOrder /
+│   │   │                         # Scenario / OptimizationRun status; ScheduledOperation
+│   │   │                         # save/delete invalidates the relevant CapacityLoad
+│   │   ├── forms.py              # ModelForms with cross-field validation
+│   │   ├── views.py              # Full CRUD + workflow + Gantt + capacity dashboard
+│   │   │                         # + ScenarioRunView, OptimizationStartView
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_pps.py       # Idempotent demo data per tenant (work centers,
+│   │                             # MPS, routings, orders, scenario, optimizer run)
+│   │
+│   └── mrp/                      # MODULE 5 — Material Requirements Planning
+│       ├── models.py             # ForecastModel, SeasonalityProfile, ForecastRun,
+│       │                         # ForecastResult, InventorySnapshot, ScheduledReceipt,
+│       │                         # MRPCalculation, NetRequirement,
+│       │                         # MRPPurchaseRequisition, MRPException,
+│       │                         # MRPRun, MRPRunResult
 │       ├── services/
-│       │   ├── scheduler.py      # Pure-function forward/backward/infinite scheduler
-│       │   │                     # + per-day load summary; no ORM imports at module level
-│       │   ├── simulator.py      # apply_scenario(scenario) — never mutates real data
-│       │   └── optimizer.py      # Greedy priority-then-product-grouping heuristic (v1)
-│       ├── signals.py            # Audit-log receivers on MPS / ProductionOrder /
-│       │                         # Scenario / OptimizationRun status; ScheduledOperation
-│       │                         # save/delete invalidates the relevant CapacityLoad
-│       ├── forms.py              # ModelForms with cross-field validation
-│       ├── views.py              # Full CRUD + workflow + Gantt + capacity dashboard
-│       │                         # + ScenarioRunView, OptimizationStartView
+│       │   ├── forecasting.py    # moving_avg / weighted_ma / exp_smoothing /
+│       │   │                     # naive_seasonal — pure functions, no ORM imports
+│       │   ├── lot_sizing.py     # L4L / FOQ / POQ / Min-Max — pure functions
+│       │   ├── mrp_engine.py     # Gross-to-net + multi-level BOM explosion via
+│       │   │                     # bom.BillOfMaterials.explode()
+│       │   └── exceptions.py     # late_order / expedite / defer / no_bom rules
+│       ├── signals.py            # Audit-log receivers on MRPRun, MRPCalculation,
+│       │                         # MRPPurchaseRequisition, MRPException save() paths
+│       ├── forms.py              # ModelForms with manual unique_together checks
+│       ├── views.py              # Full CRUD + run lifecycle + workflow actions
 │       ├── urls.py
 │       ├── admin.py
 │       └── management/commands/
-│           └── seed_pps.py       # Idempotent demo data per tenant (work centers,
-│                                 # MPS, routings, orders, scenario, optimizer run)
+│           └── seed_mrp.py       # Idempotent demo data per tenant (forecasts,
+│                                 # inventory, receipts, completed MRP run)
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -267,7 +314,8 @@ NavMSM/
 │   ├── tenants/                  # onboarding_wizard, plans, subscription, invoices, branding, health, audit, email_templates
 │   ├── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
 │   ├── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
-│   └── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
+│   ├── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
+│   └── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -407,6 +455,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 2 — PLM)** — 8 categories (4 root + 4 child), 20 products spanning all product types with revisions A & B + specs + variants on finished goods, 5 ECOs in mixed statuses (draft / submitted / approved / implemented), 8 CAD documents, 16 compliance records linked to global standards, 3 NPI projects with all 7 stages and 1–3 deliverables per stage. CAD documents are seeded *without* binary files — upload real CAD files via the UI.
 - **Per tenant (Module 3 — BOM)** — 5 BOMs (mix of EBOM / MBOM / SBOM) attached to seeded finished-good products with 1 phantom assembly across the set, 27 cost elements covering material / labor / overhead / tooling, 6 alternate materials (mix of approved / pending), 2 substitution rules, an initial release-time `BOMRevision` snapshot per released BOM, an initial cost roll-up per BOM, and 2 `BOMSyncMap` entries — one in sync, one with seeded drift between EBOM and MBOM.
 - **Per tenant (Module 4 — PPS)** — 4 work centers (machine / labor / cell / assembly_line) each with Mon–Fri 08:00–17:00 calendars, 5 routings (one per seeded finished-good) with 2–4 sequenced operations, 8 demand forecasts spanning 2 weeks across 4 products, 1 released `MasterProductionSchedule` covering 4 weeks with 8 lines, 6 production orders in mixed statuses (planned / released / in_progress / completed) — released and in-progress orders carry full `ScheduledOperation` chains laid down by the forward scheduler — 56 daily `CapacityLoad` snapshots, 1 completed What-If scenario with 2 changes + KPI result, 1 default `OptimizationObjective`, and 1 completed `OptimizationRun` with before/after result.
+- **Per tenant (Module 5 — MRP)** — 2 `ForecastModel`s (moving_avg + naive_seasonal), 24 monthly `SeasonalityProfile` rows across 2 finished-goods, 1 completed `ForecastRun` with 16 `ForecastResult` rows, 8 `InventorySnapshot` rows covering finished-goods + components with mixed lot-sizing rules (L4L / FOQ / POQ / Min-Max), 5 `ScheduledReceipt`s (open POs / planned production / transfers), 1 completed `MRPCalculation` (linked to the seeded MPS) with **19 planned orders**, **10 PR suggestions**, and **35 exceptions**, plus 1 completed `MRPRun` + `MRPRunResult` capturing coverage / planned-orders / late-orders KPIs.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -726,6 +775,85 @@ Run the PPS test suite with `pytest apps/pps/tests/` — uses [`config/settings_
 
 ---
 
+## Module 5 — Material Requirements Planning (MRP)
+
+Module 5 is implemented in [`apps/mrp/`](apps/mrp/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (forecasting, lot sizing, gross-to-net + BOM explosion, exception generation) lives behind small pure-function services in [`apps/mrp/services/`](apps/mrp/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 5.1 — Demand Forecasting
+
+- **`ForecastModel`** — reusable forecast configuration: `name`, `method` (`moving_avg` / `weighted_ma` / `simple_exp_smoothing` / `naive_seasonal`), `params` JSON (window / weights / alpha / season length), `period_type` (`day` / `week` / `month`), `horizon_periods` (1–104), `is_active`. Unique per `(tenant, name)`.
+- **`SeasonalityProfile`** — per-product per-period multiplier (1.0 = neutral, 1.2 = 20% above baseline, 0.8 = 20% below). Unique per `(tenant, product, period_type, period_index)`. Drives `naive_seasonal` forecasts.
+- **`ForecastRun`** — auto-numbered `FRUN-00001` execution log with `status` (`queued` / `running` / `completed` / `failed`), `started_by`, `started_at`, `finished_at`, `error_message`. Created by the **Run Forecast** action on a `ForecastModel`.
+- **`ForecastResult`** — one row per `(run, product, period_start)` with `forecasted_qty`, `lower_bound`, `upper_bound`, `confidence_pct`. Unique per `(run, product, period_start)`.
+
+The forecasting algorithms in [`services/forecasting.py`](apps/mrp/services/forecasting.py) are deterministic, side-effect-free, and ORM-independent — they accept `list[Decimal]` history and return `list[Decimal]` forecast values. Real ML (Prophet / scikit-learn / ARIMA) is intentionally deferred to a follow-up phase, the same way Module 4's optimizer is a greedy stub today.
+
+### Sub-module 5.2 — Net Requirements Calculation
+
+- **`InventorySnapshot`** — per-product input to the MRP engine: `on_hand_qty`, `safety_stock`, `reorder_point`, `lead_time_days` (0–365), `lot_size_method` (`l4l` / `foq` / `poq` / `min_max`), `lot_size_value`, `lot_size_max`, `as_of_date`. **One row per `(tenant, product)`** — when Module 8 (Inventory & Warehouse) ships, that module is expected to populate these rows by aggregating bin-level data; the MRP engine itself is unaffected.
+- **`ScheduledReceipt`** — incoming supply pegged to a date: `receipt_type` (`open_po` / `planned_production` / `transfer`), `quantity`, `expected_date`, `reference` text. Subtracted from gross requirements during the engine pass.
+- **`MRPCalculation`** — auto-numbered `MRP-00001` calculation header with `horizon_start` / `horizon_end`, `time_bucket` (`day` / `week`), `status` (`draft` → `running` → `completed` / `failed` → `committed` / `discarded`), optional FK to `pps.MasterProductionSchedule` for end-item demand. Deletion is blocked once `committed`.
+- **`NetRequirement`** — gross-to-net result row produced by the engine. Unique per `(mrp_calculation, product, period_start)`. Carries `gross_requirement`, `scheduled_receipts_qty`, `projected_on_hand`, `net_requirement`, `planned_order_qty`, `planned_release_date`, `lot_size_method`, `bom_level` (0 = end item, 1+ = component depth), and `parent_product` for traceability.
+
+The engine in [`services/mrp_engine.py`](apps/mrp/services/mrp_engine.py) walks every end-item demand period, explodes each item's released MBOM (or default released BOM as fallback) via `bom.BillOfMaterials.explode()`, accumulates dependent demand at every level, layers in scheduled receipts, computes `projected_on_hand → net_requirement` honoring `safety_stock`, and finally applies the per-product lot-sizing rule from [`services/lot_sizing.py`](apps/mrp/services/lot_sizing.py). Lot-size methods ship: **L4L** (each period exact), **FOQ** (multiples of fixed qty), **POQ** (group N periods into one order), **Min-Max** (clamp between min and max).
+
+### Sub-module 5.3 — Purchase Requisition Auto-Generation
+
+- **`MRPPurchaseRequisition`** — auto-numbered `MPR-00001` per tenant. Fields: `mrp_calculation` FK, `product` FK, `quantity`, `required_by_date`, `suggested_release_date`, `status` (`draft` → `approved` → `converted` / `cancelled`), `priority` (`low` / `normal` / `high` / `rush`), `approved_by`, `approved_at`, `converted_at`, `converted_reference` (free-text — Module 9 / Procurement will fill this when a PR is promoted to a real PO).
+
+The engine generates draft PRs only for products with `product_type` in (`raw_material`, `component`) — i.e. purchased items. End-items and sub-assemblies still get planned-order entries on `NetRequirement` rows but no PR. Approval and cancel actions are `_atomic_status_transition` UPDATEs for race-safety.
+
+### Sub-module 5.4 — MRP Exception Management
+
+- **`MRPException`** — engine-generated action message. Fields: `exception_type` (`late_order` / `expedite` / `defer` / `cancel` / `release_early` / `below_min` / `above_max` / `no_routing` / `no_bom`), `severity` (`low` / `medium` / `high` / `critical`), `message`, `recommended_action` (`expedite` / `defer` / `cancel` / `release_early` / `manual_review` / `no_action`), `target_type` + nullable `target_id` (no FK — targets live in different apps and may move under refactors), `current_date`, `recommended_date`, `status` (`open` → `acknowledged` → `resolved` / `ignored`).
+
+[`services/exceptions.py`](apps/mrp/services/exceptions.py) generates the rows in bulk after the engine completes. Triggers wired today: planned release in the past (`late_order`), required date earlier than `period_start - lead_time` (`expedite`), Min-Max planned qty below the minimum (`below_min`), end items with no released BOM (`no_bom`), purchased items with no `InventorySnapshot` (`no_routing`).
+
+### Sub-module 5.5 — MRP Run & Simulation
+
+- **`MRPRun`** — auto-numbered `MRPRUN-00001` wrapper. Fields: `name`, `run_type` (`regenerative` / `net_change` / `simulation`), `status` (`queued` → `running` → `completed` / `failed` → `applied` / `discarded`), FK to the `MRPCalculation` it produced, optional FK to `pps.MasterProductionSchedule`, `started_by`, `started_at`, `finished_at`, `error_message`, `applied_at`, `applied_by`, `commit_notes`.
+- **`MRPRunResult`** — KPI summary: `total_planned_orders`, `total_pr_suggestions`, `total_exceptions`, `late_orders_count`, `coverage_pct` (0–100), `summary_json` (notes + skipped end-items), `computed_at`.
+
+Run modes:
+- **Regenerative** — the engine wipes prior `NetRequirement` rows in the calculation's horizon and recomputes everything. Default for end-of-day / weekly MRP runs.
+- **Net Change** — for v1, falls through to regenerative semantics; the data model and UI are forward-compatible with a true delta-aware path in a follow-up phase.
+- **Simulation** — the engine produces the same artifacts but the **Apply** button is disabled, so the run can be discarded without ever committing the calculation. Equivalent to PPS's "what-if scenario" pattern.
+
+Workflow buttons (run detail page):
+
+| From | Action | To |
+|---|---|---|
+| `queued` | Start | `running` → `completed` / `failed` |
+| `completed` | Apply (regenerative or net-change only) | `applied`; calculation flips to `committed` |
+| `completed` / `failed` | Discard | `discarded`; calculation flips to `discarded` |
+
+### Audit signals
+
+[`apps/mrp/signals.py`](apps/mrp/signals.py) wires:
+
+- `pre_save` + `post_save` on `MRPRun` → `apps.tenants.TenantAuditLog` entries on creation and every status change (`mrp_run.created`, `mrp_run.<status>` with `meta={'from': old, 'to': new}`).
+- `pre_save` + `post_save` on `MRPCalculation` → audit on creation and every status transition.
+- `post_save` on `MRPPurchaseRequisition` → audit when status flips to `approved` / `cancelled` / `converted` (only via `instance.save()` paths; `_atomic_status_transition` UPDATEs deliberately bypass signals for race-safety, mirroring the PPS pattern).
+- `post_save` on `MRPException` → audit on `acknowledged` / `resolved` / `ignored` transitions.
+
+### Validation guards
+
+- `ForecastModelForm.clean()`, `SeasonalityProfileForm.clean()`, and `InventorySnapshotForm.clean()` perform manual `(tenant, …)` uniqueness checks because Django's default `validate_unique()` cannot enforce a `unique_together` set that touches `tenant` (Lesson L-01).
+- `Decimal` quantity / percentage fields use explicit `MinValueValidator` and `MaxValueValidator` per Lesson L-02 — `confidence_pct` 0–100, `seasonal_index >= 0`, `safety_stock`, `on_hand_qty`, `lead_time_days <= 365`, etc.
+- `MRPRun.can_apply()` rejects simulations: only `regenerative` and `net_change` runs can be committed. The view re-checks before the atomic `UPDATE`, matching the visible button state (Lesson L-03).
+- `RunStartView` surfaces skipped end-items (no released BOM) via `messages.warning(...)` listing the SKUs (Lesson L-04). The same list is persisted to `MRPRunResult.summary_json.skipped_no_bom`.
+
+### Out of scope (deferred)
+
+- Real ML forecasting (Prophet / scikit-learn / ARIMA)
+- True delta-aware Net Change MRP (today: regenerative semantics)
+- CSV bulk import for inventory snapshots
+- Linear-program / MILP optimization (today: greedy + lot sizing only)
+- Procurement integration — Module 9 will consume `MRPPurchaseRequisition` later
+- Inventory integration — Module 8 will populate `InventorySnapshot` later
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -756,7 +884,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_plm [--flush]` | Seed PLM demo data (categories, products, ECOs, CAD, compliance, NPI) per tenant |
 | `python manage.py seed_bom [--flush]` | Seed BOM demo data (BOMs, lines, alternates, substitution rules, cost elements, sync maps) per tenant |
 | `python manage.py seed_pps [--flush]` | Seed PPS demo data (work centers, calendars, routings, MPS, production orders + scheduled operations, capacity load, scenario, optimizer run) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` |
+| `python manage.py seed_mrp [--flush]` | Seed MRP demo data (forecast models + seasonality + completed forecast run, inventory snapshots, scheduled receipts, completed MRP run with planned orders / PRs / exceptions) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -807,12 +936,12 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), and **Module 4** (Production Planning & Scheduling). The 18 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), and **Module 5** (Material Requirements Planning). The 17 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
 4. ~~Production Planning & Scheduling~~ ✅ shipped
-5. Material Requirements Planning (MRP)
+5. ~~Material Requirements Planning (MRP)~~ ✅ shipped
 6. Shop Floor Control (MES)
 7. Quality Management (QMS)
 8. Inventory & Warehouse
