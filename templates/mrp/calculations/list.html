@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}MRP Calculations{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">MRP Calculations</h4>
+        <div class="text-muted small">Snapshots produced by MRP runs — view net requirements, PRs, and exceptions per calculation.</div>
+    </div>
+    <a href="{% url 'mrp:run_create' %}" class="btn btn-primary"><i class="ri-play-circle-line me-1"></i> New MRP Run</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by number or name..."></div>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 ms-auto"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Number</th><th>Name</th><th>Horizon</th><th>Bucket</th><th>Source MPS</th><th>Net rows</th><th>Excs</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for c in calculations %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mrp:calculation_detail' c.pk %}">{{ c.mrp_number }}</a></td>
+                    <td class="small">{{ c.name|truncatechars:30 }}</td>
+                    <td class="small">{{ c.horizon_start|date:"M j" }} → {{ c.horizon_end|date:"M j" }}</td>
+                    <td class="small">{{ c.get_time_bucket_display }}</td>
+                    <td class="small">{% if c.source_mps %}<a href="{% url 'pps:mps_detail' c.source_mps.pk %}">{{ c.source_mps.mps_number }}</a>{% else %}—{% endif %}</td>
+                    <td class="small">{{ c.net_count }}</td>
+                    <td class="small">{{ c.exc_count }}</td>
+                    <td>
+                        {% if c.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                        {% elif c.status == 'committed' %}<span class="badge bg-primary text-white">Committed</span>
+                        {% elif c.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+                        {% elif c.status == 'failed' %}<span class="badge bg-danger text-white">Failed</span>
+                        {% elif c.status == 'discarded' %}<span class="badge bg-secondary-subtle text-secondary">Discarded</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ c.get_status_display }}</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:calculation_detail' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if c.status != 'committed' %}
+                        <form method="post" action="{% url 'mrp:calculation_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete this calculation and all its rows?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="9" class="text-center text-muted py-4">No MRP calculations yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
