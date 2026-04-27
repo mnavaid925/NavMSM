@@ -13,6 +13,24 @@ from .models import (
 )
 
 
+def _tenant_unique_check(form, model, field, value, *, message):
+    """L-01 guard — enforce (tenant, field) uniqueness at the form layer.
+
+    Why: if `tenant` is not in `Meta.fields`, Django's default
+    validate_unique() skips any unique_together set that touches it. The
+    duplicate then escapes to the DB and surfaces as 1062 IntegrityError →
+    HTTP 500. See .claude/tasks/lessons.md L-01.
+    """
+    tenant = getattr(form, '_tenant', None)
+    if tenant is None or value in (None, ''):
+        return
+    qs = model.objects.filter(tenant=tenant, **{field: value})
+    if form.instance.pk:
+        qs = qs.exclude(pk=form.instance.pk)
+    if qs.exists():
+        form.add_error(field, message)
+
+
 # ---------------- 4.1 MPS ----------------
 
 class DemandForecastForm(forms.ModelForm):
@@ -97,6 +115,18 @@ class WorkCenterForm(forms.ModelForm):
         )
         widgets = {'description': forms.Textarea(attrs={'rows': 2})}
 
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._tenant = tenant
+
+    def clean(self):
+        cleaned = super().clean()
+        _tenant_unique_check(
+            self, WorkCenter, 'code', cleaned.get('code'),
+            message='A work center with this code already exists for this tenant.',
+        )
+        return cleaned
+
 
 class CapacityCalendarForm(forms.ModelForm):
     class Meta:
@@ -133,10 +163,29 @@ class RoutingForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._tenant = tenant
         if tenant is not None:
             self.fields['product'].queryset = Product.objects.filter(
                 tenant=tenant,
             ).exclude(status='obsolete')
+
+    def clean(self):
+        cleaned = super().clean()
+        product = cleaned.get('product')
+        version = cleaned.get('version')
+        if self._tenant is None or product is None or not version:
+            return cleaned
+        qs = Routing.objects.filter(
+            tenant=self._tenant, product=product, version=version,
+        )
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            self.add_error(
+                'version',
+                f'A routing for {product.sku} version {version} already exists.',
+            )
+        return cleaned
 
 
 class RoutingOperationForm(forms.ModelForm):
@@ -202,6 +251,17 @@ class ProductionOrderForm(forms.ModelForm):
             raise forms.ValidationError('Quantity must be greater than zero.')
         return v
 
+    def clean(self):
+        cleaned = super().clean()
+        rs = cleaned.get('requested_start')
+        re = cleaned.get('requested_end')
+        if rs and re and re <= rs:
+            self.add_error(
+                'requested_end',
+                'Requested end must be after requested start.',
+            )
+        return cleaned
+
 
 # ---------------- 4.4 Simulation ----------------
 
@@ -241,6 +301,10 @@ class OptimizationObjectiveForm(forms.ModelForm):
         )
         widgets = {'description': forms.Textarea(attrs={'rows': 2})}
 
+    def __init__(self, *args, tenant=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._tenant = tenant
+
     def clean(self):
         cleaned = super().clean()
         weights = (
@@ -251,6 +315,10 @@ class OptimizationObjectiveForm(forms.ModelForm):
         )
         if all(w <= 0 for w in weights):
             raise forms.ValidationError('At least one objective weight must be greater than zero.')
+        _tenant_unique_check(
+            self, OptimizationObjective, 'name', cleaned.get('name'),
+            message='An objective with this name already exists for this tenant.',
+        )
         return cleaned
 
 
