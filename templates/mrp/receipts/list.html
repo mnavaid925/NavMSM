@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Scheduled Receipts{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Scheduled Receipts</h4>
+        <div class="text-muted small">Incoming supply pegged to a date — open POs, planned production, transfers (input to MRP).</div>
+    </div>
+    <a href="{% url 'mrp:receipt_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Receipt</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by SKU or reference..."></div>
+        <div class="col-md-3">
+            <select name="receipt_type" class="form-select">
+                <option value="">Any type</option>
+                {% for v, label in receipt_type_choices %}<option value="{{ v }}" {% if request.GET.receipt_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <select name="product" class="form-select">
+                <option value="">Any product</option>
+                {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} — {{ p.name|truncatechars:30 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Expected</th><th>Product</th><th>Type</th><th>Qty</th><th>Reference</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for r in receipts %}
+                <tr>
+                    <td class="small">{{ r.expected_date|date:"M j, Y" }}</td>
+                    <td><a href="{% url 'plm:product_detail' r.product.pk %}">{{ r.product.sku }}</a> <span class="small text-muted">{{ r.product.name|truncatechars:25 }}</span></td>
+                    <td><span class="badge bg-info-subtle text-info">{{ r.get_receipt_type_display }}</span></td>
+                    <td class="small fw-semibold">+{{ r.quantity }}</td>
+                    <td class="small text-muted">{{ r.reference|default:"—" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:receipt_edit' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mrp:receipt_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete this receipt?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No scheduled receipts.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
