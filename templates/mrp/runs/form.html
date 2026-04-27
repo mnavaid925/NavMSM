@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New MRP Run{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>New MRP Run</h4>
+    <a href="{% url 'mrp:run_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <div class="card"><div class="card-body">
+                <h5>Run definition</h5>
+                {{ run_form|crispy }}
+                <div class="alert alert-info small">
+                    <strong>Run types:</strong>
+                    <code>Regenerative</code> wipes and recomputes everything ·
+                    <code>Net Change</code> incremental ·
+                    <code>Simulation</code> safe — never auto-applies.
+                </div>
+            </div></div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card"><div class="card-body">
+                <h5>Calculation header</h5>
+                {{ calc_form|crispy }}
+            </div></div>
+        </div>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Create</button>
+        <a href="{% url 'mrp:run_list' %}" class="btn btn-light">Cancel</a>
+    </div>
+</form>
+{% endblock %}
