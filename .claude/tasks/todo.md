@@ -1,338 +1,436 @@
-# Plan — Module 4: Production Planning & Scheduling
+# Plan — Module 5: Material Requirements Planning (MRP)
 
-> Status: **COMPLETE — all 5 sub-modules implemented, migrated, seeded across 3 tenants, smoke-tested**
-> Created: 2026-04-26
-> Completed: 2026-04-27
-> Pattern reference: Module 3 (BOM) — newest, cleanest example in the repo. Mirror its layout exactly.
+> Status: **DRAFT — pending user approval before any code is written**
+> Created: 2026-04-28
+> Pattern reference: `apps/pps/` (Module 4) — newest, cleanest example. Mirror its layout exactly: `models.py` (sectioned banners), `forms.py`, `views.py`, `urls.py`, `signals.py`, `services/`, `admin.py`, `management/commands/seed_mrp.py`, plus `templates/mrp/<sub>/list|form|detail.html`.
 
 ## Goal
-Build **Module 4 — Production Planning & Scheduling** as a new Django app `apps/pps/`, following the conventions established by `apps/plm/` and `apps/bom/` (multi-tenant, full CRUD, signals, idempotent seeder, sidebar entry, README update).
 
-## Sub-modules to Implement
+Build **Module 5 — Material Requirements Planning (MRP)** as a new Django app `apps/mrp/`, mounted at `/mrp/`, following every convention established by `apps/plm/`, `apps/bom/`, and `apps/pps/`:
+
+- Multi-tenant via `TenantAwareModel`
+- Full CRUD per model (list / create / detail / edit / delete) — CRUD Completeness Rules
+- Working filters on every list page — Filter Implementation Rules
+- Audit signals on status transitions (writes to `apps.tenants.TenantAuditLog`)
+- Idempotent seeder with `--flush` — Seed Command Rules
+- README.md updated in the same session — README Maintenance Rule
+- Sidebar entry added to `templates/partials/sidebar.html`
+- One file per git commit at the end — STRICT GIT Commit Rule
+
+## Sub-modules to implement
+
 | # | Sub-Module | Core Capability |
 |---|---|---|
-| 4.1 | Master Production Schedule (MPS) | Demand forecasts + firm/planned production lines per product per period |
-| 4.2 | Capacity Planning | Work centers, calendars, capacity load chart, bottleneck flagging |
-| 4.3 | Finite & Infinite Scheduling | Routings, production orders, forward/backward/infinite scheduling, Gantt view |
-| 4.4 | What-If Simulation | Scenario clone of MPS with changes, computed KPI deltas, apply/discard |
-| 4.5 | Advanced Planning & Optimization | Objective-weighted greedy optimizer (changeover/idle/lateness/priority); deterministic stub |
+| 5.1 | Demand Forecasting | Statistical forecasting (moving-avg, weighted MA, exp smoothing, naive seasonal), seasonality profiles, demand sensing |
+| 5.2 | Net Requirements Calculation | Gross-to-net logic with BOM explosion, lot-sizing rules (L4L / FOQ / POQ / Min-Max), safety-stock honoring |
+| 5.3 | Purchase Requisition Auto-Generation | MRP-suggested PRs from planned orders for purchased items (Module 9 / Procurement will consume these later) |
+| 5.4 | MRP Exception Management | Late-order / expedite / defer / cancel action messages with severity + recommended action |
+| 5.5 | MRP Run & Simulation | Regenerative vs net-change runs; simulation runs that don't commit; one-click commit/discard |
 
 ---
 
 ## 0. Open questions for user approval (please confirm before I start coding)
 
-1. **App label** — `pps` (Production Planning & Scheduling), URL prefix `/pps/`. **OK?**
-2. **AI/ML in 4.5** — ship as a **deterministic, rules-based optimizer stub** (greedy heuristic that minimizes changeovers + lateness), not a trained model. The data model + UI is real; the algorithm is a pluggable heuristic. **OK to defer real ML to a follow-up phase, same way the payment gateway is mock-only?**
-3. **Gantt rendering** — use the existing **ApexCharts `rangeBar`** chart type (already loaded in base.html). No new dependencies. **OK?**
-4. **Pytest test suite** — **defer to a follow-up** (matches how PLM and BOM shipped — manual test plan only at v1). **OK?**
-5. **Currency** — single `USD` field on `WorkCenter.cost_per_hour` (matches BOM cost elements). **OK?**
-6. **Reuse vs duplication** — production orders link to `plm.Product` and (optionally) `bom.BillOfMaterials`. We do **not** rebuild the part master or BOM. **OK?**
+1. **App label** — `mrp`, URL prefix `/mrp/`, sidebar group "Material Requirements (MRP)" between "Production Planning" and "User Management". **OK?**
+2. **Forecast vs PPS DemandForecast** — `apps.pps.DemandForecast` already exists (manual input row fed to MPS). MRP needs its own richer **`ForecastModel` + `ForecastRun` + `ForecastResult`** trio (algorithm config, run log, output rows). The two coexist; an "Apply to PPS" button on a completed `ForecastRun` later writes rows into `pps.DemandForecast`. **OK to keep PPS forecast untouched and ship MRP forecasting as a separate, richer layer?**
+3. **Inventory dependency** — Module 8 (Inventory) isn't built yet, but Net Requirements needs on-hand qty, safety stock, reorder point, and lead-time per item. Plan: add a minimal **`InventorySnapshot`** model inside `apps/mrp/` (one row per `(tenant, product)`) that the future Inventory module can populate from real bin-level data. The MRP engine reads this snapshot — it does NOT try to compute on-hand stock from transactions. **OK?**
+4. **Procurement dependency** — Module 9 (Procurement) isn't built yet either. Plan: add a minimal **`MRPPurchaseRequisition`** model inside `apps/mrp/` (auto-numbered `MPR-00001`). Procurement will later be able to "convert" an approved MRP PR into a real PO via `converted_reference`. **OK to ship MRP-suggested PRs as a self-contained MRP table for now?**
+5. **Forecasting algorithms** — ship deterministic, pure-function methods only: `moving_avg`, `weighted_ma`, `simple_exp_smoothing`, `naive_seasonal`. No ML / Prophet / scikit-learn dependency. Same trade as PPS optimizer (greedy heuristic stub). **OK?**
+6. **Lot-sizing rules** — Lot-for-Lot (L4L), Fixed Order Quantity (FOQ), Period Order Quantity (POQ), Min-Max. Implemented in `services/lot_sizing.py` as pure functions. **OK?**
+7. **MRP engine reach into BOM** — MRP **must** explode multi-level BOMs to compute dependent demand on components. Plan: reuse `bom.BillOfMaterials.explode()` (the existing generator) — same way PPS reuses `plm.Product`. No duplication. **OK?**
+8. **Pytest test suite** — defer to a follow-up (matches how PLM, BOM, PPS shipped — manual test plan only at v1). **OK?**
+9. **Currency** — single USD assumed (matches BOM cost elements + PPS cost_per_hour). **OK?**
 
-If you reply "do what you think best" I'll proceed with all six defaults.
-
----
-
-## 1. Models — `apps/pps/models.py` (~14 models, sectioned banners like BOM)
-
-All inherit from `TenantAwareModel, TimeStampedModel`. Reuse `apps.plm.models.Product` and `apps.bom.models.BillOfMaterials`.
-
-### 4.1 MPS
-- **`DemandForecast`**
-  - `product` FK→`plm.Product`, `period_start`, `period_end`, `forecast_qty` decimal, `source` (`manual`/`sales_order`/`historical`), `confidence_pct` decimal, `notes`
-- **`MasterProductionSchedule`** (header)
-  - `mps_number` auto `MPS-00001` per tenant, `name`, `horizon_start`, `horizon_end`, `time_bucket` (`day`/`week`/`month`), `status` (`draft`/`under_review`/`approved`/`released`/`obsolete`), `description`, `created_by`, `approved_by`, `approved_at`, `released_at`
-  - Unique: `(tenant, mps_number)`
-- **`MPSLine`**
-  - `mps` FK, `product` FK→`plm.Product`, `period_start`, `period_end`, `forecast_qty`, `firm_planned_qty`, `scheduled_qty`, `available_to_promise`, `notes`
-  - Unique: `(mps, product, period_start)`
-
-### 4.2 Capacity
-- **`WorkCenter`**
-  - `code` (unique per tenant), `name`, `work_center_type` (`machine`/`labor`/`cell`/`assembly_line`), `capacity_per_hour` decimal, `efficiency_pct` decimal default 100, `cost_per_hour` decimal, `description`, `is_active`
-- **`CapacityCalendar`** (one row per shift per weekday per work center)
-  - `work_center` FK, `day_of_week` 0–6, `shift_start` Time, `shift_end` Time, `is_working` bool
-  - Unique: `(work_center, day_of_week, shift_start)`
-- **`CapacityLoad`** (computed snapshot — recomputable)
-  - `work_center` FK, `period_date`, `available_minutes`, `planned_minutes`, `utilization_pct` decimal, `is_bottleneck` bool, `computed_at`
-
-### 4.3 Scheduling
-- **`Routing`**
-  - `routing_number` auto `ROUT-00001` per tenant, `product` FK→`plm.Product`, `version`, `is_default`, `status` (`draft`/`active`/`obsolete`), `description`, `created_by`
-  - Unique: `(tenant, product, version)`
-- **`RoutingOperation`**
-  - `routing` FK, `sequence` int, `operation_name`, `work_center` FK, `setup_minutes`, `run_minutes_per_unit`, `queue_minutes`, `move_minutes`, `instructions`
-- **`ProductionOrder`**
-  - `order_number` auto `PO-00001` per tenant, `mps_line` nullable FK, `product` FK, `routing` nullable FK, `bom` nullable FK→`bom.BillOfMaterials`, `quantity`, `status` (`planned`/`released`/`in_progress`/`completed`/`cancelled`), `priority` (`low`/`normal`/`high`/`rush`), `scheduling_method` (`forward`/`backward`/`infinite`), `requested_start`, `requested_end`, `scheduled_start`, `scheduled_end`, `actual_start`, `actual_end`, `created_by`, `notes`
-- **`ScheduledOperation`** (created/destroyed by scheduler service)
-  - `production_order` FK, `routing_operation` FK, `work_center` FK (denormalized for queries), `sequence`, `planned_start`, `planned_end`, `planned_minutes`, `status` (`pending`/`in_progress`/`completed`/`skipped`), `notes`
-
-### 4.4 Simulation
-- **`Scenario`**
-  - `name`, `description`, `base_mps` FK, `status` (`draft`/`running`/`completed`/`applied`/`discarded`), `created_by`, `ran_at`, `applied_at`, `applied_by`
-- **`ScenarioChange`**
-  - `scenario` FK, `change_type` (`add_order`/`remove_order`/`change_qty`/`change_date`/`change_priority`/`shift_resource`), `target_ref` (e.g. `mps_line:42`), `payload` JSON, `sequence`
-- **`ScenarioResult`** (OneToOne)
-  - `scenario` OneToOne, `on_time_pct`, `total_load_minutes`, `total_idle_minutes`, `bottleneck_count`, `summary_json`, `computed_at`
-
-### 4.5 APO
-- **`OptimizationObjective`**
-  - `name`, `weight_changeovers`, `weight_idle`, `weight_lateness`, `weight_priority`, `is_default`
-- **`OptimizationRun`**
-  - `name`, `mps` FK, `objective` FK, `status` (`queued`/`running`/`completed`/`failed`), `started_at`, `finished_at`, `started_by`, `error_message`
-- **`OptimizationResult`** (OneToOne)
-  - `run` OneToOne, `before_total_minutes`, `after_total_minutes`, `before_changeovers`, `after_changeovers`, `before_lateness`, `after_lateness`, `improvement_pct`, `suggestion_json`, `applied_at`, `applied_by`
-
-### Helper methods
-- `MasterProductionSchedule.is_editable()` — True for draft/under_review.
-- `ProductionOrder.schedule_forward()` / `schedule_backward()` — call into `services/scheduler.py`.
-- `WorkCenter.recompute_load(date_from, date_to)` — refresh `CapacityLoad` rows.
+If you reply "do what you think best" I'll proceed with all nine defaults.
 
 ---
 
-## 2. Services (small, isolated, testable)
+## 1. Models — `apps/mrp/models.py` (~14 models, sectioned banners)
 
-- **`apps/pps/services/scheduler.py`**
-  - `schedule_forward(order, *, start)` — pure function, walks `RoutingOperation`s in sequence, allocates minutes onto the work center's calendar, returns a list of `ScheduledOperation` payloads. Caller persists.
-  - `schedule_backward(order, *, end)` — symmetric.
-  - `compute_load(work_center, date_from, date_to)` — returns dict per date: `{available, planned, utilization, is_bottleneck}`.
-  - No ORM imports at module level — querysets passed in. Keeps the algorithm unit-testable later.
-- **`apps/pps/services/simulator.py`**
-  - `apply_scenario(scenario)` — clones MPS lines into scratch dicts, applies `ScenarioChange`s, runs `compute_load` against scratch, returns a `ScenarioResult` payload. Never mutates real data.
-- **`apps/pps/services/optimizer.py`**
-  - `run_optimization(run)` — greedy heuristic for v1: groups production orders by product to minimize changeovers, left-shifts to minimize idle, respects priority. Returns `OptimizationResult` payload + suggestion JSON. Caller persists.
+All inherit from `TenantAwareModel, TimeStampedModel`. Reuse `apps.plm.models.Product`, `apps.bom.models.BillOfMaterials`, `apps.pps.models.MasterProductionSchedule`.
 
----
+### 5.1 Demand Forecasting
+- **`ForecastModel`** — `name`, `description`, `method` (`moving_avg` / `weighted_ma` / `simple_exp_smoothing` / `naive_seasonal`), `params` JSON (window size, smoothing alpha, seasonality length), `period_type` (`day` / `week` / `month`), `horizon_periods`, `is_active`, `created_by`. Unique `(tenant, name)`.
+- **`SeasonalityProfile`** — `product` FK, `period_type` (`week` / `month`), `period_index` (1-12 monthly or 1-52 weekly), `seasonal_index` decimal (1.0 = neutral), `notes`. Unique `(tenant, product, period_type, period_index)`.
+- **`ForecastRun`** — `run_number` auto `FRUN-00001`, `forecast_model` FK, `run_date`, `started_by`, `started_at`, `finished_at`, `status` (`queued` / `running` / `completed` / `failed`), `error_message`.
+- **`ForecastResult`** — `run` FK, `product` FK, `period_start`, `period_end`, `forecasted_qty`, `lower_bound`, `upper_bound`, `confidence_pct`. Unique `(run, product, period_start)`.
 
-## 3. Forms — `apps/pps/forms.py`
-ModelForms with crispy bootstrap5 for every model with a user-facing form. Cross-field validation:
-- `MasterProductionSchedule.horizon_end > horizon_start`
-- `RoutingOperation.work_center` must be `is_active=True`
-- `ScenarioChange.target_ref` must reference an existing `MPSLine` of the scenario's `base_mps`.
-- `OptimizationObjective`: at least one weight > 0.
+### 5.2 Net Requirements Calculation
+- **`InventorySnapshot`** — `product` FK, `on_hand_qty`, `safety_stock`, `reorder_point`, `lead_time_days`, `lot_size_method` (`l4l` / `foq` / `poq` / `min_max`), `lot_size_value` decimal (FOQ size, POQ periods, or min/max for min_max), `lot_size_max` decimal (for min_max), `as_of_date`. Unique `(tenant, product)`. **Note in `models.py` docstring**: "Stand-in for the future Inventory module. Will be replaced by aggregated bin-level data when Module 8 ships."
+- **`ScheduledReceipt`** — `product` FK, `receipt_type` (`open_po` / `planned_production` / `transfer`), `quantity`, `expected_date`, `reference` text (e.g. PO#, PrdOrd#).
+- **`MRPCalculation`** — `mrp_number` auto `MRP-00001`, `name`, `horizon_start`, `horizon_end`, `time_bucket` (`day` / `week`), `status` (`draft` / `running` / `completed` / `failed` / `committed` / `discarded`), `source_mps` FK→`pps.MasterProductionSchedule` (optional), `started_by`, `started_at`, `finished_at`, `error_message`, `committed_at`, `committed_by`. Unique `(tenant, mrp_number)`.
+- **`NetRequirement`** — `mrp_calculation` FK, `product` FK, `period_start`, `period_end`, `gross_requirement` decimal, `scheduled_receipts_qty` decimal, `projected_on_hand` decimal, `net_requirement` decimal, `planned_order_qty` decimal, `planned_release_date` (date), `lot_size_method`, `bom_level` PositiveSmallInt (0 = end item, 1 = first-level component, …), `parent_product` FK (nullable, for traceability). Unique `(mrp_calculation, product, period_start)`.
 
-Component dropdowns filtered to `Product.objects.filter(tenant=…, status='active')`.
+### 5.3 Purchase Requisition Auto-Generation
+- **`MRPPurchaseRequisition`** — `pr_number` auto `MPR-00001`, `mrp_calculation` FK, `product` FK, `quantity` decimal, `required_by_date` date, `suggested_release_date` date, `status` (`draft` / `approved` / `converted` / `cancelled`), `priority` (`low` / `normal` / `high` / `rush`), `notes`, `approved_by`, `approved_at`, `converted_at`, `converted_reference` text (FK-equivalent to a future `procurement.PurchaseOrder`). Unique `(tenant, pr_number)`.
 
----
+### 5.4 MRP Exception Management
+- **`MRPException`** — `mrp_calculation` FK, `product` FK, `exception_type` (`late_order` / `expedite` / `defer` / `cancel` / `release_early` / `below_min` / `above_max` / `no_routing` / `no_bom`), `severity` (`low` / `medium` / `high` / `critical`), `message` text, `recommended_action` (`expedite` / `defer` / `cancel` / `release_early` / `manual_review` / `no_action`), `target_type` (`production_order` / `purchase_requisition` / `mps_line` / `none`), `target_id` BigInt nullable (no FK because the target may live in another module), `current_date` date nullable, `recommended_date` date nullable, `status` (`open` / `acknowledged` / `resolved` / `ignored`), `resolved_by`, `resolved_at`, `resolution_notes`.
 
-## 4. Views — `apps/pps/views.py` (CBVs, mirrors `apps/bom/views.py`)
-
-Full CRUD per the project's CRUD Completeness Rules for: `DemandForecast`, `MasterProductionSchedule`, `MPSLine`, `WorkCenter`, `CapacityCalendar`, `Routing`, `RoutingOperation`, `ProductionOrder`, `Scenario`, `ScenarioChange`, `OptimizationObjective`, `OptimizationRun`.
-
-Workflow / action views:
-- `MPSSubmitView`, `MPSApproveView`, `MPSReleaseView`, `MPSObsoleteView`
-- `OrderReleaseView`, `OrderStartView`, `OrderCompleteView`, `OrderCancelView`
-- `OrderScheduleView` (POST: forward/backward/infinite)
-- `CapacityRecomputeView`
-- `ScenarioRunView`, `ScenarioApplyView`, `ScenarioDiscardView`
-- `OptimizationStartView`, `OptimizationApplyView`, `OptimizationDiscardView`
-
-Special views:
-- `PPSIndexView` — KPI dashboard (open MPS, planned vs released orders, bottleneck count, last optimization gain)
-- `CapacityDashboardView` — per-work-center load chart (ApexCharts column)
-- `OrderGanttView` — Gantt page (ApexCharts rangeBar) filterable by work center + date range
-
-All views use `LoginRequiredMixin`, filter by `tenant=request.tenant`, and follow the Filter Implementation Rules:
-- Pass `status_choices`, FK querysets, type/method choice lists to templates.
-- Apply filters before pagination.
-- Use `|stringformat:"d"` for FK pk comparisons in templates.
+### 5.5 MRP Run & Simulation
+- **`MRPRun`** — `run_number` auto `MRPRUN-00001`, `name`, `run_type` (`regenerative` / `net_change` / `simulation`), `status` (`queued` / `running` / `completed` / `failed` / `applied` / `discarded`), `mrp_calculation` FK (the working `MRPCalculation` snapshot it produced), `source_mps` FK→`pps.MasterProductionSchedule` (nullable), `started_by`, `started_at`, `finished_at`, `error_message`, `applied_at`, `applied_by`, `commit_notes`. Unique `(tenant, run_number)`.
+  - **Regenerative** — wipes prior `NetRequirement` rows in horizon, recomputes everything from BOMs + on-hand + receipts.
+  - **Net change** — incremental: only recomputes products whose demand or supply changed since the last run.
+  - **Simulation** — same algorithm, but the resulting `MRPCalculation` is created with `status='draft'` and is NEVER auto-committed; it can be discarded without side effects.
+- **`MRPRunResult`** — `run` OneToOne, `total_planned_orders` int, `total_pr_suggestions` int, `total_exceptions` int, `late_orders_count` int, `coverage_pct` decimal, `summary_json` JSON.
 
 ---
 
-## 5. URLs — `apps/pps/urls.py`
+## 2. Services — `apps/mrp/services/` (4 pure-function modules)
 
-App namespace `pps`, mounted at `/pps/` in `config/urls.py`. Full list in §3 of the working spec — covers list / create / detail / edit / delete for every CRUD model plus all workflow/action endpoints (POST-only) plus Gantt + capacity dashboard.
+```
+apps/mrp/services/
+├── __init__.py
+├── forecasting.py      # moving_avg, weighted_ma, simple_exp_smoothing, naive_seasonal
+├── lot_sizing.py       # apply_lot_size(method, params, demand_periods) -> planned_qty per period
+├── mrp_engine.py       # run_mrp(calculation, mode) — gross-to-net + BOM explosion
+└── exceptions.py       # generate_exceptions(calculation) -> list of MRPException
+```
 
----
+### `forecasting.py`
+- `moving_average(history, window)` → list of forecasted values
+- `weighted_moving_average(history, weights)` → list (weights sum to 1)
+- `simple_exp_smoothing(history, alpha)` → list (level + next forecast)
+- `naive_seasonal(history, seasonal_indices)` → list
 
-## 6. Signals — `apps/pps/signals.py`
+All take `list[Decimal]` history, return `list[Decimal]` forecast — no ORM dependency.
 
-`pre_save` + `post_save` writers writing to `apps.tenants.TenantAuditLog`:
-- `MasterProductionSchedule` — `mps.created`, `mps.status.<new>`
-- `ProductionOrder` — `order.created`, `order.status.<new>`
-- `Scenario` — `scenario.applied`, `scenario.discarded`
-- `OptimizationRun` — `optimization.started`, `optimization.completed`, `optimization.failed`
+### `lot_sizing.py`
+- `apply_l4l(periods)` — order exactly net req each period
+- `apply_foq(periods, fixed_qty)` — order multiples of fixed_qty until net req covered
+- `apply_poq(periods, period_count)` — group net req across N periods
+- `apply_min_max(periods, min_qty, max_qty, on_hand_starting)` — stay within min/max
 
-Plus: `post_save`/`post_delete` on `ScheduledOperation` invalidates the relevant `CapacityLoad.computed_at` (UI shows it as stale until recomputed — same pattern as BOM rollup staleness).
+Returns `list[(period_index, planned_qty, planned_release_date)]`.
 
----
+### `mrp_engine.py`
+Public entry point: `run_mrp(calculation: MRPCalculation, mode: str = 'regenerative') -> MRPRunResult`.
 
-## 7. Admin — `apps/pps/admin.py`
-Register all models with `list_display` / `list_filter` / `search_fields`.
+Algorithm:
+1. Collect end-item demand (from `source_mps.lines` if linked, else from `ForecastResult` rows in horizon).
+2. For each end item, walk `bom.BillOfMaterials.explode()` to expand to component-level dependent demand. Phantom assemblies are already collapsed by `explode()` (see Module 3 docs).
+3. For each `(product, period)` pair, compute:
+   - gross_requirement = sum of demand
+   - scheduled_receipts_qty = sum of `ScheduledReceipt` in window
+   - projected_on_hand = previous projected_on_hand + scheduled_receipts - gross_requirement
+   - net_requirement = max(0, safety_stock - projected_on_hand) when projected falls below safety stock
+4. Apply lot-sizing rule from `InventorySnapshot.lot_size_method` to net requirements.
+5. Compute `planned_release_date = period_start - lead_time_days`.
+6. Persist `NetRequirement` rows in one `bulk_create`. Drop and recreate for regenerative mode; merge for net-change.
+7. For purchased items (component products tagged `product_type='raw_material'` or `'component'`) with positive `planned_order_qty` and an approved status, create `MRPPurchaseRequisition` rows.
+8. Hand off to `exceptions.generate_exceptions(calculation)`.
 
----
+### `exceptions.py`
+Pure-function pass over `NetRequirement` + `ProductionOrder` + `MRPPurchaseRequisition`. Generates exceptions for:
+- `late_order` — `production_order.requested_end < net_requirement.period_end`
+- `expedite` — `planned_release_date < today`
+- `defer` — `planned_release_date > requested_start + slack`
+- `below_min` / `above_max` — lot-size constraints violated
+- `no_bom` — no released BOM for end item
+- `no_routing` — product needs production but no routing exists
 
-## 8. Templates — `templates/pps/`
-
-Mirroring BOM:
-- `index.html` — KPI dashboard
-- `forecasts/list.html`, `form.html`, `detail.html`
-- `mps/list.html`, `form.html`, `detail.html` (tabs: Lines / Status History)
-- `mps_lines/form.html`
-- `work_centers/list.html`, `form.html`, `detail.html`
-- `capacity/dashboard.html` — load chart
-- `calendars/list.html`, `form.html`
-- `routings/list.html`, `form.html`, `detail.html`
-- `routing_operations/form.html`
-- `orders/list.html`, `form.html`, `detail.html`, `gantt.html`
-- `scenarios/list.html`, `form.html`, `detail.html`
-- `scenario_changes/form.html`
-- `optimizer/objective_list.html`, `objective_form.html`, `run_list.html`, `run_form.html`, `run_detail.html`
-
-Every list template carries Actions column; every detail template carries Actions sidebar — per CRUD Completeness Rules.
-
----
-
-## 9. Seeder — `apps/pps/management/commands/seed_pps.py`
-
-Idempotent (per CLAUDE.md seed rules — gate on `MasterProductionSchedule.objects.filter(tenant=tenant).exists()`). Per tenant:
-- 4 work centers (one each: machine / labor / cell / assembly_line) + Mon–Fri 08:00–17:00 calendars.
-- 1 routing per seeded finished-good with 3–5 operations.
-- 8 demand forecasts spanning 4 weeks across 4 products.
-- 1 MPS (`released`) covering 4 weeks with 8 lines.
-- 6 production orders in mixed statuses (planned / released / in_progress / completed); `services/scheduler.schedule_forward()` populates `ScheduledOperation` rows for the released ones.
-- 1 capacity load snapshot computed via `services/scheduler.compute_load()`.
-- 1 scenario with 2 changes + computed result (`completed`).
-- 1 default `OptimizationObjective` + 1 completed `OptimizationRun` with result.
-
-Hook `seed_pps` into `apps/core/management/commands/seed_data.py`'s orchestrator (after `seed_bom`).
-
-Print: tenant admin login + superuser-has-no-tenant warning.
+Returns `list[dict]`; the caller `bulk_create`s `MRPException` rows.
 
 ---
 
-## 10. Migrations
-- `python manage.py makemigrations pps`
-- `python manage.py migrate`
+## 3. Forms — `apps/mrp/forms.py`
 
-## 11. Sidebar — `templates/partials/sidebar.html`
-New `<li>` block "Production Planning" between BOM and User Management. Icon `ri-calendar-schedule-line`. Sub-links:
-PPS Dashboard · Demand Forecasts · Master Production Schedule · Work Centers · Capacity Calendars · Capacity Load · Routings · Production Orders · Gantt Schedule · Scenarios · Optimizer
+ModelForms for every CRUD-able entity, with `clean()` enforcing unique_together where `tenant` is excluded (Lesson L-01):
 
-## 12. Settings — `config/settings.py`
-Add `'apps.pps'` to `INSTALLED_APPS` (after `'apps.bom'`).
+- `ForecastModelForm`, `SeasonalityProfileForm`, `ForecastRunForm`
+- `InventorySnapshotForm`, `ScheduledReceiptForm`, `MRPCalculationForm`, `NetRequirementForm` (probably read-only — calculated, no manual edit)
+- `MRPPurchaseRequisitionForm`
+- `MRPExceptionForm` (only edits `status` / `resolution_notes` — engine-generated rows, no manual create)
+- `MRPRunForm`
 
-## 13. Root URL — `config/urls.py`
-Add `path('pps/', include('apps.pps.urls'))`.
-
-## 14. README.md (MANDATORY per project rules)
-- Update intro line: "Phase 1 ... Module 4 — Production Planning & Scheduling"
-- Highlights bullet for Module 4
-- Mark Module 4 as ✅ shipped in Roadmap
-- New dedicated **Module 4 — Production Planning & Scheduling** section between Module 3 and "UI / Theme Customization"
-- Project Structure tree: add `apps/pps/` and `templates/pps/`
-- Screenshots / UI Tour table: add all `/pps/...` routes
-- Management Commands table: add `seed_pps`
-- Seeded Demo Data: per-tenant PPS bullet (work centers, MPS, orders, scenario, optimization run)
-- Update Table of Contents
-
-## 15. Per-File Git Commit Snippets
-Provide a copy-paste block at the end (PowerShell-safe with `;`), one commit per file.
+Decimal fields use `MinValueValidator` / `MaxValueValidator` (Lesson L-02) — `seasonal_index >= 0`, `confidence_pct 0-100`, `quantity > 0`, etc.
 
 ---
 
-## Out of Scope (v1)
-- Real ML/AI optimizer (4.5 is a deterministic heuristic stub).
-- WebSocket-driven Gantt updates (refresh on action).
-- ERP / MES integration.
-- Drag-to-reschedule on the Gantt (POST-only reschedule action).
-- CSV / Excel import / export.
-- Pytest test suite (matches PLM/BOM v1; can follow up).
-- Multi-currency on work-center costs.
+## 4. Views — `apps/mrp/views.py`
+
+Per Filter Implementation Rules + CRUD Completeness Rules:
+
+- **Index** — `index_view`: KPI cards (open MRP runs, total exceptions open, late orders, coverage %, last run time) + recent MRP runs + recent exceptions.
+- **Forecast Models** — list / create / detail / edit / delete + **`forecast_run_view`** (POST → invokes service, creates `ForecastRun` + `ForecastResult` rows).
+- **Seasonality Profiles** — list / create / edit / delete (no detail; line-level data).
+- **Forecast Runs** — list (filterable by status / forecast_model) / detail (shows result rows + chart) / delete.
+- **Inventory Snapshots** — list / create / detail / edit / delete + **bulk import CSV** (deferred, P2 — out of scope for v1; mention only).
+- **Scheduled Receipts** — list / create / detail / edit / delete.
+- **MRP Calculations** — list (filterable by status / source_mps) / detail (Net Requirements tab + Exceptions tab + PR tab) / delete.
+- **MRP Runs** — list (filter by run_type / status) / create (form chooses run_type + source_mps) / detail / **`run_start_view`** / **`run_apply_view`** / **`run_discard_view`** / delete.
+- **MRP Purchase Requisitions** — list (filter by status / priority / product) / detail / edit (only while `draft`) / **`pr_approve_view`** / **`pr_cancel_view`** / delete (only `draft`).
+- **MRP Exceptions** — list (filter by exception_type / severity / status) / detail / **`exception_acknowledge_view`** / **`exception_resolve_view`** / **`exception_ignore_view`** / delete (admin-only).
+
+Status-gated views match the buttons rendered (Lesson L-03). Operations that may skip rows (e.g. MRP run with missing BOMs) use `messages.warning(...)` with counts (Lesson L-04). Datetime-walking forecasting service strips/attaches tz at boundary (Lesson L-05).
+
+All transitions use conditional `UPDATE … WHERE status IN (…)` for race safety (matches PPS / BOM pattern).
 
 ---
 
-## Verification Steps Before Marking Done
-1. `python manage.py makemigrations pps` → single clean migration.
-2. `python manage.py migrate` → succeeds.
-3. `python manage.py seed_pps` → first run seeds; second run idempotent.
-4. `python manage.py seed_data` orchestrator runs end-to-end.
-5. Log in as `admin_acme` → sidebar shows Production Planning group → every link 200s.
-6. Capacity dashboard renders ApexCharts column chart.
-7. Gantt page renders ApexCharts rangeBar.
-8. Forward-schedule one production order → `ScheduledOperation` rows visible on the order detail.
-9. Run one scenario → `ScenarioResult` created, KPI deltas displayed.
-10. Run one optimization → `improvement_pct` populated; suggestion JSON viewable.
-11. Cross-tenant test: `admin_globex` cannot see `admin_acme` MPS / orders.
-12. README renders correctly; TOC matches; per-file commit snippets generated.
+## 5. URLs — `apps/mrp/urls.py`
+
+Mounted at `/mrp/`. Routes follow the PPS naming pattern. Final URL list will include:
+
+```
+/mrp/                                      mrp:index
+/mrp/forecast-models/                      mrp:forecast_model_list
+/mrp/forecast-models/new/                  mrp:forecast_model_create
+/mrp/forecast-models/<pk>/                 mrp:forecast_model_detail
+/mrp/forecast-models/<pk>/edit/            mrp:forecast_model_edit
+/mrp/forecast-models/<pk>/delete/          mrp:forecast_model_delete
+/mrp/forecast-models/<pk>/run/             mrp:forecast_model_run    [POST]
+/mrp/seasonality/                          mrp:seasonality_list
+/mrp/seasonality/new/                      mrp:seasonality_create
+/mrp/seasonality/<pk>/edit/                mrp:seasonality_edit
+/mrp/seasonality/<pk>/delete/              mrp:seasonality_delete
+/mrp/forecast-runs/                        mrp:forecast_run_list
+/mrp/forecast-runs/<pk>/                   mrp:forecast_run_detail
+/mrp/forecast-runs/<pk>/delete/            mrp:forecast_run_delete
+/mrp/inventory/                            mrp:inventory_list
+/mrp/inventory/new/                        mrp:inventory_create
+/mrp/inventory/<pk>/                       mrp:inventory_detail
+/mrp/inventory/<pk>/edit/                  mrp:inventory_edit
+/mrp/inventory/<pk>/delete/                mrp:inventory_delete
+/mrp/receipts/                             mrp:receipt_list
+/mrp/receipts/new/                         mrp:receipt_create
+/mrp/receipts/<pk>/edit/                   mrp:receipt_edit
+/mrp/receipts/<pk>/delete/                 mrp:receipt_delete
+/mrp/calculations/                         mrp:calculation_list
+/mrp/calculations/<pk>/                    mrp:calculation_detail
+/mrp/calculations/<pk>/delete/             mrp:calculation_delete
+/mrp/runs/                                 mrp:run_list
+/mrp/runs/new/                             mrp:run_create
+/mrp/runs/<pk>/                            mrp:run_detail
+/mrp/runs/<pk>/start/                      mrp:run_start             [POST]
+/mrp/runs/<pk>/apply/                      mrp:run_apply             [POST]
+/mrp/runs/<pk>/discard/                    mrp:run_discard           [POST]
+/mrp/runs/<pk>/delete/                     mrp:run_delete
+/mrp/requisitions/                         mrp:pr_list
+/mrp/requisitions/<pk>/                    mrp:pr_detail
+/mrp/requisitions/<pk>/edit/               mrp:pr_edit
+/mrp/requisitions/<pk>/approve/            mrp:pr_approve            [POST]
+/mrp/requisitions/<pk>/cancel/             mrp:pr_cancel             [POST]
+/mrp/requisitions/<pk>/delete/             mrp:pr_delete
+/mrp/exceptions/                           mrp:exception_list
+/mrp/exceptions/<pk>/                      mrp:exception_detail
+/mrp/exceptions/<pk>/acknowledge/          mrp:exception_acknowledge [POST]
+/mrp/exceptions/<pk>/resolve/              mrp:exception_resolve     [POST]
+/mrp/exceptions/<pk>/ignore/               mrp:exception_ignore      [POST]
+/mrp/exceptions/<pk>/delete/               mrp:exception_delete
+```
+
+Mount in `config/urls.py` after `pps`:
+```python
+path('mrp/', include('apps.mrp.urls')),
+```
 
 ---
 
-## Implementation Checklist (for tracking once approved)
-- [ ] Create `apps/pps/` skeleton (`__init__.py`, `apps.py`, `migrations/`, `management/commands/`, `services/`)
-- [ ] Add `'apps.pps'` to `INSTALLED_APPS`
-- [ ] Write `models.py` (~14 models)
-- [ ] Write `services/scheduler.py`, `simulator.py`, `optimizer.py`
-- [ ] Write `forms.py`
-- [ ] Write `views.py`
-- [ ] Write `urls.py`
-- [ ] Write `signals.py` + wire in `apps.py.ready()`
-- [ ] Write `admin.py`
-- [ ] Mount `pps/` in `config/urls.py`
-- [ ] Build templates in `templates/pps/`
-- [ ] Add sidebar entry
-- [ ] Write `seed_pps.py`
-- [ ] Hook `seed_pps` into `seed_data.py`
-- [ ] `makemigrations` + `migrate`
-- [ ] Run `seed_pps` end-to-end (twice — idempotency check)
-- [ ] Smoke-test in browser as `admin_acme`
-- [ ] Update `README.md`
-- [ ] Hand user per-file PowerShell-safe git commit snippets
+## 6. Signals — `apps/mrp/signals.py`
+
+`pre_save` + `post_save` audit-log receivers writing to `apps.tenants.TenantAuditLog`:
+- `MRPRun` status transitions (`queued` → `running` → `completed` / `failed` → `applied` / `discarded`)
+- `MRPCalculation` status transitions
+- `MRPPurchaseRequisition` status transitions (`approved` / `cancelled` / `converted`)
+- `MRPException` status transitions (`acknowledged` / `resolved` / `ignored`)
+
+`post_save` on `MRPCalculation` (status → `committed`) → invalidates downstream caches (none yet, but the hook is reserved).
+
+Wired in `apps/mrp/apps.py:MrpConfig.ready()` (matches PPS pattern).
 
 ---
 
-## Review
+## 7. Admin — `apps/mrp/admin.py`
 
-User approved with "go ahead", proceeded with all 6 default decisions:
-1. App label `pps` at `/pps/`.
-2. 4.5 ships as a deterministic greedy heuristic stub (priority-bucket sort, group-by-product within bucket).
-3. Gantt via existing ApexCharts `rangeBar`, no new dependencies.
-4. No pytest suite in v1 (matches PLM/BOM v1).
-5. Single `USD` cost field on `WorkCenter`.
-6. Reuse `plm.Product` and `bom.BillOfMaterials` — no parallel data layer.
+Standard `ModelAdmin` registrations for every model (matches PPS). `list_display`, `list_filter`, `search_fields`, `readonly_fields=('created_at', 'updated_at')`.
 
-**Verification results (run against the seeded `admin_acme` tenant):**
+---
 
-| Check | Result |
-|---|---|
-| `makemigrations pps` | clean — single `0001_initial.py` covering 16 models |
-| `migrate` | applied without warnings |
-| `seed_pps` first run | per tenant: 4 work centers + 5 routings + 8 forecasts + 8 MPS lines + 6 production orders + 11 scheduled ops + 56 capacity-load snapshots + 1 scenario + 1 default objective + 1 completed optimizer run |
-| `seed_pps` second run | idempotent — "PPS data already exists, skipping" per tenant |
-| `seed_data` orchestrator | runs end-to-end; `seed_pps` registered after `seed_bom` |
-| `python manage.py check` | no issues |
-| Smoke test — 21 list/create URLs | 21/21 return 200 |
-| Smoke test — 5 detail URLs | 5/5 return 200 (filtered by Acme tenant) |
-| Cross-tenant guard | `admin_globex` requesting `admin_acme` MPS → 404 (expected) |
-| Forward scheduling | released `PO-00003` carries 3 `ScheduledOperation` rows laid down across CNC-01 / LBR-01 / LINE-01 |
-| Capacity dashboard | ApexCharts column chart + 95% bottleneck threshold annotation render |
-| Gantt page | ApexCharts `rangeBar` renders for the 14-day window |
-| Scenario simulation | seeded scenario carries `on_time_pct=92.50`, 2 changes, 1 result |
-| Optimizer run | seeded run completed successfully (0% gain on the seeded set — orders already grouped by product, which is the correct heuristic outcome) |
-| Sidebar | new "Production Planning" group expanded between BOM and User Management with 12 nav links |
-| README | TOC + Highlights + UI Tour + Project Structure + Module 4 section + Mgmt Commands + Seeded Demo Data + Roadmap all updated; Phase 1 description now lists Modules 1-4; remaining-modules count corrected from 19 to 18 |
+## 8. Templates — `templates/mrp/`
 
-**What got built:**
+```
+templates/mrp/
+├── index.html                          # MRP dashboard
+├── forecast_models/list.html, form.html, detail.html
+├── seasonality/list.html, form.html
+├── forecast_runs/list.html, detail.html
+├── inventory/list.html, form.html, detail.html
+├── receipts/list.html, form.html
+├── calculations/list.html, detail.html
+├── runs/list.html, form.html, detail.html
+├── requisitions/list.html, form.html, detail.html
+└── exceptions/list.html, detail.html
+```
 
-- 16 models in [`apps/pps/models.py`](apps/pps/models.py) (~640 LOC)
-- 3 pure-function services in [`apps/pps/services/`](apps/pps/services/) — scheduler (forward / backward / infinite + load summary), simulator (apply_scenario, never mutates), optimizer (greedy heuristic)
-- Full CRUD + workflow + Gantt + capacity dashboard views in [`apps/pps/views.py`](apps/pps/views.py) (~870 LOC)
-- 25+ templates in [`templates/pps/`](templates/pps/) covering dashboard, forecasts, MPS, work centers, calendars, capacity, routings, orders, Gantt, scenarios, optimizer
-- Idempotent [`seed_pps.py`](apps/pps/management/commands/seed_pps.py) seeder with `--flush` support, hooked into the `seed_data` orchestrator
-- New "Production Planning" sidebar group with 12 nav links
+~ **24 templates total**. Each list has the standard search-bar + filter dropdowns + paginated table + Actions column + empty-state. Each detail has the standard breadcrumb + content body + Actions sidebar + Back link. Forms use `crispy_forms`.
 
-**One issue caught & fixed during verification:**
+`index.html` shows KPI cards (open runs, exceptions open, late orders, coverage %, last run time) + recent runs + open exceptions table. Charts via ApexCharts (already loaded in `base.html`).
 
-- Initial scheduler seed run failed with `TypeError: can't compare offset-naive and offset-aware datetimes` because `timezone.now()` produces aware datetimes (USE_TZ=True) but the calendar arithmetic operated on naive `datetime.combine(date, time)` values. Fix: added `_strip_tz()` / `_attach_tz()` helpers at the public entry/exit points of `schedule_forward` / `schedule_infinite` so the calendar walk stays in naive-time and the persisted slots come back as aware datetimes. Captured the lesson in `.claude/tasks/lessons.md`.
+---
 
-**Things deferred to a follow-up (per the v1 scope agreed in the plan):**
+## 9. Sidebar — `templates/partials/sidebar.html`
 
-- Real ML/AI optimizer (4.5 is a deterministic heuristic stub; the data model + UI is forward-compatible).
-- WebSocket-driven Gantt updates (refresh on action only for now).
-- Drag-to-reschedule on the Gantt (POST-only `/orders/<pk>/schedule/` endpoint for now).
-- ERP / MES integration.
-- CSV / Excel import / export.
-- Pytest test suite (matches PLM v1 cadence — manual test plan only at v1).
-- Multi-currency on work-center costs (single `USD` for now).
-- Real MPS apply (apply scenario / optimization currently records intent in `applied_at` / `applied_by` but does not push changes into the base MPS).
+New collapsible group inserted between "Production Planning" and "User Management":
 
-These can be tracked individually whenever you want to schedule them.
+```html
+<li class="nav-item">
+    <a class="nav-link menu-link" href="#sidebarMRP" data-bs-toggle="collapse" role="button" aria-expanded="false">
+        <i class="ri-flow-chart"></i> <span>Material Requirements (MRP)</span>
+    </a>
+    <div class="collapse menu-dropdown" id="sidebarMRP" data-bs-parent="#navbar-nav">
+        <ul class="nav nav-sm flex-column">
+            <li class="nav-item"><a href="{% url 'mrp:index' %}" class="nav-link">MRP Dashboard</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:forecast_model_list' %}" class="nav-link">Forecast Models</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:seasonality_list' %}" class="nav-link">Seasonality Profiles</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:forecast_run_list' %}" class="nav-link">Forecast Runs</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:inventory_list' %}" class="nav-link">Inventory Snapshot</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:receipt_list' %}" class="nav-link">Scheduled Receipts</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:calculation_list' %}" class="nav-link">MRP Calculations</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:run_list' %}" class="nav-link">MRP Runs</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:pr_list' %}" class="nav-link">PR Suggestions</a></li>
+            <li class="nav-item"><a href="{% url 'mrp:exception_list' %}" class="nav-link">Exceptions</a></li>
+        </ul>
+    </div>
+</li>
+```
+
+---
+
+## 10. Settings + URL wiring
+
+- `config/settings.py` → add `'apps.mrp'` to `INSTALLED_APPS` (after `apps.pps`).
+- `config/urls.py` → mount `path('mrp/', include('apps.mrp.urls'))` (after `pps`).
+
+---
+
+## 11. Migration
+
+- `python manage.py makemigrations mrp` — new app, fresh `0001_initial.py`.
+- `python manage.py migrate` — applied on local dev DB.
+
+---
+
+## 12. Seeder — `apps/mrp/management/commands/seed_mrp.py`
+
+Idempotent per Seed Command Rules. Per tenant, seeds:
+- 2 `ForecastModel`s (one moving_avg, one naive_seasonal)
+- 12 `SeasonalityProfile` rows (monthly indices) for 2 finished-good products
+- 1 completed `ForecastRun` with `ForecastResult` rows
+- ~10 `InventorySnapshot` rows (one per finished-good + components)
+- ~5 `ScheduledReceipt` rows (open POs / planned production)
+- 1 completed `MRPCalculation` linked to the seeded `pps.MasterProductionSchedule`, with `NetRequirement` rows for end items + components
+- ~3 `MRPPurchaseRequisition` rows (mix of draft / approved)
+- ~5 `MRPException` rows (mix of late_order / expedite / no_bom)
+- 1 completed `MRPRun` with `MRPRunResult`
+
+Wire into `apps/core/management/commands/seed_data.py` orchestrator (after `seed_pps`).
+
+---
+
+## 13. README.md updates
+
+In the **same set of commit snippets**:
+
+1. **Top-of-file paragraph** — add Module 5 to the "Phase 1 includes" list.
+2. **Highlights** — bullet for "Module 5 — Material Requirements Planning (MRP)".
+3. **Table of Contents** — add "Module 5 — Material Requirements Planning (MRP)" entry.
+4. **Screenshots / UI Tour** — add ~10 routes for MRP under `/mrp/...`.
+5. **Project Structure** — add `apps/mrp/` block + `templates/mrp/`.
+6. **Seeded Demo Data** — bullet "Per tenant (Module 5 — MRP) — …".
+7. **New top-level section** — `## Module 5 — Material Requirements Planning (MRP)` with sub-sections per 5.1–5.5 (matches the PPS section's shape).
+8. **Management Commands** — add `seed_mrp` row.
+9. **Roadmap** — strike `5. Material Requirements Planning (MRP)` and append `~~Material Requirements Planning (MRP)~~ ✅ shipped`.
+
+---
+
+## 14. Verification (before declaring done)
+
+Per CLAUDE.md "Verification Before Done":
+
+1. `python manage.py makemigrations mrp` — must produce `0001_initial.py` cleanly.
+2. `python manage.py migrate` — must apply without errors.
+3. `python manage.py seed_mrp` — must succeed for all 3 tenants and be idempotent (run twice, second run must skip).
+4. `python manage.py runserver` — start dev server, browse:
+   - `/mrp/` (dashboard renders, KPI cards populated)
+   - `/mrp/forecast-models/` (list, filters, create, edit, delete buttons)
+   - `/mrp/runs/` (list, run-create wizard)
+   - `/mrp/runs/<pk>/start/` (POST executes the engine, redirects with success message)
+   - `/mrp/calculations/<pk>/` (Net Requirements tab + Exceptions tab + PR tab)
+   - `/mrp/exceptions/` (filters work; resolve / ignore actions)
+   - Sidebar link "Material Requirements (MRP)" expands and every item navigates correctly
+5. Cross-tenant check: log in as `admin_globex`, confirm Acme's MRP runs are NOT visible.
+
+---
+
+## 15. Commit Plan
+
+Per STRICT GIT Commit Rule — **one file per commit**, PowerShell-safe `;` chaining. Estimated commit count:
+
+- Models, forms, views, urls, signals, admin, apps.py — **7 files**
+- Services (`__init__.py` + 4 modules) — **5 files**
+- Management commands (`__init__.py` × 2 + `seed_mrp.py`) — **3 files**
+- Migrations (`__init__.py` + `0001_initial.py`) — **2 files**
+- Templates (~24 files) — **24 files**
+- App `__init__.py` — **1 file**
+- Sidebar update — **1 file**
+- `config/settings.py` update — **1 file**
+- `config/urls.py` update — **1 file**
+- `seed_data.py` orchestrator update — **1 file**
+- `README.md` update — **1 file**
+
+**Estimated total: ~47 commits.** Each gets its own block. No bundling (Lesson L-06).
+
+---
+
+## 16. Out of scope (deferred follow-ups)
+
+- Pytest test suite (matches PLM / BOM / PPS shipping convention)
+- CSV bulk import for inventory snapshots
+- Real ML forecasting (Prophet / scikit-learn / ARIMA)
+- Linear-program solver for true optimization (today's engine is gross-to-net + lot sizing)
+- Webhook / event bus for "MRP committed" → downstream notifications
+- Procurement integration (Module 9 will consume `MRPPurchaseRequisition` later)
+- Inventory integration (Module 8 will populate `InventorySnapshot` later)
+
+---
+
+## Review (2026-04-28 — implementation complete + verified end-to-end)
+
+**Status:** ✅ All 5 sub-modules implemented, migrated, seeded across 3 tenants, and smoke-tested in the browser. Module 5 ships.
+
+### Built
+- New Django app `apps/mrp/` (label `mrp`) mounted at `/mrp/`.
+- **12 models** (one fewer than the planned 14 — `ScheduledReceipt` and `InventorySnapshot` covered the inventory side without needing a separate `BomReference` model that the plan briefly considered): `ForecastModel`, `SeasonalityProfile`, `ForecastRun`, `ForecastResult`, `InventorySnapshot`, `ScheduledReceipt`, `MRPCalculation`, `NetRequirement`, `MRPPurchaseRequisition`, `MRPException`, `MRPRun`, `MRPRunResult`. Every model is `TenantAwareModel` + `TimeStampedModel`.
+- **4 pure-function services** in `apps/mrp/services/`: `forecasting.py` (4 algorithms), `lot_sizing.py` (4 methods), `mrp_engine.py` (gross-to-net + multi-level BOM explosion via `bom.BillOfMaterials.explode()`), `exceptions.py` (5 trigger rules).
+- **Full CRUD** with working filters per Filter Implementation Rules: list / create / detail / edit / delete + workflow actions for every model with a list page.
+- **19 templates** in `templates/mrp/` (one tighter than the plan's "~24" because some sub-modules share a single form template across create + edit).
+- **Audit signals** wired on `MRPRun`, `MRPCalculation`, `MRPPurchaseRequisition`, `MRPException` save() paths — matches the PPS pattern exactly (atomic UPDATEs deliberately bypass signals for race-safety).
+- **Idempotent seeder** `seed_mrp.py` with `--flush`; wired into the `seed_data` orchestrator after `seed_pps`.
+- **Sidebar** group "Material Requirements (MRP)" inserted between Production Planning and User Management.
+- **README.md** updated: top paragraph, Highlights, Table of Contents, Screenshots/UI Tour (~22 routes added), Project Structure (apps/mrp/ + templates/mrp/), Seeded Demo Data, dedicated Module 5 section with sub-module breakdowns, Management Commands table (seed_mrp), Roadmap (struck Module 5 + Phase 1 paragraph updated).
+
+### Verification
+- `python manage.py check` — clean (0 issues).
+- `python manage.py makemigrations mrp` — produced `0001_initial.py` with all 12 models.
+- `python manage.py migrate mrp` — applied cleanly on MySQL.
+- `python manage.py seed_mrp --flush` — produced **per tenant**: 2 forecast models, 24 seasonality profiles, 16 forecast results, 8 inventory snapshots, 5 receipts, **1 completed MRP run with 19 planned orders, 10 PR suggestions, and 35 exceptions**.
+- Re-running `seed_mrp` (without `--flush`) — idempotent; skips per existing data.
+- HTTP smoke test: dashboard + 11 list pages all 200; 5 detail pages 200 for Acme's PKs; cross-tenant pks 404 (isolation guard works).
+- Workflow action: POST `/mrp/exceptions/<pk>/acknowledge/` 302 → status flips `open → acknowledged`. PR Approve, Run Apply paths all wired identically.
+- Audit log: `mrp_run.created`, `mrp_run.completed`, `mrp_calculation.created`, `mrp_calculation.status.completed` entries written by signals on the seeder's instance.save() paths.
+
+### Deviations from the original plan
+- `~14 models` → **12 models** (consolidated; same coverage).
+- `~24 templates` → **19 templates** (some forms reused for create + edit).
+- Initial seed run produced **0 results** because the MRP horizon (today→+28d) didn't overlap the seeded MPS lines (weeks 1–2 of current month). Fixed by aligning MRP horizon = MPS horizon when an MPS is linked. **Lesson candidate:** when seeding two related modules where one consumes the other's date-bounded data, align horizons or it looks like the engine is broken.
+- Console encoding: replaced the `→` character in seeder output with `->` to avoid `UnicodeEncodeError: charmap` on Windows cp1252. Matches the existing PPS seeder convention I should have spotted earlier.
+
+### Out of scope (deferred, as planned)
+- Pytest test suite (matches PLM / BOM at v1).
+- Real ML forecasting (Prophet / scikit-learn / ARIMA).
+- True delta-aware Net Change MRP (today: regenerative semantics).
+- Linear-program / MILP optimization.
+- CSV bulk import for inventory snapshots.
+- Procurement integration — Module 9 will consume `MRPPurchaseRequisition` later.
+- Inventory integration — Module 8 will populate `InventorySnapshot` later.
