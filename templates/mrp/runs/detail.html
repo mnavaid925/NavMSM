@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}MRP Run — {{ run.run_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ run.run_number }} — {{ run.name }}</h4>
+        <div class="text-muted small">{{ run.get_run_type_display }} run · against calculation <a href="{% url 'mrp:calculation_detail' calc.pk %}">{{ calc.mrp_number }}</a></div>
+    </div>
+    <div>
+        <a href="{% url 'mrp:run_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if run.can_start %}
+        <form method="post" action="{% url 'mrp:run_start' run.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Start Run</button>
+        </form>
+        {% endif %}
+        {% if run.can_apply %}
+        <form method="post" action="{% url 'mrp:run_apply' run.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-primary"><i class="ri-check-double-line"></i> Apply (commit)</button>
+        </form>
+        {% endif %}
+        {% if run.can_discard %}
+        <form method="post" action="{% url 'mrp:run_discard' run.pk %}" style="display:inline" onsubmit="return confirm('Discard this run? The calculation will be marked discarded.');">
+            {% csrf_token %}<button class="btn btn-warning"><i class="ri-close-line"></i> Discard</button>
+        </form>
+        {% endif %}
+        {% if run.status != 'applied' %}
+        <form method="post" action="{% url 'mrp:run_delete' run.pk %}" style="display:inline" onsubmit="return confirm('Delete this run?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card"><div class="card-body">
+            <h5>Run state</h5>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Status</span>
+                    {% if run.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                    {% elif run.status == 'applied' %}<span class="badge bg-primary text-white">Applied</span>
+                    {% elif run.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+                    {% elif run.status == 'failed' %}<span class="badge bg-danger text-white">Failed</span>
+                    {% elif run.status == 'discarded' %}<span class="badge bg-secondary-subtle text-secondary">Discarded</span>
+                    {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ run.get_status_display }}</span>{% endif %}
+                </li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Run type</span><span>{{ run.get_run_type_display }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Calculation</span><a href="{% url 'mrp:calculation_detail' calc.pk %}">{{ calc.mrp_number }}</a></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Source MPS</span>{% if run.source_mps %}<a href="{% url 'pps:mps_detail' run.source_mps.pk %}">{{ run.source_mps.mps_number }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Started by</span><span>{{ run.started_by|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Started</span><span>{{ run.started_at|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Finished</span><span>{{ run.finished_at|default:"—" }}</span></li>
+                {% if run.applied_at %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">Applied</span><span>{{ run.applied_at }} by {{ run.applied_by|default:"—" }}</span></li>{% endif %}
+            </ul>
+            {% if run.error_message %}<div class="alert alert-danger mt-3 small">{{ run.error_message }}</div>{% endif %}
+            {% if run.commit_notes %}<div class="mt-3"><h6>Commit notes</h6><p class="text-muted small">{{ run.commit_notes|linebreaks }}</p></div>{% endif %}
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card"><div class="card-body">
+            <h5>KPI summary</h5>
+            {% if result %}
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Coverage</span><strong>{{ result.coverage_pct }}%</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Planned orders</span><span>{{ result.total_planned_orders }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">PR suggestions</span><span>{{ result.total_pr_suggestions }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Exceptions</span><span>{{ result.total_exceptions }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Late orders</span><span>{{ result.late_orders_count }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Computed at</span><span class="small">{{ result.computed_at }}</span></li>
+            </ul>
+            {% if result.summary_json.skipped_no_bom %}<div class="alert alert-warning small mt-3">Skipped (no BOM): {{ result.summary_json.skipped_no_bom|join:", " }}</div>{% endif %}
+            {% else %}
+            <p class="text-muted">No result yet — start the run to compute.</p>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
