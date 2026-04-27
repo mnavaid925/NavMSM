@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}MRP Calculation — {{ calc.mrp_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ calc.mrp_number }} — {{ calc.name }}</h4>
+        <div class="text-muted small">Horizon {{ calc.horizon_start|date:"M j, Y" }} → {{ calc.horizon_end|date:"M j, Y" }} · {{ calc.get_time_bucket_display }} buckets</div>
+    </div>
+    <div>
+        <a href="{% url 'mrp:calculation_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if calc.status != 'committed' %}
+        <form method="post" action="{% url 'mrp:calculation_delete' calc.pk %}" style="display:inline" onsubmit="return confirm('Delete this calculation and all its rows?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <div class="row g-3">
+        <div class="col-md-3"><div class="text-muted small">Status</div>
+            {% if calc.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+            {% elif calc.status == 'committed' %}<span class="badge bg-primary text-white">Committed</span>
+            {% elif calc.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+            {% elif calc.status == 'failed' %}<span class="badge bg-danger text-white">Failed</span>
+            {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ calc.get_status_display }}</span>{% endif %}
+        </div>
+        <div class="col-md-3"><div class="text-muted small">Source MPS</div>{% if calc.source_mps %}<a href="{% url 'pps:mps_detail' calc.source_mps.pk %}">{{ calc.source_mps.mps_number }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+        <div class="col-md-3"><div class="text-muted small">Started by</div>{{ calc.started_by|default:"—" }}</div>
+        <div class="col-md-3"><div class="text-muted small">Finished at</div>{{ calc.finished_at|default:"—" }}</div>
+    </div>
+    {% if calc.error_message %}<div class="alert alert-danger mt-3 small">{{ calc.error_message }}</div>{% endif %}
+    {% if calc.description %}<div class="mt-3"><h6>Description</h6><p class="text-muted">{{ calc.description|linebreaks }}</p></div>{% endif %}
+</div></div>
+
+<ul class="nav nav-tabs" id="mrpTabs">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-nets">Net Requirements ({{ nets|length }})</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-prs">PR Suggestions ({{ prs|length }})</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-exc">Exceptions ({{ exceptions|length }})</button></li>
+</ul>
+
+<div class="tab-content border border-top-0 rounded-bottom p-3 bg-white">
+    <div class="tab-pane fade show active" id="tab-nets">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Lvl</th><th>Product</th><th>Period</th><th>Gross</th><th>Receipts</th><th>Proj on-hand</th><th>Net</th><th>Planned</th><th>Release</th><th>Lot</th></tr></thead>
+                <tbody>
+                {% for n in nets %}
+                    <tr>
+                        <td class="small"><span class="badge bg-secondary-subtle text-secondary">L{{ n.bom_level }}</span></td>
+                        <td class="small">{{ n.product.sku }}</td>
+                        <td class="small">{{ n.period_start|date:"M j" }} → {{ n.period_end|date:"M j" }}</td>
+                        <td class="small">{{ n.gross_requirement }}</td>
+                        <td class="small">{{ n.scheduled_receipts_qty }}</td>
+                        <td class="small">{{ n.projected_on_hand }}</td>
+                        <td class="small fw-semibold {% if n.net_requirement > 0 %}text-warning{% endif %}">{{ n.net_requirement }}</td>
+                        <td class="small fw-semibold {% if n.planned_order_qty > 0 %}text-primary{% endif %}">{{ n.planned_order_qty }}</td>
+                        <td class="small">{{ n.planned_release_date|default:"—" }}</td>
+                        <td class="small text-muted">{{ n.get_lot_size_method_display }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="10" class="text-center text-muted py-3">No net requirements computed yet — start the run to populate.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-prs">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Number</th><th>Product</th><th>Qty</th><th>Required by</th><th>Release</th><th>Priority</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for pr in prs %}
+                    <tr>
+                        <td class="small"><a href="{% url 'mrp:pr_detail' pr.pk %}">{{ pr.pr_number }}</a></td>
+                        <td class="small">{{ pr.product.sku }}</td>
+                        <td class="small fw-semibold">{{ pr.quantity }}</td>
+                        <td class="small">{{ pr.required_by_date }}</td>
+                        <td class="small">{{ pr.suggested_release_date }}</td>
+                        <td class="small">{{ pr.get_priority_display }}</td>
+                        <td>
+                            {% if pr.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                            {% elif pr.status == 'approved' %}<span class="badge bg-success text-white">Approved</span>
+                            {% elif pr.status == 'converted' %}<span class="badge bg-primary text-white">Converted</span>
+                            {% else %}<span class="badge bg-warning-subtle text-warning">{{ pr.get_status_display }}</span>{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-3">No PR suggestions for this calculation.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-exc">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Type</th><th>Product</th><th>Severity</th><th>Action</th><th>Status</th><th>Created</th></tr></thead>
+                <tbody>
+                {% for e in exceptions %}
+                    <tr>
+                        <td class="small"><a href="{% url 'mrp:exception_detail' e.pk %}">{{ e.get_exception_type_display }}</a></td>
+                        <td class="small">{{ e.product.sku }}</td>
+                        <td>
+                            {% if e.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                            {% elif e.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                            {% elif e.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                        </td>
+                        <td class="small">{{ e.get_recommended_action_display }}</td>
+                        <td class="small">{{ e.get_status_display }}</td>
+                        <td class="small text-muted">{{ e.created_at|date:"M j" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted py-3">No exceptions for this calculation.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
