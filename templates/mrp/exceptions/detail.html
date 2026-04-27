@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Exception — {{ exc.get_exception_type_display }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ exc.get_exception_type_display }}</h4>
+        <div class="text-muted small">{{ exc.product.sku }} — {{ exc.product.name }}</div>
+    </div>
+    <div>
+        <a href="{% url 'mrp:exception_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if exc.status == 'open' %}
+        <form method="post" action="{% url 'mrp:exception_acknowledge' exc.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-info"><i class="ri-check-line"></i> Acknowledge</button>
+        </form>
+        {% endif %}
+        {% if exc.status == 'open' or exc.status == 'acknowledged' %}
+        <form method="post" action="{% url 'mrp:exception_ignore' exc.pk %}" style="display:inline" onsubmit="return confirm('Ignore this exception?');">
+            {% csrf_token %}<button class="btn btn-warning"><i class="ri-close-line"></i> Ignore</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'mrp:exception_delete' exc.pk %}" style="display:inline" onsubmit="return confirm('Delete this exception?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card"><div class="card-body">
+            <h5>Exception detail</h5>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span><strong>{{ exc.get_exception_type_display }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Severity</span>
+                    {% if exc.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                    {% elif exc.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                    {% elif exc.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                    {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                </li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Status</span>
+                    {% if exc.status == 'open' %}<span class="badge bg-warning-subtle text-warning">Open</span>
+                    {% elif exc.status == 'acknowledged' %}<span class="badge bg-info-subtle text-info">Acknowledged</span>
+                    {% elif exc.status == 'resolved' %}<span class="badge bg-success text-white">Resolved</span>
+                    {% else %}<span class="badge bg-secondary-subtle text-secondary">Ignored</span>{% endif %}
+                </li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Recommended action</span><span>{{ exc.get_recommended_action_display }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Target</span><span>{{ exc.get_target_type_display }}{% if exc.target_id %} #{{ exc.target_id }}{% endif %}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Current date</span><span>{{ exc.current_date|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Recommended date</span><span>{{ exc.recommended_date|default:"—" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">From calculation</span><a href="{% url 'mrp:calculation_detail' exc.mrp_calculation.pk %}">{{ exc.mrp_calculation.mrp_number }}</a></li>
+                {% if exc.resolved_at %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">Resolved</span><span>{{ exc.resolved_at }} by {{ exc.resolved_by|default:"—" }}</span></li>{% endif %}
+            </ul>
+            <div class="mt-3"><h6>Message</h6><div class="alert alert-light">{{ exc.message|linebreaks }}</div></div>
+            {% if exc.resolution_notes %}<div class="mt-3"><h6>Resolution notes</h6><p class="text-muted">{{ exc.resolution_notes|linebreaks }}</p></div>{% endif %}
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        {% if exc.status == 'open' or exc.status == 'acknowledged' %}
+        <div class="card"><div class="card-body">
+            <h5>Resolve</h5>
+            <form method="post" action="{% url 'mrp:exception_resolve' exc.pk %}">
+                {% csrf_token %}
+                {{ resolve_form|crispy }}
+                <button class="btn btn-success mt-2"><i class="ri-check-double-line"></i> Mark Resolved</button>
+            </form>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
