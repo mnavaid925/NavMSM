@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Forecast Model — {{ forecast_model.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ forecast_model.name }}</h4>
+        <div class="text-muted small">{{ forecast_model.get_method_display }} · {{ forecast_model.get_period_type_display }} · horizon {{ forecast_model.horizon_periods }} periods</div>
+    </div>
+    <div>
+        <a href="{% url 'mrp:forecast_model_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'mrp:forecast_model_edit' forecast_model.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'mrp:forecast_model_run' forecast_model.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Run Forecast</button>
+        </form>
+        <form method="post" action="{% url 'mrp:forecast_model_delete' forecast_model.pk %}" style="display:inline" onsubmit="return confirm('Delete this forecast model?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card"><div class="card-body">
+            <h5>Configuration</h5>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Method</span><strong>{{ forecast_model.get_method_display }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Period</span><span>{{ forecast_model.get_period_type_display }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Horizon</span><span>{{ forecast_model.horizon_periods }} periods</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Active</span><span>{% if forecast_model.is_active %}<span class="badge bg-success text-white">Active</span>{% else %}<span class="badge bg-secondary text-white">Inactive</span>{% endif %}</span></li>
+                <li class="list-group-item"><span class="text-muted d-block mb-1">Params</span><pre class="mb-0 small">{{ forecast_model.params|default:"{}" }}</pre></li>
+            </ul>
+            {% if forecast_model.description %}<h6 class="mt-3">Description</h6><p class="text-muted">{{ forecast_model.description|linebreaks }}</p>{% endif %}
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card"><div class="card-body">
+            <h5>Recent Runs</h5>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Number</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for r in runs %}
+                    <tr>
+                        <td><a href="{% url 'mrp:forecast_run_detail' r.pk %}" class="small">{{ r.run_number }}</a></td>
+                        <td class="small">{{ r.run_date|date:"M j, Y" }}</td>
+                        <td>
+                            {% if r.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                            {% elif r.status == 'failed' %}<span class="badge bg-danger text-white">Failed</span>
+                            {% elif r.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+                            {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ r.get_status_display }}</span>{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="3" class="text-center text-muted py-3">No runs yet — click <em>Run Forecast</em>.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
