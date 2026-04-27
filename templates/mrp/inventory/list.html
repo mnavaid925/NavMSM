@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Inventory Snapshots{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Inventory Snapshots</h4>
+        <div class="text-muted small">Per-product on-hand · safety stock · lead time · lot-sizing rule (input to the MRP engine).</div>
+    </div>
+    <a href="{% url 'mrp:inventory_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Snapshot</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by SKU or name..."></div>
+        <div class="col-md-4">
+            <select name="lot_size_method" class="form-select">
+                <option value="">Any lot-sizing</option>
+                {% for v, label in lot_size_choices %}<option value="{{ v }}" {% if request.GET.lot_size_method == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Product</th><th>On-hand</th><th>Safety</th><th>Reorder</th><th>Lead</th><th>Lot rule</th><th>As of</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for s in snapshots %}
+                <tr>
+                    <td><a href="{% url 'mrp:inventory_detail' s.pk %}">{{ s.product.sku }}</a> <span class="small text-muted">{{ s.product.name|truncatechars:25 }}</span></td>
+                    <td class="small fw-semibold">{{ s.on_hand_qty }}</td>
+                    <td class="small">{{ s.safety_stock }}</td>
+                    <td class="small">{{ s.reorder_point }}</td>
+                    <td class="small">{{ s.lead_time_days }}d</td>
+                    <td><span class="badge bg-info-subtle text-info">{{ s.get_lot_size_method_display }}</span></td>
+                    <td class="small">{{ s.as_of_date|date:"M j" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:inventory_detail' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'mrp:inventory_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mrp:inventory_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete this snapshot?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No inventory snapshots yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
