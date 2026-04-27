@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Seasonality Profiles{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Seasonality Profiles</h4>
+        <div class="text-muted small">Per-product seasonal indices used by naive_seasonal forecasting (1.0 = neutral).</div>
+    </div>
+    <a href="{% url 'mrp:seasonality_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Entry</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by SKU..."></div>
+        <div class="col-md-3">
+            <select name="product" class="form-select">
+                <option value="">Any product</option>
+                {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} — {{ p.name|truncatechars:30 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="period_type" class="form-select">
+                <option value="">Any period</option>
+                {% for v, label in period_choices %}<option value="{{ v }}" {% if request.GET.period_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Product</th><th>Period type</th><th>Period #</th><th>Seasonal index</th><th>Notes</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for p in profiles %}
+                <tr>
+                    <td><a href="{% url 'plm:product_detail' p.product.pk %}">{{ p.product.sku }}</a> <span class="small text-muted">{{ p.product.name|truncatechars:25 }}</span></td>
+                    <td class="small">{{ p.get_period_type_display }}</td>
+                    <td class="small">{{ p.period_index }}</td>
+                    <td>
+                        {% if p.seasonal_index >= 1.1 %}<span class="badge bg-success-subtle text-success">{{ p.seasonal_index }}</span>
+                        {% elif p.seasonal_index <= 0.9 %}<span class="badge bg-warning-subtle text-warning">{{ p.seasonal_index }}</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">{{ p.seasonal_index }}</span>{% endif %}
+                    </td>
+                    <td class="small text-muted">{{ p.notes|default:"—"|truncatechars:30 }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mrp:seasonality_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mrp:seasonality_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete this entry?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No seasonality profiles yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
