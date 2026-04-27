@@ -17,12 +17,22 @@ Sub-modules:
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
 from apps.bom.models import BillOfMaterials
 from apps.core.models import TenantAwareModel, TimeStampedModel
 from apps.plm.models import Product
+
+# L-02 guard — every numeric DecimalField representing a quantity, percentage,
+# duration, money amount, or weight gets explicit validators. Without them
+# DecimalField(max_digits=N, decimal_places=M) accepts any value in range —
+# negatives, percentages > 100, and so on — and the bug surfaces in math,
+# not in form errors. See .claude/tasks/lessons.md L-02.
+NON_NEGATIVE = [MinValueValidator(Decimal('0'))]
+POSITIVE = [MinValueValidator(Decimal('0.0001'))]
+PERCENT = [MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))]
 
 
 # ============================================================================
@@ -43,11 +53,15 @@ class DemandForecast(TenantAwareModel, TimeStampedModel):
     )
     period_start = models.DateField()
     period_end = models.DateField()
-    forecast_qty = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
+    forecast_qty = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
     confidence_pct = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('80'),
         help_text='Forecast confidence — 0-100.',
+        validators=PERCENT,
     )
     notes = models.TextField(blank=True)
 
@@ -117,10 +131,22 @@ class MPSLine(TenantAwareModel, TimeStampedModel):
     )
     period_start = models.DateField()
     period_end = models.DateField()
-    forecast_qty = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
-    firm_planned_qty = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
-    scheduled_qty = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
-    available_to_promise = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
+    forecast_qty = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    firm_planned_qty = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    scheduled_qty = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    available_to_promise = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -152,13 +178,16 @@ class WorkCenter(TenantAwareModel, TimeStampedModel):
     capacity_per_hour = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('1'),
         help_text='Throughput target in units/hour at 100% efficiency.',
+        validators=NON_NEGATIVE,
     )
     efficiency_pct = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('100'),
         help_text='Realized efficiency — 0-100.',
+        validators=PERCENT,
     )
     cost_per_hour = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
     )
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
@@ -275,10 +304,22 @@ class RoutingOperation(TenantAwareModel, TimeStampedModel):
     work_center = models.ForeignKey(
         WorkCenter, on_delete=models.PROTECT, related_name='routing_operations',
     )
-    setup_minutes = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
-    run_minutes_per_unit = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal('0'))
-    queue_minutes = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
-    move_minutes = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    setup_minutes = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    run_minutes_per_unit = models.DecimalField(
+        max_digits=10, decimal_places=4, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    queue_minutes = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
+    move_minutes = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=NON_NEGATIVE,
+    )
     instructions = models.TextField(blank=True)
 
     class Meta:
@@ -332,7 +373,10 @@ class ProductionOrder(TenantAwareModel, TimeStampedModel):
         BillOfMaterials, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='production_orders',
     )
-    quantity = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
+    quantity = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('1'),
+        validators=POSITIVE,
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planned')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
     scheduling_method = models.CharField(max_length=10, choices=METHOD_CHOICES, default='forward')
@@ -519,18 +563,22 @@ class OptimizationObjective(TenantAwareModel, TimeStampedModel):
     weight_changeovers = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('1'),
         help_text='Relative penalty for grouping unlike products together.',
+        validators=NON_NEGATIVE,
     )
     weight_idle = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('1'),
         help_text='Relative penalty for idle time on work centers.',
+        validators=NON_NEGATIVE,
     )
     weight_lateness = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('2'),
         help_text='Relative penalty for missing requested due dates.',
+        validators=NON_NEGATIVE,
     )
     weight_priority = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('1.5'),
         help_text='Relative reward for honoring priority on rush orders.',
+        validators=NON_NEGATIVE,
     )
     is_default = models.BooleanField(default=False)
 
