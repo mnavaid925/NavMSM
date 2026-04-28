@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Version - {{ instruction.instruction_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>New Version &mdash; {{ instruction.instruction_number }}</h4>
+    <a href="{% url 'mes:instruction_detail' instruction.pk %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="alert alert-info small mt-2">Allowed file types: <code>.pdf .png .jpg .jpeg .mp4 .docx .xlsx .txt</code> &middot; max 25 MB. Use the video URL for hosted training clips.</div>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save Draft</button>
+            <a href="{% url 'mes:instruction_detail' instruction.pk %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
