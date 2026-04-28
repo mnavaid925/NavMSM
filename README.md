@@ -1002,6 +1002,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
 | `pytest apps/pps/tests/` | Run the PPS test suite (58 tests, ~6 s; covers model bounds, form validation, RBAC, workflow, scheduler/optimizer, audit-log emission, query budgets) |
+| `pytest apps/mes/tests/` | Run the MES test suite (142 tests, ~9 s; covers model invariants, dispatcher / time-logging / reporting services, forms, workflow, audit-log emission, multi-tenant IDOR, CSRF, plus 8 seeder-regression tests for the 6 BUGs found during the manual-test walkthrough) |
 | `pytest --cov=apps/plm` | Run with coverage report |
 | `pytest --cov=apps/pps` | Run PPS coverage report (services + signals + forms + models ≥ 84% each) |
 
