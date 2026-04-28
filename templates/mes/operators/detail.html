@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Operator {{ operator.badge_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ operator.badge_number }} <small class="text-muted">- {{ operator.user.get_full_name|default:operator.user.username }}</small></h4>
+        <div class="text-muted small">{{ operator.user.email }}</div>
+    </div>
+    <div>
+        <a href="{% url 'mes:operator_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'mes:operator_edit' operator.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'mes:operator_delete' operator.pk %}" style="display:inline" onsubmit="return confirm('Delete this operator?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card"><div class="card-body">
+            <h6>Profile</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Username</span>{{ operator.user.username }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Email</span>{{ operator.user.email }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Default work center</span>{% if operator.default_work_center %}<a href="{% url 'pps:work_center_detail' operator.default_work_center.pk %}">{{ operator.default_work_center.code }}</a>{% else %}-{% endif %}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Active</span>{% if operator.is_active %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</li>
+            </ul>
+            {% if operator.notes %}<p class="text-muted small mt-3">{{ operator.notes }}</p>{% endif %}
+        </div></div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Recent Time Logs</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>When</th><th>Action</th><th>Operation</th><th>Notes</th></tr></thead>
+                    <tbody>
+                    {% for t in recent_logs %}
+                        <tr>
+                            <td class="small">{{ t.recorded_at|date:"M j, H:i" }}</td>
+                            <td class="small">{{ t.get_action_display }}</td>
+                            <td class="small">{% if t.work_order_operation %}<a href="{% url 'mes:operation_detail' t.work_order_operation.pk %}">{{ t.work_order_operation.work_order.wo_number }} #{{ t.work_order_operation.sequence }}</a>{% else %}-{% endif %}</td>
+                            <td class="small text-muted">{{ t.notes|truncatechars:32 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No time logs.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
