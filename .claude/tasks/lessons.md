@@ -111,3 +111,39 @@ Running log of corrections and rules. New lessons go to the bottom. Each entry i
 **How to apply:** in any `BaseCommand.handle()` that writes to `self.stdout`, restrict to ASCII characters. Use `->` not `→`, prefer ` - ` or `*` over `·`, and avoid emoji entirely. Templates and other text rendered via Django's HTTP response are utf-8 by default and safe — this rule applies *only* to direct `stdout.write()` paths.
 
 **Concrete example in repo:** [apps/mrp/management/commands/seed_mrp.py:326](../../apps/mrp/management/commands/seed_mrp.py) — fixed 2026-04-28 by changing `→ Tenant:` to `-> Tenant:`. Pattern reference: [apps/pps/management/commands/seed_pps.py:487](../../apps/pps/management/commands/seed_pps.py).
+
+---
+
+## L-10 — Workflow modules need an explicit RBAC layer; `TenantRequiredMixin` is not enough
+
+**Rule:** Any view that mutates a status (approve, apply, commit, resolve, ignore, discard, cancel, delete-of-workflow-row) must be guarded by `TenantAdminRequiredMixin` (or a more granular role mixin). `TenantRequiredMixin` only enforces "logged in + has tenant" — every staff user in the tenant inherits full mutation power, which is a material A01 violation for any ERP-shaped workflow.
+
+**Why:** The MRP module shipped with `PRApproveView`, `RunApplyView`, `ExceptionResolveView`, `ExceptionIgnoreView`, `CalculationDeleteView`, `RunDiscardView` etc. all on `TenantRequiredMixin`. A non-admin tenant user could approve PRs, apply MRP runs (committing the calc), ignore critical exceptions, and delete calculations. The PPS module already does this correctly — it was a regression of pattern, not a new design problem.
+
+**How to apply:** when adding a state-changing view to a tenant-scoped workflow, default to `TenantAdminRequiredMixin`. Keep `TenantRequiredMixin` for read-only / list / detail / non-privileged CRUD only. Always pair the change with a `test_*_d01` test that confirms `staff_client.post(<url>)` is a redirect AND that the underlying row's status did not change. The two-assertion pattern catches both the redirect AND silent-success regressions.
+
+**Concrete example in repo:** [apps/mrp/views.py](../../apps/mrp/views.py) — fixed 2026-04-29 in [.claude/tasks/mrp_sqa_fixes_todo.md](mrp_sqa_fixes_todo.md) F-01 (defect D-01). RBAC matrix test in [apps/mrp/tests/test_security.py — TestRBACMatrix](../../apps/mrp/tests/test_security.py).
+
+---
+
+## L-11 — When a docstring promises three modes but the code implements one, delete the dead branch — don't tip-toe around it
+
+**Rule:** If an engine accepts a `mode=` parameter and only one branch is real (the others are placeholders for "future optimisation"), the placeholders MUST either be removed OR collapse cleanly to the real branch. Leaving a half-implemented mode that "skips deletion but still bulk-creates" is worse than no mode at all — the unique constraint will surface as a 500 the moment someone exercises it.
+
+**Why:** The MRP engine's docstring claimed three modes (`regenerative`, `net_change`, `simulation`) but the code only handled two. `net_change` skipped the wipe step but still ran the full bulk_create, so the second call against the same calc raised `IntegrityError` on `unique_together(mrp_calculation, product, period_start)`. The form exposed `net_change` to operators, so this was selectable from the UI — i.e. one click away from a 500. The fix was to delete the conditional and have all three modes wipe-and-recompute, with the docstring updated to say so honestly.
+
+**How to apply:** when reviewing or writing dispatch logic with multiple branches, audit each branch end-to-end: does it produce a coherent, persistable result? If not, either (a) collapse the branch to the working one with a comment explaining the v1 limitation, or (b) raise `NotImplementedError` so the caller knows immediately. NEVER leave a branch that runs to completion but produces an invalid persistence state.
+
+**Concrete example in repo:** [apps/mrp/services/mrp_engine.py — `run_mrp` step 4](../../apps/mrp/services/mrp_engine.py) — fixed 2026-04-29 in [.claude/tasks/mrp_sqa_fixes_todo.md](mrp_sqa_fixes_todo.md) F-02 (defect D-02). Regression test in [apps/mrp/tests/test_engine.py — TestEngineNetChangeModeD02](../../apps/mrp/tests/test_engine.py).
+
+---
+
+## L-12 — Sequence-numbered FKs need retry-on-IntegrityError, not just `count + 1`
+
+**Rule:** Any auto-generated identifier built from `MAX(prefix-NNNNN) + 1` (or `count + 1`) MUST be wrapped in a transaction-per-row retry loop that catches `IntegrityError` and re-reads the max. Two engine runs (or two HTTP workers) can both observe the same starting value and collide on the unique constraint.
+
+**Why:** The MRP engine's PR auto-generation computed `existing_count + 1` once and incremented in a Python loop. Two concurrent engine runs against the same tenant would both pick the same starting sequence and the second run's first INSERT would 500 on `unique_together(tenant, pr_number)`. The pattern reference `_save_with_unique_number` already exists in [apps/mrp/views.py](../../apps/mrp/views.py) for exactly this — engines should reuse it.
+
+**How to apply:** every engine / service that creates rows with prefixed sequence identifiers should wrap each `.create()` in a 5-attempt try/except IntegrityError + recompute-next-number loop. Then assert in tests that pre-allocating the engine's "starting slot" does NOT crash subsequent calls — see [apps/mrp/tests/test_engine.py — TestEnginePRSequenceD04](../../apps/mrp/tests/test_engine.py).
+
+**Concrete example in repo:** [apps/mrp/services/mrp_engine.py — `_next_mpr_sequence`](../../apps/mrp/services/mrp_engine.py) — fixed 2026-04-29 in [.claude/tasks/mrp_sqa_fixes_todo.md](mrp_sqa_fixes_todo.md) F-04 (defect D-04).
