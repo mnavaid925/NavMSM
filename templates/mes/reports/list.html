@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Production Reports{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Production Reports</h4>
+        <div class="text-muted small">Good / scrap / rework quantities filed against operations.</div>
+    </div>
+    <a href="{% url 'mes:report_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> File Report</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-5"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="WO#, SKU, notes..."></div>
+        <div class="col-md-3">
+            <select name="scrap_reason" class="form-select">
+                <option value="">Any reason</option>
+                {% for v, label in scrap_reason_choices %}<option value="{{ v }}" {% if request.GET.scrap_reason == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>When</th><th>Work Order</th><th>Op</th><th>Good</th><th>Scrap</th><th>Rework</th><th>Reason</th><th>By</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for r in reports %}
+                <tr>
+                    <td class="small">{{ r.reported_at|date:"M j, H:i" }}</td>
+                    <td class="small"><a href="{% url 'mes:work_order_detail' r.work_order_operation.work_order.pk %}">{{ r.work_order_operation.work_order.wo_number }}</a></td>
+                    <td class="small">#{{ r.work_order_operation.sequence }} {{ r.work_order_operation.operation_name|truncatechars:18 }}</td>
+                    <td class="small fw-semibold">{{ r.good_qty }}</td>
+                    <td class="small">{{ r.scrap_qty }}</td>
+                    <td class="small">{{ r.rework_qty }}</td>
+                    <td class="small text-muted">{{ r.get_scrap_reason_display|default:"-" }}</td>
+                    <td class="small text-muted">{{ r.reported_by.username|default:"-" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mes:report_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <form method="post" action="{% url 'mes:report_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete this report? Op totals will be adjusted.');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="9" class="text-center text-muted py-4">No production reports yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
