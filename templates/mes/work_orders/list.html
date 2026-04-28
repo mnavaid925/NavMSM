@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Work Orders{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">MES Work Orders</h4>
+        <div class="text-muted small">Dispatched from released production orders &middot; tracks shop-floor execution lifecycle.</div>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="WO#, PO#, SKU..."></div>
+        <div class="col-md-3">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="priority" class="form-select">
+                <option value="">Any priority</option>
+                {% for v, label in priority_choices %}<option value="{{ v }}" {% if request.GET.priority == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>WO#</th><th>Product</th><th>Qty</th><th>Status</th><th>Priority</th><th>Source PO</th><th>Dispatched</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for wo in work_orders %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mes:work_order_detail' wo.pk %}">{{ wo.wo_number }}</a></td>
+                    <td class="small">{{ wo.product.sku }} <span class="text-muted">{{ wo.product.name|truncatechars:20 }}</span></td>
+                    <td class="small">{{ wo.quantity_completed|default:0 }} / {{ wo.quantity_to_build }}</td>
+                    <td>
+                        {% if wo.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                        {% elif wo.status == 'in_progress' %}<span class="badge bg-warning text-dark">In Progress</span>
+                        {% elif wo.status == 'on_hold' %}<span class="badge bg-secondary-subtle text-secondary">On Hold</span>
+                        {% elif wo.status == 'cancelled' %}<span class="badge bg-secondary text-white">Cancelled</span>
+                        {% else %}<span class="badge bg-info-subtle text-info">Dispatched</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if wo.priority == 'rush' %}<span class="badge bg-danger text-white">Rush</span>
+                        {% elif wo.priority == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                        {% else %}<span class="badge bg-light text-muted">{{ wo.get_priority_display }}</span>{% endif %}
+                    </td>
+                    <td class="small"><a href="{% url 'pps:order_detail' wo.production_order.pk %}">{{ wo.production_order.order_number }}</a></td>
+                    <td class="small text-muted">{{ wo.dispatched_at|date:"M j, H:i"|default:"-" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mes:work_order_detail' wo.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if wo.is_editable %}
+                        <a href="{% url 'mes:work_order_edit' wo.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        {% endif %}
+                        {% if wo.status != 'in_progress' %}
+                        <form method="post" action="{% url 'mes:work_order_delete' wo.pk %}" style="display:inline" onsubmit="return confirm('Delete this work order?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No work orders yet - dispatch one from a released production order.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
