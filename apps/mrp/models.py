@@ -561,8 +561,10 @@ class MRPRun(TenantAwareModel, TimeStampedModel):
     run_type = models.CharField(max_length=20, choices=RUN_TYPE_CHOICES, default='regenerative')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
     mrp_calculation = models.ForeignKey(
-        MRPCalculation, on_delete=models.CASCADE, related_name='runs',
-        help_text='The working calculation snapshot this run produced.',
+        MRPCalculation, on_delete=models.PROTECT, related_name='runs',
+        help_text='The working calculation snapshot this run produced. PROTECT '
+                  'so deleting a calculation that still has runs surfaces an '
+                  'explicit error rather than silently destroying run history.',
     )
     source_mps = models.ForeignKey(
         MasterProductionSchedule, on_delete=models.SET_NULL, null=True, blank=True,
