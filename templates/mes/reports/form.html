@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}File Production Report{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>File Production Report</h4>
+    <a href="{% url 'mes:report_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label class="form-label">Work Order Operation</label>
+            <select name="work_order_operation" class="form-select" required>
+                <option value="">-- pick an operation --</option>
+                {% for o in ops %}
+                    <option value="{{ o.pk }}" {% if preselected_op and preselected_op.pk == o.pk %}selected{% endif %}>
+                        {{ o.work_order.wo_number }} #{{ o.sequence }} - {{ o.operation_name|truncatechars:30 }} ({{ o.work_order.product.sku }})
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        {{ form|crispy }}
+        <div class="alert alert-info small mt-2">At least one of <code>good_qty</code>, <code>scrap_qty</code>, or <code>rework_qty</code> must be greater than zero. Scrap reason becomes mandatory once scrap is non-zero.</div>
+        <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save Report</button>
+            <a href="{% url 'mes:report_list' %}" class="btn btn-light">Cancel</a>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
