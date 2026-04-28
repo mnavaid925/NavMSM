@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'apps.bom',
     'apps.pps',
     'apps.mrp',
+    'apps.mes',
 ]
 
 MIDDLEWARE = [
