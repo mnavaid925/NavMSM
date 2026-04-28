@@ -25,6 +25,9 @@
             <form method="post" action="{% url 'pps:order_start' order.pk %}" style="display:inline" onsubmit="return confirm('Start production?');">
                 {% csrf_token %}<button class="btn btn-warning"><i class="ri-play-line"></i> Start</button>
             </form>
+            <form method="post" action="{% url 'mes:dispatch' order.pk %}" style="display:inline" onsubmit="return confirm('Dispatch this production order to the shop floor as a MES work order?');">
+                {% csrf_token %}<button class="btn btn-info text-white"><i class="ri-tools-line"></i> Dispatch to Shop Floor</button>
+            </form>
         {% elif order.status == 'in_progress' %}
             <form method="post" action="{% url 'pps:order_complete' order.pk %}" style="display:inline" onsubmit="return confirm('Mark order complete?');">
                 {% csrf_token %}<button class="btn btn-success"><i class="ri-check-double-line"></i> Complete</button>
