@@ -65,10 +65,19 @@ def generate_exceptions(calculation, skipped_no_bom_skus=None):
                 recommended_date=today,
             ))
 
-        # expedite: lead time longer than the gap from today to required date
-        if snap and nr.period_start:
+        # expedite: lead time longer than the gap from today to required date.
+        # F-14 (D-16): only emit when the planned release date is in the future
+        # AND the gap is positive but smaller than lead time. A past release date
+        # is already covered by `late_order` above; same-day or earlier rows
+        # generate noise during seeded demos otherwise.
+        if (
+            snap and nr.period_start
+            and nr.planned_release_date
+            and nr.planned_release_date >= today
+            and nr.period_start > today
+        ):
             gap_days = (nr.period_start - today).days
-            if gap_days < snap.lead_time_days:
+            if 0 < gap_days < snap.lead_time_days:
                 rows.append(MRPException(
                     tenant=tenant,
                     mrp_calculation=calculation,
