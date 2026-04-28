@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Work Instructions{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Paperless Work Instructions</h4>
+        <div class="text-muted small">Standard operating procedures &middot; setup sheets &middot; quality checks &middot; safety briefings.</div>
+    </div>
+    <a href="{% url 'mes:instruction_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Instruction</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number / title..."></div>
+        <div class="col-md-2">
+            <select name="doc_type" class="form-select">
+                <option value="">Any type</option>
+                {% for v, label in doc_type_choices %}<option value="{{ v }}" {% if request.GET.doc_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="product" class="form-select">
+                <option value="">Any product</option>
+                {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} - {{ p.name|truncatechars:20 }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Number</th><th>Title</th><th>Type</th><th>Linked To</th><th>Version</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for wi in instructions %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mes:instruction_detail' wi.pk %}">{{ wi.instruction_number }}</a></td>
+                    <td class="small">{{ wi.title|truncatechars:40 }}</td>
+                    <td><span class="badge bg-info-subtle text-info">{{ wi.get_doc_type_display }}</span></td>
+                    <td class="small">
+                        {% if wi.routing_operation %}<a href="{% url 'pps:routing_detail' wi.routing_operation.routing.pk %}">{{ wi.routing_operation.routing.routing_number }}</a> #{{ wi.routing_operation.sequence }}{% endif %}
+                        {% if wi.product %}{% if wi.routing_operation %} &middot; {% endif %}<a href="{% url 'plm:product_detail' wi.product.pk %}">{{ wi.product.sku }}</a>{% endif %}
+                    </td>
+                    <td class="small">{% if wi.current_version %}v{{ wi.current_version.version }}{% else %}-{% endif %}</td>
+                    <td>
+                        {% if wi.status == 'released' %}<span class="badge bg-success-subtle text-success">Released</span>
+                        {% elif wi.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary">Obsolete</span>
+                        {% else %}<span class="badge bg-warning-subtle text-warning">Draft</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'mes:instruction_detail' wi.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'mes:instruction_edit' wi.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mes:instruction_delete' wi.pk %}" style="display:inline" onsubmit="return confirm('Delete this instruction and all its versions?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No work instructions yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
