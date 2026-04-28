@@ -72,6 +72,11 @@ class SeasonalityProfileForm(forms.ModelForm):
         period_index = cleaned.get('period_index')
         if period_type == 'month' and period_index and period_index > 12:
             self.add_error('period_index', 'Monthly index must be 1–12.')
+        # F-13 (D-14): weekly indices must be 1-52; the model validator catches
+        # values > 52 but the resulting error is field-level rather than the
+        # friendly form-level message. Mirror the monthly check here.
+        if period_type == 'week' and period_index and period_index > 52:
+            self.add_error('period_index', 'Weekly index must be 1–52.')
         if self._tenant and product and period_type and period_index:
             qs = SeasonalityProfile.all_objects.filter(
                 tenant=self._tenant, product=product,
@@ -232,6 +237,16 @@ class MRPExceptionResolveForm(forms.ModelForm):
         model = MRPException
         fields = ('resolution_notes',)
         widgets = {'resolution_notes': forms.Textarea(attrs={'rows': 3})}
+
+    def clean_resolution_notes(self):
+        # F-12 (D-06): resolution_notes is optional on the model so the engine
+        # can synthesise exception rows without requiring a note. But operators
+        # closing an exception via the resolve flow MUST justify the closure
+        # for the audit trail.
+        notes = (self.cleaned_data.get('resolution_notes') or '').strip()
+        if not notes:
+            raise forms.ValidationError('Please add a resolution note.')
+        return notes
 
 
 # ---------------- 5.5  MRP Run ----------------
