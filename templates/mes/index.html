@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Shop Floor Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Shop Floor Control (MES)</h4>
+        <div class="text-muted small">Module 6 - work order execution, terminal, reporting, andon, and paperless work instructions.</div>
+    </div>
+    <div>
+        <a href="{% url 'mes:terminal' %}" class="btn btn-primary"><i class="ri-tablet-line me-1"></i> Operator Terminal</a>
+        <a href="{% url 'mes:andon_create' %}" class="btn btn-outline-danger"><i class="ri-alarm-warning-line me-1"></i> Raise Andon</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-primary-subtle rounded p-2 me-3"><i class="ri-tools-line text-primary fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Open Work Orders</div>
+                    <h4 class="mb-0">{{ open_work_orders|intcomma }}</h4>
+                    <div class="text-muted small">{{ in_progress_ops }} ops running</div>
+                </div>
+            </div>
+            <a href="{% url 'mes:work_order_list' %}" class="btn btn-sm btn-link p-0 mt-2">All work orders <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-danger-subtle rounded p-2 me-3"><i class="ri-alarm-warning-line text-danger fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Open Andon</div>
+                    <h4 class="mb-0">{{ open_andon|intcomma }}</h4>
+                    <div class="text-muted small">{{ critical_andon }} critical</div>
+                </div>
+            </div>
+            <a href="{% url 'mes:andon_list' %}" class="btn btn-sm btn-link p-0 mt-2">View list <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-checkbox-circle-line text-success fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Today's Good Qty</div>
+                    <h4 class="mb-0">{{ today_good_qty|intcomma }}</h4>
+                    <div class="text-muted small">scrap {{ today_scrap_qty }}</div>
+                </div>
+            </div>
+            <a href="{% url 'mes:report_list' %}" class="btn btn-sm btn-link p-0 mt-2">Production reports <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-info-subtle rounded p-2 me-3"><i class="ri-flag-line text-info fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Completed Today</div>
+                    <h4 class="mb-0">{{ completed_today|intcomma }}</h4>
+                    <div class="text-muted small">work orders finished</div>
+                </div>
+            </div>
+            <a href="{% url 'mes:instruction_list' %}" class="btn btn-sm btn-link p-0 mt-2">Work instructions <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-tools-line me-1"></i> Recent Work Orders</h5>
+                <a href="{% url 'mes:work_order_list' %}" class="btn btn-sm btn-link p-0">All <i class="ri-arrow-right-line"></i></a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Number</th><th>Product</th><th>Qty</th><th>Status</th><th>Priority</th></tr></thead>
+                    <tbody>
+                    {% for wo in recent_work_orders %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'mes:work_order_detail' wo.pk %}">{{ wo.wo_number }}</a></td>
+                            <td class="small">{{ wo.product.sku }}</td>
+                            <td class="small">{{ wo.quantity_to_build }}</td>
+                            <td>
+                                {% if wo.status == 'completed' %}<span class="badge bg-success text-white">Completed</span>
+                                {% elif wo.status == 'in_progress' %}<span class="badge bg-warning text-dark">In Progress</span>
+                                {% elif wo.status == 'on_hold' %}<span class="badge bg-secondary-subtle text-secondary">On Hold</span>
+                                {% elif wo.status == 'cancelled' %}<span class="badge bg-secondary text-white">Cancelled</span>
+                                {% else %}<span class="badge bg-info-subtle text-info">Dispatched</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if wo.priority == 'rush' %}<span class="badge bg-danger text-white">Rush</span>
+                                {% elif wo.priority == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                                {% else %}<span class="badge bg-light text-muted">{{ wo.get_priority_display }}</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No work orders yet - dispatch one from a released production order.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-alarm-warning-line me-1"></i> Open Andon Alerts</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Alert</th><th>Type</th><th>Severity</th></tr></thead>
+                    <tbody>
+                    {% for a in recent_andon %}
+                        <tr>
+                            <td class="small"><a href="{% url 'mes:andon_detail' a.pk %}">{{ a.alert_number }}</a> <span class="text-muted">- {{ a.title|truncatechars:30 }}</span></td>
+                            <td class="small">{{ a.get_alert_type_display }}</td>
+                            <td>
+                                {% if a.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                                {% elif a.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                                {% elif a.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-4">No open alerts.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
