@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, and **Module 5 — Material Requirements Planning (MRP)**. The remaining 17 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, and **Module 6 — Shop Floor Control (MES)**. The remaining 16 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -24,7 +24,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 14. [Module 3 — Bill of Materials (BOM) Management](#module-3--bill-of-materials-bom-management)
 15. [Module 4 — Production Planning & Scheduling](#module-4--production-planning--scheduling)
 16. [Module 5 — Material Requirements Planning (MRP)](#module-5--material-requirements-planning-mrp)
-17. [UI / Theme Customization](#ui--theme-customization)
+17. [Module 6 — Shop Floor Control (MES)](#module-6--shop-floor-control-mes)
+18. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
 20. [Security Notes](#security-notes)
@@ -43,6 +44,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 2 — Product Lifecycle Management (PLM)** — product master data with revisions, specs and variants; engineering change orders with submit/approve/reject/implement workflow; CAD/drawing repository with version control; product compliance tracking against global regulatory standards (ISO, RoHS, REACH, CE, UL, FCC, IPC); NPI/Stage-Gate project management with 7-stage gate reviews and deliverables.
 - **Module 3 — Bill of Materials (BOM) Management** — multi-level BOMs with self-referencing tree and phantom assemblies; transparent recursive explosion; immutable revision snapshots with one-click rollback; alternate / substitute material catalog with approval workflow; per-component cost elements (material / labor / overhead / tooling) with cascading roll-up through default released sub-assembly BOMs; EBOM / MBOM / SBOM discriminator with sync mappings and automated drift detection.
 - **Module 4 — Production Planning & Scheduling** — Master Production Schedule with horizon + time-bucket planning and draft → released workflow; demand forecasts (manual / sales-order / historical); work centers, working calendars, and recomputable capacity load with bottleneck flagging; routings with sequenced operations; production orders with forward / backward / infinite scheduling laid down on the calendar by a pure-function scheduler service; ApexCharts Gantt of scheduled operations; what-if scenario simulator that never mutates the base MPS; deterministic greedy optimizer with weighted objectives (changeovers / idle / lateness / priority) and before/after KPI deltas.
+- **Module 6 — Shop Floor Control (MES)** — one-click dispatch from a released `pps.ProductionOrder` into a `MESWorkOrder` (auto-numbered `WO-00001`) with per-routing-op fan-out; touchscreen operator terminal at `/mes/terminal/` with Start / Pause / Resume / Stop buttons backed by an append-only `OperatorTimeLog`; production reports (good / scrap / rework) that bump per-op denorms and roll up to the parent work order; andon alerts (quality / material / equipment / safety / other) with severity + acknowledge / resolve / cancel workflow; paperless work instructions with versioned content + 25 MB attachment + video URL, auth-gated downloads, automatic version supersession on release, and per-operator typed-signature acknowledgements.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
@@ -171,6 +173,26 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/mrp/requisitions/<pk>/` | PR detail with Approve / Cancel / Delete actions |
 | `/mrp/exceptions/` | MRP exception list with type / severity / status filters |
 | `/mrp/exceptions/<pk>/` | Exception detail with Acknowledge / Resolve / Ignore actions |
+| `/mes/` | MES dashboard — KPI cards (open WOs, in-progress ops, open andon, today's good qty, completed today), recent work orders + open andon alerts |
+| `/mes/terminal/` | Touchscreen operator terminal — clock in/out + open jobs grouped with Start / Pause / Resume / Stop / Report buttons |
+| `/mes/work-orders/` | MES work order list with status / priority filters; dispatched from PPS production orders |
+| `/mes/work-orders/<pk>/` | Work order detail with rollup (good/scrap/rework, hours actual/planned), operations table, recent reports, and Start / Hold / Complete / Cancel actions |
+| `/mes/operations/<pk>/` | Operation detail with time-log table + production-report table |
+| `/mes/operations/<pk>/start/` · `/pause/` · `/resume/` · `/stop/` | POST — operation lifecycle (records `OperatorTimeLog`, recomputes `actual_minutes`) |
+| `/mes/dispatch/<production_order_pk>/` | POST — dispatch a released PPS production order to the shop floor as a MES work order |
+| `/mes/operators/` | Operator profile list with active-status filter; create, edit, delete |
+| `/mes/operators/<pk>/clock-in/` · `/clock-out/` | POST — clock in/out (also reachable from the terminal) |
+| `/mes/time-logs/` | Append-only time-log list filterable by operator + action |
+| `/mes/reports/` | Production-report list filterable by scrap reason; create, view, delete |
+| `/mes/reports/new/` | File a production report against any open MES operation — bumps op denorms + work-order rollup transactionally |
+| `/mes/andon/` | Andon alert list filterable by type / severity / status |
+| `/mes/andon/<pk>/` | Andon detail with Acknowledge / Resolve / Cancel actions |
+| `/mes/instructions/` | Work-instruction list filterable by doc type / status / product |
+| `/mes/instructions/<pk>/` | Instruction detail with all versions, Acknowledge form, current-version content + downloads |
+| `/mes/instructions/<pk>/versions/new/` | Add a new draft version (content + 25 MB attachment + video URL) |
+| `/mes/instructions/versions/<pk>/release/` | POST — release a version (auto-obsoletes prior released version, updates `current_version`, invalidates prior acks) |
+| `/mes/instructions/versions/<pk>/download/` | Auth-gated download for a version's attachment |
+| `/mes/instructions/<pk>/ack/` | POST — operator typed-signature acknowledgement of the current released version |
 
 ---
 
@@ -282,7 +304,7 @@ NavMSM/
 │   │       └── seed_pps.py       # Idempotent demo data per tenant (work centers,
 │   │                             # MPS, routings, orders, scenario, optimizer run)
 │   │
-│   └── mrp/                      # MODULE 5 — Material Requirements Planning
+│   ├── mrp/                      # MODULE 5 — Material Requirements Planning
 │       ├── models.py             # ForecastModel, SeasonalityProfile, ForecastRun,
 │       │                         # ForecastResult, InventorySnapshot, ScheduledReceipt,
 │       │                         # MRPCalculation, NetRequirement,
@@ -301,9 +323,33 @@ NavMSM/
 │       ├── views.py              # Full CRUD + run lifecycle + workflow actions
 │       ├── urls.py
 │       ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_mrp.py       # Idempotent demo data per tenant (forecasts,
+│   │                             # inventory, receipts, completed MRP run)
+│   │
+│   └── mes/                      # MODULE 6 — Shop Floor Control (MES)
+│       ├── models.py             # MESWorkOrder, MESWorkOrderOperation,
+│       │                         # ShopFloorOperator, OperatorTimeLog,
+│       │                         # ProductionReport, AndonAlert,
+│       │                         # WorkInstruction, WorkInstructionVersion,
+│       │                         # WorkInstructionAcknowledgement
+│       ├── services/
+│       │   ├── dispatcher.py     # dispatch_production_order() — fans routing ops
+│       │   │                     # into MESWorkOrderOperation rows; idempotent
+│       │   ├── time_logging.py   # record_event() + pure compute_actual_minutes()
+│       │   └── reporting.py      # record_production() + rollup_work_order()
+│       ├── signals.py            # Audit-log receivers on MESWorkOrder /
+│       │                         # MESWorkOrderOperation / AndonAlert /
+│       │                         # WorkInstruction / WorkInstructionVersion;
+│       │                         # ack-version snapshot on save
+│       ├── forms.py              # ModelForms with file-extension allowlists +
+│       │                         # 25 MB cap; manual (tenant, …) uniqueness
+│       ├── views.py              # Full CRUD + workflow + Terminal kiosk + dispatch
+│       ├── urls.py
+│       ├── admin.py
 │       └── management/commands/
-│           └── seed_mrp.py       # Idempotent demo data per tenant (forecasts,
-│                                 # inventory, receipts, completed MRP run)
+│           └── seed_mes.py       # Idempotent demo data (operators, work orders,
+│                                 # time logs, reports, andon, instructions, acks)
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -315,7 +361,8 @@ NavMSM/
 │   ├── plm/                      # index, categories/, products/, eco/, cad/, compliance/, npi/
 │   ├── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
 │   ├── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
-│   └── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
+│   ├── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
+│   └── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -455,6 +502,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 2 — PLM)** — 8 categories (4 root + 4 child), 20 products spanning all product types with revisions A & B + specs + variants on finished goods, 5 ECOs in mixed statuses (draft / submitted / approved / implemented), 8 CAD documents, 16 compliance records linked to global standards, 3 NPI projects with all 7 stages and 1–3 deliverables per stage. CAD documents are seeded *without* binary files — upload real CAD files via the UI.
 - **Per tenant (Module 3 — BOM)** — 5 BOMs (mix of EBOM / MBOM / SBOM) attached to seeded finished-good products with 1 phantom assembly across the set, 27 cost elements covering material / labor / overhead / tooling, 6 alternate materials (mix of approved / pending), 2 substitution rules, an initial release-time `BOMRevision` snapshot per released BOM, an initial cost roll-up per BOM, and 2 `BOMSyncMap` entries — one in sync, one with seeded drift between EBOM and MBOM.
 - **Per tenant (Module 4 — PPS)** — 4 work centers (machine / labor / cell / assembly_line) each with Mon–Fri 08:00–17:00 calendars, 5 routings (one per seeded finished-good) with 2–4 sequenced operations, 8 demand forecasts spanning 2 weeks across 4 products, 1 released `MasterProductionSchedule` covering 4 weeks with 8 lines, 6 production orders in mixed statuses (planned / released / in_progress / completed) — released and in-progress orders carry full `ScheduledOperation` chains laid down by the forward scheduler — 56 daily `CapacityLoad` snapshots, 1 completed What-If scenario with 2 changes + KPI result, 1 default `OptimizationObjective`, and 1 completed `OptimizationRun` with before/after result.
+- **Per tenant (Module 6 — MES)** — 5 `ShopFloorOperator` profiles (badges `B0001`–`B0005`) linked to seeded staff users, up to 6 `MESWorkOrder`s dispatched from released / in-progress production orders (with the parent's status preserved) — each with its own `MESWorkOrderOperation` chain — ~12 `OperatorTimeLog` rows across the in-progress and completed work orders, ~8 `ProductionReport` rows with mixed scrap reasons, 4 `AndonAlert`s spanning open / acknowledged / resolved / cancelled states, 3 `WorkInstruction`s with 1–2 `WorkInstructionVersion`s each (one released, one draft) attached to seeded routing operations (one carries a `video_url`), and 4 `WorkInstructionAcknowledgement` rows on the released versions.
 - **Per tenant (Module 5 — MRP)** — 2 `ForecastModel`s (moving_avg + naive_seasonal), 24 monthly `SeasonalityProfile` rows across 2 finished-goods, 1 completed `ForecastRun` with 16 `ForecastResult` rows, 8 `InventorySnapshot` rows covering finished-goods + components with mixed lot-sizing rules (L4L / FOQ / POQ / Min-Max), 5 `ScheduledReceipt`s (open POs / planned production / transfers), 1 completed `MRPCalculation` (linked to the seeded MPS) with **19 planned orders**, **10 PR suggestions**, and **35 exceptions**, plus 1 completed `MRPRun` + `MRPRunResult` capturing coverage / planned-orders / late-orders KPIs.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
@@ -854,6 +902,69 @@ Workflow buttons (run detail page):
 
 ---
 
+## Module 6 — Shop Floor Control (MES)
+
+Module 6 is implemented in [`apps/mes/`](apps/mes/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (dispatch fan-out, time-log accounting, production rollup) lives behind small pure-function services in [`apps/mes/services/`](apps/mes/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 6.1 — Work Order Execution
+
+- **`MESWorkOrder`** — auto-numbered `WO-00001` per tenant; FK to `pps.ProductionOrder` (the source of truth for "what to build"); `status` workflow (`dispatched → in_progress → on_hold → completed`, plus `cancelled`); `quantity_to_build` / `quantity_completed` / `quantity_scrapped` denorms (rolled up from operations); `priority` (inherited from the production order at dispatch time, mutable for floor reprioritisation); audit stamps for `dispatched_by` / `completed_by`. Unique per `(tenant, wo_number)`.
+- **`MESWorkOrderOperation`** — one row per source `pps.RoutingOperation`, fanned out at dispatch time. Carries `sequence`, `operation_name`, `work_center`, `setup_minutes`, `run_minutes_per_unit`, `planned_minutes`, `actual_minutes` (recomputed from time logs), denormalised `total_good_qty / total_scrap_qty / total_rework_qty`, `status` (`pending` / `setup` / `running` / `paused` / `completed` / `skipped`), and `current_operator`.
+- **Dispatcher** — [`services/dispatcher.py`](apps/mes/services/dispatcher.py) creates the work order + per-routing-op operation rows in one `transaction.atomic` block. Idempotent: a re-dispatch of the same production order returns the existing non-cancelled work order rather than producing duplicates. The PPS production order is never mutated — its release / start / complete state remains the system-of-record for planning. A "Dispatch to Shop Floor" button on the released production-order detail page gives a one-click handoff.
+
+### Sub-module 6.2 — Operator Terminal Interface
+
+- **`ShopFloorOperator`** — thin one-to-one profile over `accounts.User` carrying `badge_number` (unique per tenant), `default_work_center`, `is_active`. Exists so a future kiosk-mode badge-scan login can key off `badge_number` without touching the auth user.
+- **`OperatorTimeLog`** — append-only event log: `(operator, work_order_operation, action, recorded_at, notes)` where action is `clock_in / clock_out / start_job / pause_job / resume_job / stop_job`. Admin UI marks the row read-only for non-superusers.
+- **Terminal page** at `/mes/terminal/` — touchscreen kiosk landing for the current operator: clock-in / clock-out toggle, list of all open operations grouped by priority, with big Start / Pause / Resume / Stop buttons and a deep link to the production-report form.
+- **Time-logging service** — [`services/time_logging.py`](apps/mes/services/time_logging.py) exposes `record_event(operator, action, work_order_operation=None)` which appends one log row, recomputes the parent operation's `actual_minutes` from accumulated start/pause/resume/stop pairs (a trailing un-stopped run is clamped to `now()`), flips the op's status, auto-promotes the parent work order from `dispatched → in_progress` on the first start, and auto-completes it once every op reaches a terminal state. The pure helper `compute_actual_minutes(time_logs)` is unit-testable without a database fixture.
+
+### Sub-module 6.3 — Production Reporting
+
+- **`ProductionReport`** — operator-filed quantities against an op: `good_qty / scrap_qty / rework_qty` (each `>= 0`), `scrap_reason` (`material_defect / setup_error / tooling / process / operator_error / other`), optional `cycle_time_minutes`, `reported_by`, `reported_at`. A single op can carry multiple reports (multi-shift, partial completions). Form-level `clean()` rejects all-zero submissions and requires a scrap reason once `scrap_qty > 0`.
+- **Reporting service** — [`services/reporting.py`](apps/mes/services/reporting.py) bumps the parent op's denorms (`total_good_qty / total_scrap_qty / total_rework_qty`) and rolls up to the parent work order (`quantity_completed / quantity_scrapped`) inside one `transaction.atomic`. The pure helper `rollup_work_order(work_order)` returns a `{good, scrap, rework, completed_pct, hours_actual, hours_planned}` dict for the detail page.
+- Deleting a production report rebuilds the op denorms by subtracting the deleted quantities and re-aggregates the parent work order — no orphan rollup state.
+
+### Sub-module 6.4 — Andon & Alert Management
+
+- **`AndonAlert`** — auto-numbered `AND-00001` per tenant; `alert_type` (`quality / material / equipment / safety / other`), `severity` (`low / medium / high / critical`), `title`, `message`, `work_center` FK, optional `work_order` and `work_order_operation` FKs (for tracing alerts to the exact job that triggered them). Workflow `open → acknowledged → resolved` (or `cancelled`) with separate timestamps + actors per transition. Each transition uses the conditional `UPDATE … WHERE status IN (…)` race-safe pattern.
+- The dashboard surfaces `open` and `acknowledged` alerts sorted by severity. The work-order detail page lists alerts that referenced its work order so the floor sees its own quality/material issues first.
+
+### Sub-module 6.5 — Paperless Work Instructions
+
+- **`WorkInstruction`** — auto-numbered `SOP-00001` per tenant; `doc_type` (`sop / setup_sheet / quality_check / safety / other`); links to a `pps.RoutingOperation`, a `plm.Product`, or both (validated by `Form.clean()` and the model's `clean()`); `status` (`draft / released / obsolete`); FK `current_version` always points at the latest released version.
+- **`WorkInstructionVersion`** — immutable revision per instruction with `version` string (`1.0`, `1.1`, `2.0`), `content` text, `attachment` `FileField` (allowlist `.pdf .png .jpg .jpeg .mp4 .docx .xlsx .txt`, 25 MB cap), `video_url`, `change_notes`, `status`, `uploaded_by`. Releasing a version atomically obsoletes any prior released version for the same instruction and updates `current_version` — there is always exactly one current version per instruction.
+- **`WorkInstructionAcknowledgement`** — typed-signature evidence per `(instruction, user, instruction_version)` (unique). The version is stored as a *snapshot string* so a deleted version row does not orphan the ack — the audit trail survives. A `pre_save` signal auto-fills the snapshot from `instruction.current_version.version` when the form omits it.
+- Auth-gated download view at `/mes/instructions/versions/<pk>/download/` mirrors the PLM CAD pattern: `get_object_or_404(..., tenant=request.tenant)` then `FileResponse` — a guessed `/media/mes/...` path would still hit the static mount in DEBUG but is never produced by the application.
+
+### Audit signals
+
+[`apps/mes/signals.py`](apps/mes/signals.py) wires:
+
+- `pre_save` + `post_save` on `MESWorkOrder` → `apps.tenants.TenantAuditLog` entries on creation and every status change (`mes_work_order.created`, `mes_work_order.<status>` with `meta={'from': old, 'to': new}`).
+- `post_save` on `MESWorkOrderOperation` → audit entries only on transitions to `running / paused / completed / skipped` (high-frequency model — no per-create entry).
+- `pre_save` + `post_save` on `AndonAlert` → audit on creation and every status change.
+- `post_save` on `WorkInstruction` and `WorkInstructionVersion` → audit on every status transition.
+- `pre_save` on `WorkInstructionAcknowledgement` → snapshot the `instruction_version` string before save so a future version deletion does not orphan the ack.
+
+### Operator vs Admin matrix
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages, terminal kiosk | Authenticated tenant user | `TenantRequiredMixin` |
+| Operator clock-in / clock-out, job start / pause / resume / stop, file production reports, raise andon alerts, acknowledge alerts, resolve alerts, acknowledge work instructions | Authenticated tenant user (operator) | `TenantRequiredMixin` |
+| Edit / delete work orders, dispatch from PPS, create / edit / delete operator profiles, edit / cancel andon alerts, create / edit / delete work instructions, add new versions, release / obsolete versions, delete production reports | Tenant admin | `TenantAdminRequiredMixin` |
+
+### Out of scope (deferred)
+
+- Badge-scan kiosk authentication (today: standard `LoginRequiredMixin` + `request.user.shop_floor_operator` lookup)
+- Per-station physical signage integration (Andon → physical light tower)
+- Statistical Process Control (SPC) charts on production reports
+- Sub-batch / lot serialisation on output quantities — Module 8 (Inventory) territory
+- Integration with the Quality module for in-line inspections — Module 7 (QMS) will consume `ProductionReport.scrap_reason` later
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -885,7 +996,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_bom [--flush]` | Seed BOM demo data (BOMs, lines, alternates, substitution rules, cost elements, sync maps) per tenant |
 | `python manage.py seed_pps [--flush]` | Seed PPS demo data (work centers, calendars, routings, MPS, production orders + scheduled operations, capacity load, scenario, optimizer run) per tenant |
 | `python manage.py seed_mrp [--flush]` | Seed MRP demo data (forecast models + seasonality + completed forecast run, inventory snapshots, scheduled receipts, completed MRP run with planned orders / PRs / exceptions) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` |
+| `python manage.py seed_mes [--flush]` | Seed MES demo data (operators, MES work orders fanned out from PPS production orders, time logs, production reports, andon alerts, work instructions with versions + acks) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -936,13 +1048,13 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), and **Module 5** (Material Requirements Planning). The 17 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), and **Module 6** (Shop Floor Control / MES). The 16 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
 4. ~~Production Planning & Scheduling~~ ✅ shipped
 5. ~~Material Requirements Planning (MRP)~~ ✅ shipped
-6. Shop Floor Control (MES)
+6. ~~Shop Floor Control (MES)~~ ✅ shipped
 7. Quality Management (QMS)
 8. Inventory & Warehouse
 9. Procurement & Supplier Portal
