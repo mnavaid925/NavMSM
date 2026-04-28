@@ -17,19 +17,50 @@ The engine writes:
 
 Modes:
     ``regenerative`` — wipes prior NetRequirement rows in horizon, recomputes everything.
-    ``net_change``   — incremental: only recomputes products whose demand or supply
-                       changed since the last run. (For v1, falls through to
-                       regenerative — net-change is a future optimization.)
+    ``net_change``   — v1: behaves identically to ``regenerative`` (delete + recompute).
+                       True net-change (diff demand/supply, update changed rows only)
+                       is deferred to a future optimisation pass. Until then we MUST
+                       delete prior rows or the bulk-create at step 4 violates the
+                       (mrp_calculation, product, period_start) unique constraint.
     ``simulation``   — same as regenerative but the calling view is expected to
                        gate the apply step. The engine itself is mode-agnostic
                        beyond that.
 """
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
 from . import lot_sizing
+
+
+_PR_SEQ_RE = re.compile(r'^MPR-(\d+)$')
+
+
+def _next_mpr_sequence(tenant):
+    """Return the next ``MPR-NNNNN`` number for ``tenant``, computed from the
+    largest existing MPR-prefixed value.
+
+    The caller wraps this in a retry-on-IntegrityError loop because two
+    concurrent engine runs can both observe the same max value.
+    """
+    from django.db.models import Max
+
+    from ..models import MRPPurchaseRequisition
+
+    last = (
+        MRPPurchaseRequisition.all_objects.filter(
+            tenant=tenant, pr_number__startswith='MPR-',
+        )
+        .aggregate(Max('pr_number'))['pr_number__max']
+    )
+    n = 1
+    if last:
+        m = _PR_SEQ_RE.match(str(last))
+        if m:
+            n = int(m.group(1)) + 1
+    return n
 
 
 @dataclass
@@ -159,21 +190,33 @@ def run_mrp(calculation, mode='regenerative'):  # noqa: C901 — algorithm clari
     # 2. Explode BOMs to compute dependent demand at each level
     # ------------------------------------------------------------------
     end_item_plans = list(plans.values())
-    for end_plan in end_item_plans:
-        bom = (
-            BillOfMaterials.objects.filter(
-                tenant=tenant, product_id=end_plan.product_id,
-                bom_type='mbom', status='released', is_default=True,
-            ).first()
-            or BillOfMaterials.objects.filter(
-                tenant=tenant, product_id=end_plan.product_id,
-                status='released', is_default=True,
-            ).first()
+    # F-09 (D-09): pre-fetch all released default BOMs in a single query and
+    # resolve in Python. Saves up to two DB round-trips per end item and
+    # collapses the loop's query budget from 2N to 1.
+    end_item_ids = [p.product_id for p in end_item_plans]
+    bom_pool = list(
+        BillOfMaterials.objects.filter(
+            tenant=tenant, product_id__in=end_item_ids,
+            status='released', is_default=True,
         )
+    )
+    bom_by_product = {}
+    for b in bom_pool:
+        existing = bom_by_product.get(b.product_id)
+        # Prefer MBOM over any other type for a given product.
+        if existing is None or (b.bom_type == 'mbom' and existing.bom_type != 'mbom'):
+            bom_by_product[b.product_id] = b
+
+    end_items_without_bom = [
+        p.product_id for p in end_item_plans if p.product_id not in bom_by_product
+    ]
+    if end_items_without_bom:
+        for product in Product.objects.filter(pk__in=end_items_without_bom):
+            summary.skipped_no_bom.append(product.sku)
+
+    for end_plan in end_item_plans:
+        bom = bom_by_product.get(end_plan.product_id)
         if bom is None:
-            product = Product.objects.filter(pk=end_plan.product_id).first()
-            if product:
-                summary.skipped_no_bom.append(product.sku)
             continue
         for level, line, expanded_qty in bom.explode():
             comp_plan = _ensure(line.component_id, level=level + 1, parent_id=end_plan.product_id)
@@ -217,11 +260,14 @@ def run_mrp(calculation, mode='regenerative'):  # noqa: C901 — algorithm clari
     # 4. Gross-to-net + lot sizing → NetRequirement rows
     # ------------------------------------------------------------------
     with transaction.atomic():
-        if mode in ('regenerative', 'simulation'):
-            NetRequirement.all_objects.filter(mrp_calculation=calculation).delete()
-            MRPPurchaseRequisition.all_objects.filter(
-                mrp_calculation=calculation,
-            ).filter(status='draft').delete()
+        # F-02 (D-02): all three modes wipe and recompute prior rows. True
+        # incremental net-change (diff and update-in-place) is deferred until
+        # we have a real benchmark of where the time goes; until then any
+        # branch that skipped this delete violated the unique_together below.
+        NetRequirement.all_objects.filter(mrp_calculation=calculation).delete()
+        MRPPurchaseRequisition.all_objects.filter(
+            mrp_calculation=calculation,
+        ).filter(status='draft').delete()
 
         net_rows = []
         pr_rows_data = []
@@ -293,25 +339,41 @@ def run_mrp(calculation, mode='regenerative'):  # noqa: C901 — algorithm clari
         )
 
         if purchased_ids:
-            existing_count = MRPPurchaseRequisition.all_objects.filter(
-                tenant=tenant, pr_number__startswith='MPR-',
-            ).count()
-            seq = existing_count + 1
+            from django.db import IntegrityError
+
+            seq = _next_mpr_sequence(tenant)
             for row in pr_rows_data:
                 if row['product_id'] not in purchased_ids:
                     continue
-                MRPPurchaseRequisition.all_objects.create(
-                    tenant=tenant,
-                    pr_number=f'MPR-{seq:05d}',
-                    mrp_calculation=calculation,
-                    product_id=row['product_id'],
-                    quantity=row['quantity'],
-                    required_by_date=row['required_by'],
-                    suggested_release_date=row['release'],
-                    status='draft',
-                    priority='normal',
-                )
+                # F-04 (D-04): retry on duplicate pr_number — concurrent engine
+                # runs on the same tenant can both observe the same starting
+                # sequence value and collide on unique_together(tenant, pr_number).
+                created = False
+                for attempt in range(5):
+                    try:
+                        with transaction.atomic():
+                            MRPPurchaseRequisition.all_objects.create(
+                                tenant=tenant,
+                                pr_number=f'MPR-{seq:05d}',
+                                mrp_calculation=calculation,
+                                product_id=row['product_id'],
+                                quantity=row['quantity'],
+                                required_by_date=row['required_by'],
+                                suggested_release_date=row['release'],
+                                status='draft',
+                                priority='normal',
+                            )
+                        created = True
+                        seq += 1
+                        break
+                    except IntegrityError:
+                        seq = _next_mpr_sequence(tenant)
+                        continue
+                if not created:
+                    summary.notes.append(
+                        f'Could not allocate PR number after 5 attempts for product {row["product_id"]}.'
+                    )
+                    continue
                 summary.total_pr_suggestions += 1
-                seq += 1
 
     return summary
