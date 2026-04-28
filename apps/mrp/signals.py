@@ -4,7 +4,7 @@ Status transitions on MRPRun, MRPCalculation, MRPPurchaseRequisition, and
 MRPException all write to apps.tenants.TenantAuditLog. Mirrors the PPS / BOM
 signal pattern.
 """
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
 from apps.core.models import get_current_tenant
@@ -127,3 +127,42 @@ def log_exc_save(sender, instance, created, **kwargs):
             meta={'exception_type': instance.exception_type,
                   'from': old, 'to': instance.status},
         )
+
+
+# ---- Destructive-op auditing (F-11 / D-10) -----------------------------------
+#
+# Per OWASP A09 every destructive action on a workflow row should leave an
+# audit trail. We register one post_delete receiver per sender so the meta
+# payload can carry the human-readable identifier (run_number / pr_number /
+# mrp_number) that callers care about during incident review.
+
+@receiver(post_delete, sender=MRPRun)
+def log_run_delete(sender, instance, **kwargs):
+    _tenant_audit(
+        'mrp_run.deleted', instance, getattr(instance, 'tenant', None),
+        meta={'run_number': instance.run_number, 'status': instance.status},
+    )
+
+
+@receiver(post_delete, sender=MRPCalculation)
+def log_calc_delete(sender, instance, **kwargs):
+    _tenant_audit(
+        'mrp_calculation.deleted', instance, getattr(instance, 'tenant', None),
+        meta={'mrp_number': instance.mrp_number, 'status': instance.status},
+    )
+
+
+@receiver(post_delete, sender=MRPPurchaseRequisition)
+def log_pr_delete(sender, instance, **kwargs):
+    _tenant_audit(
+        'mrp_pr.deleted', instance, getattr(instance, 'tenant', None),
+        meta={'pr_number': instance.pr_number, 'status': instance.status},
+    )
+
+
+@receiver(post_delete, sender=MRPException)
+def log_exc_delete(sender, instance, **kwargs):
+    _tenant_audit(
+        'mrp_exception.deleted', instance, getattr(instance, 'tenant', None),
+        meta={'exception_type': instance.exception_type, 'status': instance.status},
+    )
