@@ -1015,13 +1015,17 @@ class InstructionAcknowledgeView(TenantRequiredMixin, View):
             messages.error(request, 'Type your name to confirm acknowledgement.')
             return redirect('mes:instruction_detail', pk=pk)
         try:
-            WorkInstructionAcknowledgement.objects.create(
-                tenant=request.tenant,
-                instruction=wi,
-                instruction_version=wi.current_version.version,
-                user=request.user,
-                signature_text=form.cleaned_data['signature_text'],
-            )
+            # Wrap in an inner savepoint so a unique-constraint violation
+            # does not poison the surrounding request transaction (matters
+            # under ATOMIC_REQUESTS and inside the pytest atomic wrap).
+            with transaction.atomic():
+                WorkInstructionAcknowledgement.objects.create(
+                    tenant=request.tenant,
+                    instruction=wi,
+                    instruction_version=wi.current_version.version,
+                    user=request.user,
+                    signature_text=form.cleaned_data['signature_text'],
+                )
             messages.success(request, 'Acknowledgement recorded.')
         except IntegrityError:
             messages.info(request, 'You have already acknowledged this version.')
