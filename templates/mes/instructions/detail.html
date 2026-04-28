@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ instruction.instruction_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ instruction.instruction_number }} <small class="text-muted">- {{ instruction.title }}</small></h4>
+        <div class="text-muted small">
+            {{ instruction.get_doc_type_display }}
+            {% if instruction.routing_operation %}&middot; routing op <a href="{% url 'pps:routing_detail' instruction.routing_operation.routing.pk %}">{{ instruction.routing_operation.routing.routing_number }} #{{ instruction.routing_operation.sequence }}</a>{% endif %}
+            {% if instruction.product %}&middot; product <a href="{% url 'plm:product_detail' instruction.product.pk %}">{{ instruction.product.sku }}</a>{% endif %}
+        </div>
+    </div>
+    <div>
+        <a href="{% url 'mes:instruction_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'mes:instruction_edit' instruction.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <a href="{% url 'mes:instruction_version_create' instruction.pk %}" class="btn btn-success"><i class="ri-add-line"></i> Add Version</a>
+        <form method="post" action="{% url 'mes:instruction_delete' instruction.pk %}" style="display:inline" onsubmit="return confirm('Delete the instruction and all its versions?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        {% if instruction.current_version %}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Current version: v{{ instruction.current_version.version }}</h6>
+                <span class="badge bg-success-subtle text-success">Released</span>
+            </div>
+            <div class="card-body">
+                <p>{{ instruction.current_version.content|linebreaks|default:"(no content)" }}</p>
+                {% if instruction.current_version.attachment %}
+                <p><a href="{% url 'mes:instruction_version_download' instruction.current_version.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-download-2-line"></i> Download attachment</a></p>
+                {% endif %}
+                {% if instruction.current_version.video_url %}
+                <p><a href="{{ instruction.current_version.video_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info text-info"><i class="ri-video-line"></i> Watch video</a></p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">No released version yet - add a version and release it.</div>
+        {% endif %}
+
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0">All Versions</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Version</th><th>Status</th><th>Uploaded</th><th>By</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody>
+                    {% for v in versions %}
+                        <tr>
+                            <td class="small fw-semibold">v{{ v.version }}</td>
+                            <td>
+                                {% if v.status == 'released' %}<span class="badge bg-success-subtle text-success">Released</span>
+                                {% elif v.status == 'obsolete' %}<span class="badge bg-secondary-subtle text-secondary">Obsolete</span>
+                                {% else %}<span class="badge bg-warning-subtle text-warning">Draft</span>{% endif %}
+                            </td>
+                            <td class="small">{{ v.uploaded_at|date:"M j Y, H:i" }}</td>
+                            <td class="small">{{ v.uploaded_by.username|default:"-" }}</td>
+                            <td class="text-end">
+                                {% if v.attachment %}<a href="{% url 'mes:instruction_version_download' v.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-download-2-line"></i></a>{% endif %}
+                                {% if v.status == 'draft' %}
+                                <form method="post" action="{% url 'mes:instruction_version_release' v.pk %}" style="display:inline" onsubmit="return confirm('Release this version? Any prior released version becomes obsolete.');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-success"><i class="ri-send-plane-line"></i> Release</button>
+                                </form>
+                                {% endif %}
+                                {% if v.status == 'released' %}
+                                <form method="post" action="{% url 'mes:instruction_version_obsolete' v.pk %}" style="display:inline" onsubmit="return confirm('Mark this version obsolete?');">
+                                    {% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="ri-archive-line"></i> Obsolete</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">No versions yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if instruction.current_version %}
+        <div class="card"><div class="card-body">
+            <h6>Acknowledgement</h6>
+            {% if my_ack %}
+            <div class="alert alert-success small mb-0">You acknowledged v{{ my_ack.instruction_version }} on {{ my_ack.acknowledged_at|date:"M j Y, H:i" }}.</div>
+            {% else %}
+            <p class="text-muted small">Type your name to confirm you have read and understood the current version.</p>
+            <form method="post" action="{% url 'mes:instruction_acknowledge' instruction.pk %}">
+                {% csrf_token %}
+                {{ ack_form|crispy }}
+                <button class="btn btn-primary w-100"><i class="ri-check-line me-1"></i> Acknowledge v{{ instruction.current_version.version }}</button>
+            </form>
+            {% endif %}
+        </div></div>
+        {% endif %}
+
+        <div class="card mt-3"><div class="card-body">
+            <h6>Metadata</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Status</span>{{ instruction.get_status_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Created by</span>{{ instruction.created_by.username|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Released by</span>{{ instruction.released_by.username|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Released at</span><span class="small">{{ instruction.released_at|date:"M j Y, H:i"|default:"-" }}</span></li>
+            </ul>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
