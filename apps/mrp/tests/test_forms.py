@@ -198,3 +198,83 @@ class TestResolveForm:
             data={'resolution_notes': 'Resolved manually.'}, instance=exc,
         )
         assert form.is_valid(), form.errors
+
+
+# ---------------- D-19 — obsolete product / MPS no longer locks edits ----------------
+
+@pytest.mark.django_db
+class TestObsoleteRefEditableD19:
+    """Found while walking the manual test plan: any form that filtered
+    `Product.objects.exclude(status='obsolete')` (or `MasterProductionSchedule`)
+    locked editing of records whose referenced row went obsolete after creation.
+    The `_scoped_choices` helper now pins the existing instance value into the
+    queryset on edit while still hiding obsolete rows on create."""
+
+    def _payload_snapshot(self, product):
+        return {
+            'product': product.pk,
+            'on_hand_qty': '5', 'safety_stock': '1', 'reorder_point': '2',
+            'lead_time_days': 7, 'lot_size_method': 'l4l',
+            'lot_size_value': '0', 'lot_size_max': '0',
+            'as_of_date': date.today().isoformat(), 'notes': '',
+        }
+
+    def test_inventory_edit_works_when_product_obsolete(
+        self, acme, fg_product, snapshot_fg,
+    ):
+        # Make the referenced product obsolete after the snapshot exists.
+        fg_product.status = 'obsolete'
+        fg_product.save()
+        form = InventorySnapshotForm(
+            data=self._payload_snapshot(fg_product),
+            instance=snapshot_fg, tenant=acme,
+        )
+        assert form.is_valid(), form.errors
+
+    def test_inventory_create_still_excludes_obsolete(self, acme, fg_product):
+        fg_product.status = 'obsolete'
+        fg_product.save()
+        form = InventorySnapshotForm(
+            data=self._payload_snapshot(fg_product),
+            tenant=acme,
+        )
+        assert not form.is_valid()
+        assert 'product' in form.errors
+
+    def test_seasonality_edit_works_when_product_obsolete(
+        self, acme, fg_product,
+    ):
+        sp = SeasonalityProfile.objects.create(
+            tenant=acme, product=fg_product,
+            period_type='month', period_index=3,
+            seasonal_index=Decimal('1.05'),
+        )
+        fg_product.status = 'obsolete'
+        fg_product.save()
+        form = SeasonalityProfileForm(
+            data={
+                'product': fg_product.pk,
+                'period_type': 'month', 'period_index': 3,
+                'seasonal_index': '1.05', 'notes': '',
+            },
+            instance=sp, tenant=acme,
+        )
+        assert form.is_valid(), form.errors
+
+    def test_pr_edit_works_when_product_obsolete(
+        self, acme, calc, raw_product, make_pr,
+    ):
+        from datetime import timedelta
+        pr = make_pr(acme, calc, raw_product)
+        raw_product.status = 'obsolete'
+        raw_product.save()
+        form = MRPPurchaseRequisitionForm(
+            data={
+                'product': raw_product.pk, 'quantity': '10',
+                'required_by_date': (date.today() + timedelta(days=14)).isoformat(),
+                'suggested_release_date': (date.today() + timedelta(days=7)).isoformat(),
+                'priority': 'normal', 'notes': '',
+            },
+            instance=pr, tenant=acme,
+        )
+        assert form.is_valid(), form.errors
