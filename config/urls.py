@@ -13,6 +13,7 @@ urlpatterns = [
     path('bom/', include('apps.bom.urls')),
     path('pps/', include('apps.pps.urls')),
     path('mrp/', include('apps.mrp.urls')),
+    path('mes/', include('apps.mes.urls')),
 ]
 
 if settings.DEBUG:
