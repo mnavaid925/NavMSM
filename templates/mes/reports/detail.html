@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Production Report{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Production Report</h4>
+        <div class="text-muted small">{{ rpt.reported_at|date:"M j Y, H:i" }} on <a href="{% url 'mes:operation_detail' rpt.work_order_operation.pk %}">{{ rpt.work_order_operation.work_order.wo_number }} #{{ rpt.work_order_operation.sequence }}</a></div>
+    </div>
+    <div>
+        <a href="{% url 'mes:report_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <form method="post" action="{% url 'mes:report_delete' rpt.pk %}" style="display:inline" onsubmit="return confirm('Delete this report? Op totals will be adjusted.');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Work Order</span><a href="{% url 'mes:work_order_detail' rpt.work_order_operation.work_order.pk %}">{{ rpt.work_order_operation.work_order.wo_number }}</a></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Operation</span>{{ rpt.work_order_operation.operation_name }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Good qty</span><strong>{{ rpt.good_qty }}</strong></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scrap qty</span>{{ rpt.scrap_qty }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Rework qty</span>{{ rpt.rework_qty }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scrap reason</span>{{ rpt.get_scrap_reason_display|default:"-" }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Cycle time (mins)</span>{{ rpt.cycle_time_minutes|default:"-" }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Reported by</span>{{ rpt.reported_by.username|default:"-" }}</li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Reported at</span>{{ rpt.reported_at|date:"M j Y, H:i" }}</li>
+    </ul>
+    {% if rpt.notes %}<div class="mt-3"><h6>Notes</h6><p class="text-muted">{{ rpt.notes|linebreaks }}</p></div>{% endif %}
+</div></div>
+{% endblock %}
