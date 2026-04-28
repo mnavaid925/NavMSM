@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ alert.alert_number }} Andon{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ alert.alert_number }} <small class="text-muted">- {{ alert.title }}</small></h4>
+        <div class="text-muted small">{{ alert.get_alert_type_display }} &middot; raised at {{ alert.work_center.code }} on {{ alert.raised_at|date:"M j Y, H:i" }}</div>
+    </div>
+    <div>
+        <a href="{% url 'mes:andon_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if alert.status == 'open' or alert.status == 'acknowledged' %}
+        <a href="{% url 'mes:andon_edit' alert.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        {% endif %}
+        {% if alert.can_acknowledge %}
+        <form method="post" action="{% url 'mes:andon_acknowledge' alert.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-info text-white"><i class="ri-eye-line"></i> Acknowledge</button>
+        </form>
+        {% endif %}
+        {% if alert.can_cancel %}
+        <form method="post" action="{% url 'mes:andon_cancel' alert.pk %}" style="display:inline" onsubmit="return confirm('Cancel this alert?');">
+            {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-close-line"></i> Cancel</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card"><div class="card-body">
+            <div class="mb-2">
+                {% if alert.status == 'resolved' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Resolved</span>
+                {% elif alert.status == 'acknowledged' %}<span class="badge bg-info text-white fs-6 px-3 py-2">Acknowledged</span>
+                {% elif alert.status == 'cancelled' %}<span class="badge bg-secondary text-white fs-6 px-3 py-2">Cancelled</span>
+                {% else %}<span class="badge bg-danger text-white fs-6 px-3 py-2">Open</span>{% endif %}
+                {% if alert.severity == 'critical' %}<span class="badge bg-danger-subtle text-danger ms-2">Critical</span>
+                {% elif alert.severity == 'high' %}<span class="badge bg-warning-subtle text-warning ms-2">High</span>{% endif %}
+            </div>
+
+            <h6>Message</h6>
+            <p class="text-muted">{{ alert.message|linebreaks|default:"(no detail)" }}</p>
+
+            <ul class="list-group list-group-flush mt-3">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Type</span>{{ alert.get_alert_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Severity</span>{{ alert.get_severity_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Work Center</span><a href="{% url 'pps:work_center_detail' alert.work_center.pk %}">{{ alert.work_center.code }}</a></li>
+                {% if alert.work_order %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">Work Order</span><a href="{% url 'mes:work_order_detail' alert.work_order.pk %}">{{ alert.work_order.wo_number }}</a></li>{% endif %}
+                {% if alert.work_order_operation %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">Operation</span><a href="{% url 'mes:operation_detail' alert.work_order_operation.pk %}">#{{ alert.work_order_operation.sequence }} {{ alert.work_order_operation.operation_name }}</a></li>{% endif %}
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Raised by</span>{{ alert.raised_by.username|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Raised at</span><span class="small">{{ alert.raised_at|date:"M j Y, H:i" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Acknowledged</span><span class="small">{% if alert.acknowledged_at %}{{ alert.acknowledged_at|date:"M j Y, H:i" }} by {{ alert.acknowledged_by.username }}{% else %}-{% endif %}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Resolved</span><span class="small">{% if alert.resolved_at %}{{ alert.resolved_at|date:"M j Y, H:i" }} by {{ alert.resolved_by.username }}{% else %}-{% endif %}</span></li>
+            </ul>
+
+            {% if alert.resolution_notes %}<div class="mt-3"><h6>Resolution notes</h6><p class="text-muted">{{ alert.resolution_notes|linebreaks }}</p></div>{% endif %}
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        {% if alert.can_resolve %}
+        <div class="card"><div class="card-body">
+            <h6>Resolve Alert</h6>
+            <form method="post" action="{% url 'mes:andon_resolve' alert.pk %}">
+                {% csrf_token %}
+                {{ resolve_form|crispy }}
+                <button class="btn btn-success w-100"><i class="ri-check-line me-1"></i> Mark Resolved</button>
+            </form>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
