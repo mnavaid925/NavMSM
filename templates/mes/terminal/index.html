@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Operator Terminal{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Operator Terminal</h4>
+        <div class="text-muted small">Welcome, <strong>{{ operator.user.get_full_name|default:operator.user.username }}</strong> &middot; Badge <code>{{ operator.badge_number }}</code>{% if operator.default_work_center %} &middot; {{ operator.default_work_center.code }}{% endif %}</div>
+    </div>
+    <div>
+        {% if is_clocked_in %}
+            <span class="badge bg-success-subtle text-success me-2 fs-6 px-3 py-2">Clocked In</span>
+            <form method="post" action="{% url 'mes:operator_clock_out' operator.pk %}" style="display:inline">
+                {% csrf_token %}<button class="btn btn-warning btn-lg"><i class="ri-logout-circle-line"></i> Clock Out</button>
+            </form>
+        {% else %}
+            <span class="badge bg-secondary-subtle text-secondary me-2 fs-6 px-3 py-2">Clocked Out</span>
+            <form method="post" action="{% url 'mes:operator_clock_in' operator.pk %}" style="display:inline">
+                {% csrf_token %}<button class="btn btn-success btn-lg"><i class="ri-login-circle-line"></i> Clock In</button>
+            </form>
+        {% endif %}
+        <a href="{% url 'mes:andon_create' %}" class="btn btn-outline-danger btn-lg ms-2"><i class="ri-alarm-warning-line"></i> Raise Andon</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    {% for op in open_ops %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="mb-0"><a href="{% url 'mes:operation_detail' op.pk %}">{{ op.work_order.wo_number }} #{{ op.sequence }}</a></h5>
+                    {% if op.status == 'running' %}<span class="badge bg-warning text-dark">Running</span>
+                    {% elif op.status == 'paused' %}<span class="badge bg-info text-white">Paused</span>
+                    {% elif op.status == 'setup' %}<span class="badge bg-secondary text-white">Setup</span>
+                    {% else %}<span class="badge bg-light text-muted">Pending</span>{% endif %}
+                </div>
+                <p class="mb-1"><strong>{{ op.operation_name|truncatechars:40 }}</strong></p>
+                <p class="text-muted small mb-1">Product: {{ op.work_order.product.sku }} &middot; Qty: {{ op.work_order.quantity_to_build }}</p>
+                <p class="text-muted small mb-3">Work Center: <code>{{ op.work_center.code }}</code> &middot; Planned: {{ op.planned_minutes }}m</p>
+                <div class="d-grid gap-2">
+                    {% if op.can_start %}
+                    <form method="post" action="{% url 'mes:operation_start' op.pk %}">
+                        {% csrf_token %}<button class="btn btn-success btn-lg"><i class="ri-play-line"></i> Start Job</button>
+                    </form>
+                    {% endif %}
+                    {% if op.can_pause %}
+                    <form method="post" action="{% url 'mes:operation_pause' op.pk %}">
+                        {% csrf_token %}<button class="btn btn-warning btn-lg"><i class="ri-pause-line"></i> Pause</button>
+                    </form>
+                    {% endif %}
+                    {% if op.can_resume %}
+                    <form method="post" action="{% url 'mes:operation_resume' op.pk %}">
+                        {% csrf_token %}<button class="btn btn-info btn-lg text-white"><i class="ri-play-line"></i> Resume</button>
+                    </form>
+                    {% endif %}
+                    {% if op.can_stop %}
+                    <form method="post" action="{% url 'mes:operation_stop' op.pk %}" onsubmit="return confirm('Stop job and mark operation complete?');">
+                        {% csrf_token %}<button class="btn btn-outline-danger btn-lg"><i class="ri-stop-line"></i> Stop &amp; Complete</button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url 'mes:report_create' %}?op={{ op.pk }}" class="btn btn-outline-primary"><i class="ri-edit-2-line"></i> Report Quantities</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card"><div class="card-body text-center py-5 text-muted">
+            <i class="ri-checkbox-circle-line fs-1 d-block mb-2 text-success"></i>
+            No open jobs assigned to your work center. Check back when a work order is dispatched.
+        </div></div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
