@@ -9,6 +9,7 @@ import re
 from datetime import date, timedelta
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.contrib import messages
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
@@ -18,7 +19,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView
 
-from apps.accounts.views import TenantRequiredMixin
+from apps.accounts.views import TenantAdminRequiredMixin, TenantRequiredMixin
 from apps.plm.models import Product
 
 from .forms import (
@@ -40,6 +41,20 @@ from .services import mrp_engine
 # ============================================================================
 
 _SEQ_RE = re.compile(r'^[A-Z]+-(\d+)$')
+
+
+def _period_offset(start, period_type, n):
+    """Return ``start`` shifted forward ``n`` calendar periods of ``period_type``.
+
+    Used by the synthetic-history forecast path so that monthly periods land on
+    the same day-of-month rather than every 30 days (D-13). Daily and weekly
+    cases stay on simple timedelta arithmetic for predictability.
+    """
+    if period_type == 'day':
+        return start + timedelta(days=n)
+    if period_type == 'week':
+        return start + timedelta(days=7 * n)
+    return start + relativedelta(months=n)
 
 
 def _next_sequence_number(qs, field, prefix, width=5):
@@ -219,6 +234,8 @@ class ForecastModelRunView(TenantRequiredMixin, View):
     a realistic baseline; production will eventually pull from sales-order
     history once Module 17 (Sales) is built.
     """
+    PRODUCT_LIMIT = 8
+
     def post(self, request, pk):
         fm = get_object_or_404(ForecastModel, pk=pk, tenant=request.tenant)
 
@@ -239,55 +256,76 @@ class ForecastModelRunView(TenantRequiredMixin, View):
         run = _save_with_unique_number(_make)
 
         try:
-            today = date.today()
-            products = Product.objects.filter(
-                tenant=request.tenant, status='active',
-            )[:8]
-            results = []
-            params = fm.params or {}
-            horizon = fm.horizon_periods
-            step_days = 1 if fm.period_type == 'day' else (7 if fm.period_type == 'week' else 30)
-            for product in products:
-                # Synthetic history: last 12 periods at 100 ± noise from product pk.
-                pseudo = [Decimal(str(80 + (product.pk * 7) % 40 + (i * 3))) for i in range(12)]
-                if fm.method == 'naive_seasonal':
-                    profiles = list(SeasonalityProfile.objects.filter(
-                        tenant=request.tenant, product=product,
-                    ).order_by('period_index')[:12])
-                    indices = (
-                        [p.seasonal_index for p in profiles]
-                        if profiles else [Decimal('1')] * 12
-                    )
-                    forecast = forecast_service.naive_seasonal(pseudo, indices, horizon)
-                else:
-                    forecast = forecast_service.run_forecast(
-                        fm.method, pseudo, params, horizon,
-                    )
-                for i, qty in enumerate(forecast):
-                    ps = today + timedelta(days=step_days * i)
-                    pe = ps + timedelta(days=step_days - 1)
-                    results.append(ForecastResult(
-                        tenant=request.tenant, run=run,
-                        product=product, period_start=ps, period_end=pe,
-                        forecasted_qty=qty,
-                        lower_bound=qty * Decimal('0.85'),
-                        upper_bound=qty * Decimal('1.15'),
-                        confidence_pct=Decimal('80'),
-                    ))
-            ForecastResult.all_objects.bulk_create(results, batch_size=500)
-            run.status = 'completed'
-            run.finished_at = timezone.now()
-            run.save()
+            with transaction.atomic():
+                today = date.today()
+                active_qs = Product.objects.filter(
+                    tenant=request.tenant, status='active',
+                )
+                total_active = active_qs.count()
+                products = list(active_qs[:self.PRODUCT_LIMIT])
+                results = []
+                params = fm.params or {}
+                horizon = fm.horizon_periods
+                for product in products:
+                    pseudo = [
+                        Decimal(str(80 + (product.pk * 7) % 40 + (i * 3)))
+                        for i in range(12)
+                    ]
+                    if fm.method == 'naive_seasonal':
+                        profiles = list(SeasonalityProfile.objects.filter(
+                            tenant=request.tenant, product=product,
+                        ).order_by('period_index')[:12])
+                        indices = (
+                            [p.seasonal_index for p in profiles]
+                            if profiles else [Decimal('1')] * 12
+                        )
+                        forecast = forecast_service.naive_seasonal(pseudo, indices, horizon)
+                    else:
+                        forecast = forecast_service.run_forecast(
+                            fm.method, pseudo, params, horizon,
+                        )
+                    for i, qty in enumerate(forecast):
+                        ps = _period_offset(today, fm.period_type, i)
+                        pe = _period_offset(today, fm.period_type, i + 1) - timedelta(days=1)
+                        results.append(ForecastResult(
+                            tenant=request.tenant, run=run,
+                            product=product, period_start=ps, period_end=pe,
+                            forecasted_qty=qty,
+                            lower_bound=qty * Decimal('0.85'),
+                            upper_bound=qty * Decimal('1.15'),
+                            confidence_pct=Decimal('80'),
+                        ))
+                ForecastResult.all_objects.bulk_create(results, batch_size=500)
+                run.status = 'completed'
+                run.finished_at = timezone.now()
+                run.save()
             messages.success(
                 request,
                 f'Forecast {run.run_number} completed — produced {len(results)} forecast points.',
             )
+            # F-11 (D-12): warn the operator when the synthetic-history demo path
+            # truncated the active product set so they aren't surprised by missing
+            # SKUs in the forecast detail.
+            if total_active > self.PRODUCT_LIMIT:
+                messages.warning(
+                    request,
+                    f'Forecast covered the first {self.PRODUCT_LIMIT} of '
+                    f'{total_active} active products. The remaining '
+                    f'{total_active - self.PRODUCT_LIMIT} will be picked up '
+                    f'when sales-order history (Module 17) drives the forecast.',
+                )
         except Exception as exc:  # noqa: BLE001 — surface any unexpected error to the user
             run.status = 'failed'
             run.finished_at = timezone.now()
             run.error_message = str(exc)
             run.save()
-            messages.error(request, f'Forecast failed: {exc}')
+            # F-15 (D-18): never leak raw exception detail to the user — the
+            # full message is persisted on the run row for staff inspection.
+            messages.error(
+                request,
+                f'Forecast {run.run_number} failed — see the run detail for '
+                f'the captured error message.',
+            )
         return redirect('mrp:forecast_run_detail', pk=run.pk)
 
 
@@ -626,7 +664,7 @@ class CalculationDetailView(TenantRequiredMixin, View):
         })
 
 
-class CalculationDeleteView(TenantRequiredMixin, View):
+class CalculationDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         calc = get_object_or_404(MRPCalculation, pk=pk, tenant=request.tenant)
         if calc.status == 'committed':
@@ -635,7 +673,11 @@ class CalculationDeleteView(TenantRequiredMixin, View):
         try:
             calc.delete()
         except ProtectedError:
-            messages.error(request, 'Cannot delete — calculation is referenced.')
+            messages.error(
+                request,
+                'Cannot delete — one or more MRP runs reference this calculation. '
+                'Delete the runs first.',
+            )
             return redirect('mrp:calculation_detail', pk=pk)
         messages.success(request, 'MRP calculation deleted.')
         return redirect('mrp:calculation_list')
@@ -810,7 +852,7 @@ class RunStartView(TenantRequiredMixin, View):
         return redirect('mrp:run_detail', pk=run.pk)
 
 
-class RunApplyView(TenantRequiredMixin, View):
+class RunApplyView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         run = get_object_or_404(MRPRun, pk=pk, tenant=request.tenant)
         if not run.can_apply():
@@ -819,33 +861,39 @@ class RunApplyView(TenantRequiredMixin, View):
                 'Only completed Regenerative or Net-Change runs can be applied. Simulations are read-only.',
             )
             return redirect('mrp:run_detail', pk=pk)
-        ok = _atomic_status_transition(
-            MRPRun, pk, request.tenant, ['completed'], 'applied',
-            extra_fields={'applied_at': timezone.now()},
-        )
-        if ok:
-            MRPRun.objects.filter(pk=pk).update(applied_by=request.user)
-            MRPCalculation.objects.filter(pk=run.mrp_calculation_id).update(
-                status='committed', committed_at=timezone.now(),
-                committed_by=request.user,
+        # F-08 (D-08): both UPDATEs must commit together so the run + calc stay
+        # consistent under concurrent reviewers.
+        with transaction.atomic():
+            ok = _atomic_status_transition(
+                MRPRun, pk, request.tenant, ['completed'], 'applied',
+                extra_fields={'applied_at': timezone.now()},
             )
+            if ok:
+                MRPRun.objects.filter(pk=pk).update(applied_by=request.user)
+                MRPCalculation.objects.filter(pk=run.mrp_calculation_id).update(
+                    status='committed', committed_at=timezone.now(),
+                    committed_by=request.user,
+                )
+        if ok:
             messages.success(request, 'MRP run applied — calculation committed.')
         else:
             messages.warning(request, 'Run is not in Completed state.')
         return redirect('mrp:run_detail', pk=pk)
 
 
-class RunDiscardView(TenantRequiredMixin, View):
+class RunDiscardView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         run = get_object_or_404(MRPRun, pk=pk, tenant=request.tenant)
         if not run.can_discard():
             messages.warning(request, 'Only Completed or Failed runs can be discarded.')
             return redirect('mrp:run_detail', pk=pk)
-        ok = _atomic_status_transition(
-            MRPRun, pk, request.tenant, ['completed', 'failed'], 'discarded',
-        )
+        with transaction.atomic():
+            ok = _atomic_status_transition(
+                MRPRun, pk, request.tenant, ['completed', 'failed'], 'discarded',
+            )
+            if ok:
+                MRPCalculation.objects.filter(pk=run.mrp_calculation_id).update(status='discarded')
         if ok:
-            MRPCalculation.objects.filter(pk=run.mrp_calculation_id).update(status='discarded')
             messages.success(request, 'MRP run discarded.')
         else:
             messages.warning(request, 'Run could not be discarded.')
@@ -934,7 +982,7 @@ class PREditView(TenantRequiredMixin, View):
         return render(request, 'mrp/requisitions/form.html', {'form': form, 'pr': pr})
 
 
-class PRApproveView(TenantRequiredMixin, View):
+class PRApproveView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MRPPurchaseRequisition, pk, request.tenant, ['draft'], 'approved',
@@ -948,7 +996,7 @@ class PRApproveView(TenantRequiredMixin, View):
         return redirect('mrp:pr_detail', pk=pk)
 
 
-class PRCancelView(TenantRequiredMixin, View):
+class PRCancelView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MRPPurchaseRequisition, pk, request.tenant,
@@ -1022,7 +1070,7 @@ class ExceptionAckView(TenantRequiredMixin, View):
         return redirect('mrp:exception_detail', pk=pk)
 
 
-class ExceptionResolveView(TenantRequiredMixin, View):
+class ExceptionResolveView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         exc = get_object_or_404(MRPException, pk=pk, tenant=request.tenant)
         if exc.status not in ('open', 'acknowledged'):
@@ -1041,7 +1089,7 @@ class ExceptionResolveView(TenantRequiredMixin, View):
         return redirect('mrp:exception_detail', pk=pk)
 
 
-class ExceptionIgnoreView(TenantRequiredMixin, View):
+class ExceptionIgnoreView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         ok = _atomic_status_transition(
             MRPException, pk, request.tenant, ['open', 'acknowledged'], 'ignored',
@@ -1055,9 +1103,19 @@ class ExceptionIgnoreView(TenantRequiredMixin, View):
         return redirect('mrp:exception_detail', pk=pk)
 
 
-class ExceptionDeleteView(TenantRequiredMixin, View):
+class ExceptionDeleteView(TenantAdminRequiredMixin, View):
     def post(self, request, pk):
         exc = get_object_or_404(MRPException, pk=pk, tenant=request.tenant)
+        # F-07 (D-07): only resolved or ignored exceptions are deletable;
+        # open/acknowledged rows must follow the workflow so the audit trail
+        # captures the operator's reasoning.
+        if exc.status not in ('resolved', 'ignored'):
+            messages.error(
+                request,
+                'Only resolved or ignored exceptions can be deleted. '
+                'Resolve or ignore this exception first.',
+            )
+            return redirect('mrp:exception_detail', pk=pk)
         exc.delete()
         messages.success(request, 'Exception deleted.')
         return redirect('mrp:exception_list')
