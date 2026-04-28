@@ -132,6 +132,16 @@ class AndonResolveForm(forms.ModelForm):
         fields = ('resolution_notes',)
         widgets = {'resolution_notes': forms.Textarea(attrs={'rows': 3})}
 
+    def clean_resolution_notes(self):
+        # The model field is blank=True (so non-resolution edits don't require
+        # it), but RESOLVING the alert requires a real note for traceability.
+        notes = (self.cleaned_data.get('resolution_notes') or '').strip()
+        if not notes:
+            raise forms.ValidationError(
+                'A resolution note is required when resolving an alert.'
+            )
+        return notes
+
 
 # ---------------- 6.5  Work Instructions ----------------
 
