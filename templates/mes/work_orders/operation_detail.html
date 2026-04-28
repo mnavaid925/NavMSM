@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Operation #{{ op.sequence }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ op.work_order.wo_number }} #{{ op.sequence }} <small class="text-muted">- {{ op.operation_name }}</small></h4>
+        <div class="text-muted small">{{ op.work_order.product.sku }} &middot; Work Center <code>{{ op.work_center.code }}</code></div>
+    </div>
+    <div>
+        <a href="{% url 'mes:work_order_detail' op.work_order.pk %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back to Work Order</a>
+        {% if op.can_start %}
+        <form method="post" action="{% url 'mes:operation_start' op.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Start</button>
+        </form>
+        {% endif %}
+        {% if op.can_pause %}
+        <form method="post" action="{% url 'mes:operation_pause' op.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-warning"><i class="ri-pause-line"></i> Pause</button>
+        </form>
+        {% endif %}
+        {% if op.can_resume %}
+        <form method="post" action="{% url 'mes:operation_resume' op.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-info text-white"><i class="ri-play-line"></i> Resume</button>
+        </form>
+        {% endif %}
+        {% if op.can_stop %}
+        <form method="post" action="{% url 'mes:operation_stop' op.pk %}" style="display:inline" onsubmit="return confirm('Stop and complete this operation?');">
+            {% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-stop-line"></i> Stop</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'mes:report_create' %}?op={{ op.pk }}" class="btn btn-outline-primary"><i class="ri-edit-2-line"></i> Report</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card"><div class="card-body">
+            <h6>State</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Status</span><span><span class="badge bg-info-subtle text-info">{{ op.get_status_display }}</span></span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Good qty</span><strong>{{ op.total_good_qty }}</strong></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scrap qty</span>{{ op.total_scrap_qty }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Rework qty</span>{{ op.total_rework_qty }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Planned mins</span>{{ op.planned_minutes }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Actual mins</span>{{ op.actual_minutes }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Started at</span><span class="small">{{ op.started_at|date:"M j, H:i"|default:"-" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Completed at</span><span class="small">{{ op.completed_at|date:"M j, H:i"|default:"-" }}</span></li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Current operator</span>{% if op.current_operator %}{{ op.current_operator.username }}{% else %}-{% endif %}</li>
+            </ul>
+        </div></div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Production Reports</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>When</th><th>Good</th><th>Scrap</th><th>Rework</th><th>Reason</th><th>By</th><th></th></tr></thead>
+                    <tbody>
+                    {% for r in reports %}
+                        <tr>
+                            <td class="small">{{ r.reported_at|date:"M j H:i" }}</td>
+                            <td class="small fw-semibold">{{ r.good_qty }}</td>
+                            <td class="small">{{ r.scrap_qty }}</td>
+                            <td class="small">{{ r.rework_qty }}</td>
+                            <td class="small text-muted">{{ r.get_scrap_reason_display|default:"-" }}</td>
+                            <td class="small text-muted">{{ r.reported_by.username|default:"-" }}</td>
+                            <td class="text-end"><a href="{% url 'mes:report_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted py-3">No production reports yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0">Recent Time Logs</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>When</th><th>Operator</th><th>Action</th><th>Notes</th></tr></thead>
+                    <tbody>
+                    {% for t in time_logs %}
+                        <tr>
+                            <td class="small">{{ t.recorded_at|date:"M j H:i" }}</td>
+                            <td class="small">{{ t.operator.badge_number }} - {{ t.operator.user.username }}</td>
+                            <td class="small">{{ t.get_action_display }}</td>
+                            <td class="small text-muted">{{ t.notes|truncatechars:40 }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-3">No time logs.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
