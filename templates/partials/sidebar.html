@@ -116,6 +116,24 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarMES" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-tools-line"></i> <span>Shop Floor (MES)</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarMES" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'mes:index' %}" class="nav-link">MES Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:terminal' %}" class="nav-link">Operator Terminal</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:work_order_list' %}" class="nav-link">Work Orders</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:operator_list' %}" class="nav-link">Operators</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:time_log_list' %}" class="nav-link">Time Logs</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:report_list' %}" class="nav-link">Production Reports</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:andon_list' %}" class="nav-link">Andon Alerts</a></li>
+                            <li class="nav-item"><a href="{% url 'mes:instruction_list' %}" class="nav-link">Work Instructions</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
