@@ -110,6 +110,9 @@ def _seed_work_orders(tenant, admin_user, stdout):
             po.refresh_from_db()
         if po.routing_id is None:
             skipped_no_routing += 1
+            # BUG-04 fix: restore the temp status flip so PPS list filters stay accurate.
+            if original_status != 'released':
+                ProductionOrder.all_objects.filter(pk=po.pk).update(status=original_status)
             continue
         try:
             wo = dispatcher.dispatch_production_order(po, dispatched_by=admin_user)
@@ -184,7 +187,12 @@ def _seed_time_logs_and_reports(tenant, work_orders, operators, admin_user, stdo
         )
         log_count += 1
         target_status = 'completed' if wo.status == 'completed' else 'running'
+        # BUG-02 + BUG-03 fix: keep the report quantity, the op denormalised total, and
+        # the work-order rollup all in lockstep so the seeded data is internally
+        # consistent (no "report says 5 good but op says 0 good" mismatch).
         if target_status == 'completed':
+            good_qty = wo.quantity_to_build
+            scrap_qty = Decimal('1')
             OperatorTimeLog.all_objects.create(
                 tenant=tenant, operator=primary_operator,
                 work_order_operation=first_op,
@@ -197,12 +205,13 @@ def _seed_time_logs_and_reports(tenant, work_orders, operators, admin_user, stdo
                 started_at=now - timedelta(hours=3),
                 completed_at=now - timedelta(hours=1),
                 actual_minutes=Decimal('120.00'),
-                total_good_qty=wo.quantity_to_build,
+                total_good_qty=good_qty,
+                total_scrap_qty=scrap_qty,
             )
             ProductionReport.all_objects.create(
                 tenant=tenant, work_order_operation=first_op,
-                good_qty=wo.quantity_to_build,
-                scrap_qty=Decimal('1'),
+                good_qty=good_qty,
+                scrap_qty=scrap_qty,
                 rework_qty=Decimal('0'),
                 scrap_reason='material_defect',
                 cycle_time_minutes=Decimal('1.5'),
@@ -212,17 +221,20 @@ def _seed_time_logs_and_reports(tenant, work_orders, operators, admin_user, stdo
             )
             report_count += 1
         else:
+            good_qty = Decimal('5')
+            scrap_qty = Decimal('0')
             MESWorkOrderOperation.all_objects.filter(pk=first_op.pk).update(
                 status='running',
                 started_at=now - timedelta(hours=3),
                 actual_minutes=Decimal('60.00'),
                 current_operator=primary_operator.user,
-                total_good_qty=Decimal('0'),
+                total_good_qty=good_qty,
+                total_scrap_qty=scrap_qty,
             )
             ProductionReport.all_objects.create(
                 tenant=tenant, work_order_operation=first_op,
-                good_qty=Decimal('5'),
-                scrap_qty=Decimal('0'),
+                good_qty=good_qty,
+                scrap_qty=scrap_qty,
                 rework_qty=Decimal('0'),
                 scrap_reason='',
                 cycle_time_minutes=Decimal('1.2'),
@@ -231,13 +243,12 @@ def _seed_time_logs_and_reports(tenant, work_orders, operators, admin_user, stdo
                 notes='Seeded interim quantity report.',
             )
             report_count += 1
-        # Roll the parent work order rollup
-        agg_good = first_op.total_good_qty if target_status == 'completed' else Decimal('5')
+        # Roll the parent work order rollup using the same value we wrote to the op.
         MESWorkOrder.all_objects.filter(pk=wo.pk).update(
-            quantity_completed=agg_good,
-            quantity_scrapped=Decimal('1') if target_status == 'completed' else Decimal('0'),
+            quantity_completed=good_qty,
+            quantity_scrapped=scrap_qty,
         )
-    stdout.write(f'  time logs: {log_count} · production reports: {report_count}')
+    stdout.write(f'  time logs: {log_count} - production reports: {report_count}')
 
 
 # ---------------------------------------------------------------------------
