@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Andon Alerts{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Andon &amp; Alerts</h4>
+        <div class="text-muted small">Real-time visual alerts from the floor.</div>
+    </div>
+    <a href="{% url 'mes:andon_create' %}" class="btn btn-danger"><i class="ri-alarm-warning-line me-1"></i> Raise Alert</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search alerts..."></div>
+        <div class="col-md-2">
+            <select name="alert_type" class="form-select">
+                <option value="">Any type</option>
+                {% for v, label in type_choices %}<option value="{{ v }}" {% if request.GET.alert_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="severity" class="form-select">
+                <option value="">Any severity</option>
+                {% for v, label in severity_choices %}<option value="{{ v }}" {% if request.GET.severity == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select name="status" class="form-select">
+                <option value="">Any status</option>
+                {% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Number</th><th>Type</th><th>Severity</th><th>Title</th><th>Work Center</th><th>Status</th><th>Raised</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for a in alerts %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mes:andon_detail' a.pk %}">{{ a.alert_number }}</a></td>
+                    <td class="small">{{ a.get_alert_type_display }}</td>
+                    <td>
+                        {% if a.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                        {% elif a.severity == 'high' %}<span class="badge bg-warning text-dark">High</span>
+                        {% elif a.severity == 'medium' %}<span class="badge bg-info-subtle text-info">Medium</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Low</span>{% endif %}
+                    </td>
+                    <td class="small">{{ a.title|truncatechars:40 }}</td>
+                    <td class="small"><a href="{% url 'pps:work_center_detail' a.work_center.pk %}">{{ a.work_center.code }}</a></td>
+                    <td>
+                        {% if a.status == 'resolved' %}<span class="badge bg-success-subtle text-success">Resolved</span>
+                        {% elif a.status == 'acknowledged' %}<span class="badge bg-info-subtle text-info">Acknowledged</span>
+                        {% elif a.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>
+                        {% else %}<span class="badge bg-danger-subtle text-danger">Open</span>{% endif %}
+                    </td>
+                    <td class="small text-muted">{{ a.raised_at|date:"M j H:i" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mes:andon_detail' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if a.status == 'open' or a.status == 'acknowledged' %}
+                        <a href="{% url 'mes:andon_edit' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        {% endif %}
+                        <form method="post" action="{% url 'mes:andon_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete this alert?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No alerts.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
