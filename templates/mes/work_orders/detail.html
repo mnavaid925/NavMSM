@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}{{ wo.wo_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ wo.wo_number }} <small class="text-muted">- {{ wo.product.sku }} x {{ wo.quantity_to_build }}</small></h4>
+        <div class="text-muted small">{{ wo.product.name|truncatechars:60 }} &middot; from <a href="{% url 'pps:order_detail' wo.production_order.pk %}">{{ wo.production_order.order_number }}</a></div>
+    </div>
+    <div>
+        <a href="{% url 'mes:work_order_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if wo.is_editable %}
+        <a href="{% url 'mes:work_order_edit' wo.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        {% endif %}
+        {% if wo.can_start %}
+        <form method="post" action="{% url 'mes:work_order_start' wo.pk %}" style="display:inline" onsubmit="return confirm('Start this work order?');">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-play-line"></i> Start</button>
+        </form>
+        {% endif %}
+        {% if wo.can_hold %}
+        <form method="post" action="{% url 'mes:work_order_hold' wo.pk %}" style="display:inline">
+            {% csrf_token %}<button class="btn btn-warning"><i class="ri-pause-circle-line"></i> Hold</button>
+        </form>
+        {% endif %}
+        {% if wo.can_complete %}
+        <form method="post" action="{% url 'mes:work_order_complete' wo.pk %}" style="display:inline" onsubmit="return confirm('Mark work order complete?');">
+            {% csrf_token %}<button class="btn btn-success"><i class="ri-check-double-line"></i> Complete</button>
+        </form>
+        {% endif %}
+        {% if wo.can_cancel %}
+        <form method="post" action="{% url 'mes:work_order_cancel' wo.pk %}" style="display:inline" onsubmit="return confirm('Cancel this work order?');">
+            {% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-close-line"></i> Cancel</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card"><div class="card-body text-center">
+            {% if wo.status == 'completed' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Completed</span>
+            {% elif wo.status == 'in_progress' %}<span class="badge bg-warning text-dark fs-6 px-3 py-2">In Progress</span>
+            {% elif wo.status == 'on_hold' %}<span class="badge bg-secondary-subtle text-secondary fs-6 px-3 py-2">On Hold</span>
+            {% elif wo.status == 'cancelled' %}<span class="badge bg-secondary text-white fs-6 px-3 py-2">Cancelled</span>
+            {% else %}<span class="badge bg-info-subtle text-info fs-6 px-3 py-2">Dispatched</span>{% endif %}
+        </div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span><a href="{% url 'plm:product_detail' wo.product.pk %}">{{ wo.product.sku }}</a></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Source PO</span><a href="{% url 'pps:order_detail' wo.production_order.pk %}">{{ wo.production_order.order_number }}</a></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Quantity</span><strong>{{ wo.quantity_to_build }}</strong></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Completed</span>{{ rollup.good }} ({{ rollup.completed_pct }}%)</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Scrapped</span>{{ rollup.scrap }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Rework</span>{{ rollup.rework }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Hours actual / planned</span>{{ rollup.hours_actual }} / {{ rollup.hours_planned }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Priority</span>{{ wo.get_priority_display }}</li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Dispatched</span><span class="small">{{ wo.dispatched_at|date:"M j, H:i"|default:"-" }}</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Completed at</span><span class="small">{{ wo.completed_at|date:"M j, H:i"|default:"-" }}</span></li>
+        </ul>
+        </div>
+
+        {% if andon_alerts %}
+        <div class="card mt-3"><div class="card-body">
+            <h6><i class="ri-alarm-warning-line text-danger me-1"></i> Andon ({{ andon_alerts|length }})</h6>
+            <ul class="list-unstyled mb-0">
+            {% for a in andon_alerts %}
+                <li class="small"><a href="{% url 'mes:andon_detail' a.pk %}">{{ a.alert_number }}</a> - {{ a.title|truncatechars:35 }} <span class="badge bg-{{ a.severity }}-subtle">{{ a.get_severity_display }}</span></li>
+            {% endfor %}
+            </ul>
+        </div></div>
+        {% endif %}
+
+        {% if wo.notes %}
+        <div class="card mt-3"><div class="card-body">
+            <h6>Notes</h6><p class="text-muted">{{ wo.notes|linebreaks }}</p>
+        </div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Operations ({{ ops|length }})</h6>
+                <a href="{% url 'mes:report_create' %}" class="btn btn-sm btn-outline-primary"><i class="ri-edit-2-line me-1"></i> Report Production</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Seq</th><th>Operation</th><th>Work Center</th><th>Status</th><th>Good</th><th>Scrap</th><th>Mins (actual / planned)</th><th></th></tr></thead>
+                    <tbody>
+                    {% for op in ops %}
+                        <tr>
+                            <td class="small">{{ op.sequence }}</td>
+                            <td class="small">{{ op.operation_name|truncatechars:32 }}</td>
+                            <td class="small"><a href="{% url 'pps:work_center_detail' op.work_center.pk %}">{{ op.work_center.code }}</a></td>
+                            <td>
+                                {% if op.status == 'completed' %}<span class="badge bg-success-subtle text-success">Done</span>
+                                {% elif op.status == 'running' %}<span class="badge bg-warning-subtle text-warning">Running</span>
+                                {% elif op.status == 'paused' %}<span class="badge bg-info-subtle text-info">Paused</span>
+                                {% elif op.status == 'setup' %}<span class="badge bg-secondary-subtle text-secondary">Setup</span>
+                                {% elif op.status == 'skipped' %}<span class="badge bg-secondary-subtle text-secondary">Skipped</span>
+                                {% else %}<span class="badge bg-light text-muted">Pending</span>{% endif %}
+                            </td>
+                            <td class="small fw-semibold">{{ op.total_good_qty }}</td>
+                            <td class="small">{{ op.total_scrap_qty }}</td>
+                            <td class="small text-muted">{{ op.actual_minutes }} / {{ op.planned_minutes }}</td>
+                            <td><a href="{% url 'mes:operation_detail' op.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a></td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="8" class="text-center text-muted py-3">No operations - dispatcher could not fan them out.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h6 class="mb-0">Recent Production Reports</h6></div>
+            <div class="card-body p-0">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>When</th><th>Op</th><th>Good</th><th>Scrap</th><th>Rework</th><th>Reason</th><th>By</th></tr></thead>
+                    <tbody>
+                    {% for r in recent_reports %}
+                        <tr>
+                            <td class="small">{{ r.reported_at|date:"M j H:i" }}</td>
+                            <td class="small">#{{ r.work_order_operation.sequence }} {{ r.work_order_operation.operation_name|truncatechars:18 }}</td>
+                            <td class="small fw-semibold">{{ r.good_qty }}</td>
+                            <td class="small">{{ r.scrap_qty }}</td>
+                            <td class="small">{{ r.rework_qty }}</td>
+                            <td class="small text-muted">{{ r.get_scrap_reason_display|default:"-" }}</td>
+                            <td class="small text-muted">{{ r.reported_by.username|default:"-" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted py-3">No production reports yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
