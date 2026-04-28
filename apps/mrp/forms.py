@@ -8,6 +8,7 @@ field not present in ``cleaned_data``.
 from decimal import Decimal
 
 from django import forms
+from django.db.models import Q
 
 from apps.bom.models import BillOfMaterials
 from apps.plm.models import Product
@@ -17,6 +18,23 @@ from .models import (
     ForecastModel, ForecastRun, InventorySnapshot, MRPCalculation, MRPException,
     MRPPurchaseRequisition, MRPRun, ScheduledReceipt, SeasonalityProfile,
 )
+
+
+def _scoped_choices(model, tenant, *, exclude_status=None, instance_value_pk=None):
+    """Build a per-tenant choice queryset that always includes the current
+    instance's referenced row even if it now matches ``exclude_status``.
+
+    Without this, editing an MRP record whose product / MPS later went
+    obsolete fails with ``Select a valid choice. That choice is not one of
+    the available choices.`` — see defect D-19. The helper centralises the
+    "exclude obsolete on create, but pin the existing value on edit" pattern.
+    """
+    qs = model.objects.filter(tenant=tenant)
+    if exclude_status:
+        qs = qs.exclude(status=exclude_status)
+    if instance_value_pk is not None:
+        qs = qs | model.objects.filter(pk=instance_value_pk, tenant=tenant)
+    return qs.distinct()
 
 
 # ---------------- 5.1  Demand Forecasting ----------------
@@ -61,9 +79,10 @@ class SeasonalityProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self._tenant = tenant
         if tenant is not None:
-            self.fields['product'].queryset = Product.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['product'].queryset = _scoped_choices(
+                Product, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'product_id', None),
+            )
 
     def clean(self):
         cleaned = super().clean()
@@ -127,9 +146,10 @@ class InventorySnapshotForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self._tenant = tenant
         if tenant is not None:
-            self.fields['product'].queryset = Product.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['product'].queryset = _scoped_choices(
+                Product, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'product_id', None),
+            )
 
     def clean(self):
         cleaned = super().clean()
@@ -167,9 +187,10 @@ class ScheduledReceiptForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         if tenant is not None:
-            self.fields['product'].queryset = Product.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['product'].queryset = _scoped_choices(
+                Product, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'product_id', None),
+            )
 
 
 class MRPCalculationForm(forms.ModelForm):
@@ -185,9 +206,10 @@ class MRPCalculationForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         if tenant is not None:
-            self.fields['source_mps'].queryset = MasterProductionSchedule.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['source_mps'].queryset = _scoped_choices(
+                MasterProductionSchedule, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'source_mps_id', None),
+            )
             self.fields['source_mps'].required = False
 
     def clean(self):
@@ -217,9 +239,10 @@ class MRPPurchaseRequisitionForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         if tenant is not None:
-            self.fields['product'].queryset = Product.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['product'].queryset = _scoped_choices(
+                Product, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'product_id', None),
+            )
 
     def clean(self):
         cleaned = super().clean()
@@ -260,7 +283,8 @@ class MRPRunForm(forms.ModelForm):
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
         if tenant is not None:
-            self.fields['source_mps'].queryset = MasterProductionSchedule.objects.filter(
-                tenant=tenant,
-            ).exclude(status='obsolete')
+            self.fields['source_mps'].queryset = _scoped_choices(
+                MasterProductionSchedule, tenant, exclude_status='obsolete',
+                instance_value_pk=getattr(self.instance, 'source_mps_id', None),
+            )
             self.fields['source_mps'].required = False
