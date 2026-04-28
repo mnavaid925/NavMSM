@@ -403,11 +403,16 @@ The "**Shop Floor (MES)**" group sits between "Material Requirements (MRP)" and 
 
 > Tester adds rows here as defects are found. Severity guide: **Critical** = data loss / 500 / security; **High** = blocks workflow; **Medium** = wrong behavior with workaround; **Low** = polish; **Cosmetic** = minor visual.
 
-| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Screenshot | Browser |
+> **2026-04-29 walk-through results (static code review + pytest):** 6 defects surfaced and fixed. Each is locked in by a regression in [apps/mes/tests/test_seeder.py](../../apps/mes/tests/test_seeder.py). All 142 MES tests + 109 cross-module tests pass.
+
+| Bug ID | Test Case ID | Severity | Page URL | Steps to Reproduce | Expected | Actual | Fix | Status |
 |---|---|---|---|---|---|---|---|---|
-| BUG-01 |  |  |  |  |  |  |  |  |
-| BUG-02 |  |  |  |  |  |  |  |  |
-| BUG-03 |  |  |  |  |  |  |  |  |
+| BUG-01 | (seed setup) | Medium | `python manage.py seed_mes` | Run the seeder on a Windows PowerShell console | ASCII-only stdout per Lesson L-09 | Unicode `·` (U+00B7) at [`seed_mes.py:240`](../../apps/mes/management/commands/seed_mes.py#L240) crashed the seeder mid-tenant on cp1252 consoles | Replaced `·` with ` - ` | **Fixed** |
+| BUG-02 | TC-DETAIL-01 (completed WO) | High | `/mes/work-orders/<pk>/` | Run `seed_mes`, log in as `admin_acme`, open the completed WO detail | `quantity_completed` should equal `quantity_to_build` (matches the seeded production report) | `quantity_completed = 0` because [`seed_mes.py:235`](../../apps/mes/management/commands/seed_mes.py#L235) read `first_op.total_good_qty` from a stale Python variable BEFORE the `.update()` flushed the new value to DB | Refactored seeder to use one local variable for the value and write it consistently to report + op denorm + WO rollup | **Fixed** |
+| BUG-03 | TC-DETAIL-02 (in-progress op) | High | `/mes/operations/<pk>/` | Run `seed_mes`, open the running op | The op's `total_good_qty` should match the report's `good_qty` (5) | Op showed `total_good_qty=0` while the seeded `ProductionReport` said `good_qty=5` — internally inconsistent | Same refactor as BUG-02 — explicit `good_qty` / `scrap_qty` locals shared between op denorm + report row | **Fixed** |
+| BUG-04 | (seed corner case) | Low | seed runtime | Run `seed_mes` against a PPS PO that is in `in_progress` and has `routing=None` | Seeder restores the original PO status after the dispatch attempt | The `if po.routing_id is None: continue` branch at [`seed_mes.py:111-113`](../../apps/mes/management/commands/seed_mes.py#L111-L113) skipped the restore — the PO would be left as `released` | Added `if original_status != 'released': ProductionOrder.all_objects.filter(...).update(status=original_status)` to the early-continue branch | **Fixed** |
+| BUG-05 | TC-ACTION-12 | Medium | `/mes/andon/<pk>/resolve/` | Open an open andon → click **Mark Resolved** with blank notes | Form-level error: `A resolution note is required when resolving an alert.`; status NOT changed | View accepted blank notes and flipped the andon to `resolved`. Root cause: `resolution_notes` is `TextField(blank=True)` on the model; ModelForm inherited that, so empty input was valid | Added explicit `clean_resolution_notes` on `AndonResolveForm` ([`apps/mes/forms.py:118-126`](../../apps/mes/forms.py#L118-L126)) | **Fixed** |
+| BUG-06 | TC-ACTION-19 | Medium (test-only manifestation, latent in prod) | `/mes/instructions/<pk>/ack/` | POST a duplicate acknowledgement; in pytest, downstream queries crash with `TransactionManagementError` | Idempotent: second POST shows an info toast, no second row created, no transaction breakage | Without a savepoint, the `IntegrityError` poisoned the surrounding transaction (visible only under `ATOMIC_REQUESTS=True` or pytest atomic-wrap) | Wrapped the `WorkInstructionAcknowledgement.objects.create(...)` call in `with transaction.atomic():` so the unique-constraint failure stays inside an inner savepoint ([`apps/mes/views.py:541-554`](../../apps/mes/views.py#L541-L554)) | **Fixed** |
 
 ---
 
