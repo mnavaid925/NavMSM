@@ -147,3 +147,52 @@ Running log of corrections and rules. New lessons go to the bottom. Each entry i
 **How to apply:** every engine / service that creates rows with prefixed sequence identifiers should wrap each `.create()` in a 5-attempt try/except IntegrityError + recompute-next-number loop. Then assert in tests that pre-allocating the engine's "starting slot" does NOT crash subsequent calls — see [apps/mrp/tests/test_engine.py — TestEnginePRSequenceD04](../../apps/mrp/tests/test_engine.py).
 
 **Concrete example in repo:** [apps/mrp/services/mrp_engine.py — `_next_mpr_sequence`](../../apps/mrp/services/mrp_engine.py) — fixed 2026-04-29 in [.claude/tasks/mrp_sqa_fixes_todo.md](mrp_sqa_fixes_todo.md) F-04 (defect D-04).
+
+---
+
+## L-13 — Catching `IntegrityError` without an inner savepoint poisons the parent transaction
+
+**Rule:** When a view does `try: Model.objects.create(...) except IntegrityError:`, wrap the `create()` (or any single statement that may raise) inside an inner `with transaction.atomic():` block. Otherwise the failed statement leaves the parent transaction in a broken state, and any subsequent ORM call raises `TransactionManagementError: An error occurred in the current transaction. You can't execute queries until the end of the 'atomic' block.`
+
+**Why:** Django's transaction model says: an exception inside an atomic block aborts THAT atomic. With a NESTED atomic, only the inner savepoint is rolled back — the outer keeps going. Without the inner atomic, the failure aborts whichever atomic is active. Production usage with `ATOMIC_REQUESTS=True` and pytest-django's per-test transaction wrap both expose the bug; plain autocommit usage hides it. The toast still renders because flash messages don't hit the DB, so the bug looks fine in isolated manual testing.
+
+**How to apply:** any view that `try: ... except IntegrityError: ...` MUST wrap the protected call:
+```python
+try:
+    with transaction.atomic():
+        Model.objects.create(...)
+    messages.success(...)
+except IntegrityError:
+    messages.info(...)
+```
+Same rule applies to `ProtectedError` on delete paths and any other DB-error path where downstream queries follow.
+
+**Concrete example in repo:** [apps/mes/views.py — InstructionAcknowledgeView](../../apps/mes/views.py) — fixed 2026-04-29 (Module 6 manual-test walkthrough, BUG-06). Regression test in [apps/mes/tests/test_seeder.py — TestBug06AckSavepoint](../../apps/mes/tests/test_seeder.py).
+
+---
+
+## L-14 — `blank=True` on a model field doesn't mean every workflow ModelForm should accept blank
+
+**Rule:** A model field with `blank=True` allows empty values at the DB layer. A ModelForm built from that field inherits the same permissiveness. If you have a workflow where the field is REQUIRED at one transition (e.g. resolving an alert) but optional elsewhere (drafting an alert), add a `clean_<field>()` on the workflow-specific form — don't change `blank=True` on the model.
+
+**Why:** `AndonAlert.resolution_notes` is `TextField(blank=True)` because alerts in `open / acknowledged / cancelled` states have no resolution notes. But `AndonResolveForm` is the *resolve transition* — at that point a note is mandatory for traceability. The original ModelForm inherited `blank=True` and accepted whitespace input, which silently flipped the andon to `resolved` with empty `resolution_notes` — TC-ACTION-12 in the MES manual-test plan caught it. The success toast appeared even though no note was filed.
+
+**How to apply:** when a single field has different required-ness across workflows, define a per-workflow form (`SubmitForm`, `ResolveForm`, `ApproveForm`, etc.) with a `clean_<field>` that enforces the per-workflow rule. Keep the model permissive — it represents the union of all valid states. Tag the per-form override with a one-line comment explaining the workflow constraint.
+
+**Concrete example in repo:** [apps/mes/forms.py — AndonResolveForm.clean_resolution_notes](../../apps/mes/forms.py) — fixed 2026-04-29 (Module 6 manual-test walkthrough, BUG-05). Regression test in [apps/mes/tests/test_seeder.py — TestBug05AndonResolveRequiresNotes](../../apps/mes/tests/test_seeder.py).
+
+---
+
+## L-15 — Reading a denormalised field from a stale Python variable after `.update()`
+
+**Rule:** Django's `QuerySet.update(field=value)` writes directly to the DB and does NOT refresh in-memory model instances. If you read an updated field from the same Python variable later in the same function, you get the pre-update value. Either re-fetch from DB, call `instance.refresh_from_db(fields=['field'])`, or — preferably — keep the value you wrote in a local variable and reuse it.
+
+**Why:** The MES seeder's `_seed_time_logs_and_reports` did `MESWorkOrderOperation.all_objects.filter(...).update(total_good_qty=wo.quantity_to_build)` then later read `first_op.total_good_qty` to roll up the parent work order. The Python variable still held the value from the earlier `select_related` fetch (`Decimal('0')`), so the work order's `quantity_completed` was set to `0` even though the op's DB row said `10`. The seeded data became internally inconsistent — TC-DETAIL-01 in the MES manual test plan would catch the rollup mismatch.
+
+**How to apply:** anywhere you do `Model.objects.filter(...).update(...)` and use the same instance variable later, prefer:
+1. Capture the value in a local first: `new_value = some_calc(); Model.objects.filter(...).update(field=new_value); use(new_value)`.
+2. Or `instance.refresh_from_db(fields=['field'])` immediately after the `.update()`.
+
+Avoid `Model.save()` here only when there are signals you specifically want to skip; otherwise `instance.field = new_value; instance.save()` is the cleanest path because the instance stays in sync with the DB.
+
+**Concrete example in repo:** [apps/mes/management/commands/seed_mes.py — _seed_time_logs_and_reports](../../apps/mes/management/commands/seed_mes.py) — fixed 2026-04-29 (Module 6 manual-test walkthrough, BUG-02 / BUG-03). Regression test in [apps/mes/tests/test_seeder.py — TestBug02SeededRollupConsistency](../../apps/mes/tests/test_seeder.py).
