@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Operators{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Shop Floor Operators</h4>
+        <div class="text-muted small">Badge-issued workforce with default work-center routing.</div>
+    </div>
+    <a href="{% url 'mes:operator_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Operator</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-5"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Search by badge or name..."></div>
+        <div class="col-md-3">
+            <select name="active" class="form-select">
+                <option value="">Any state</option>
+                <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Badge</th><th>Name</th><th>Default Work Center</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for o in operators %}
+                <tr>
+                    <td class="fw-semibold"><a href="{% url 'mes:operator_detail' o.pk %}">{{ o.badge_number }}</a></td>
+                    <td class="small">{{ o.user.get_full_name|default:o.user.username }} <span class="text-muted">({{ o.user.username }})</span></td>
+                    <td class="small">{% if o.default_work_center %}<a href="{% url 'pps:work_center_detail' o.default_work_center.pk %}">{{ o.default_work_center.code }}</a>{% else %}-{% endif %}</td>
+                    <td>{% if o.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'mes:operator_detail' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'mes:operator_edit' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'mes:operator_delete' o.pk %}" style="display:inline" onsubmit="return confirm('Delete this operator?');">
+                            {% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No operator profiles yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if is_paginated %}
+    <nav><ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}
+    </ul></nav>
+    {% endif %}
+</div></div>
+{% endblock %}
