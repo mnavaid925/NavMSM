@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ plan.name }}</h4>
+        <div class="text-muted small">{{ plan.product.sku }} &middot; v{{ plan.version }}</div></div>
+    <div>
+        <a href="{% url 'qms:fqc_plan_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'qms:fqc_plan_edit' plan.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-header"><h5 class="card-title mb-0">Test Specifications</h5></div>
+            <div class="card-body p-0">
+                <table class="table mb-0 align-middle">
+                    <thead><tr><th>#</th><th>Test</th><th>Method</th><th>Spec</th><th>USL/LSL</th><th>Critical</th><th></th></tr></thead>
+                    <tbody>
+                    {% for s in specs %}<tr>
+                        <td class="small">{{ s.sequence|stringformat:"03d" }}</td>
+                        <td class="small">{{ s.test_name }}</td>
+                        <td class="small">{{ s.get_test_method_display }}</td>
+                        <td class="small">{{ s.nominal|default:"" }}{% if s.expected_result %}{{ s.expected_result }}{% endif %}</td>
+                        <td class="small">{{ s.usl|default:"-" }} / {{ s.lsl|default:"-" }}</td>
+                        <td>{% if s.is_critical %}<span class="badge bg-danger-subtle text-danger">Critical</span>{% endif %}</td>
+                        <td class="text-end">
+                            <form method="post" action="{% url 'qms:fqc_spec_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Remove this spec?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        </td>
+                    </tr>
+                    {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No test specs yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3"><div class="card-header"><h5 class="card-title mb-0">Add Test Spec</h5></div>
+            <div class="card-body">
+            <form method="post" action="{% url 'qms:fqc_spec_create' plan.pk %}">{% csrf_token %}{{ spec_form|crispy }}<button class="btn btn-primary"><i class="ri-add-line me-1"></i> Add</button></form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card"><div class="card-header"><h5 class="card-title mb-0">Recent Inspections</h5></div>
+            <div class="card-body p-0">
+            <table class="table mb-0 align-middle">
+                <thead><tr><th>Number</th><th>Lot</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for i in recent_inspections %}<tr>
+                    <td class="small"><a href="{% url 'qms:fqc_inspection_detail' i.pk %}">{{ i.inspection_number }}</a></td>
+                    <td class="small">{{ i.lot_number|default:"-" }}</td>
+                    <td>{% if i.status == 'passed' %}<span class="badge bg-success-subtle text-success">Passed</span>
+                        {% elif i.status == 'failed' %}<span class="badge bg-danger-subtle text-danger">Failed</span>
+                        {% elif i.status == 'released_with_deviation' %}<span class="badge bg-warning-subtle text-warning">Deviation</span>
+                        {% else %}<span class="badge bg-info-subtle text-info">{{ i.get_status_display }}</span>{% endif %}</td>
+                </tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No inspections yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        {% if plan.description %}<div class="card mt-3"><div class="card-body"><h6>Description</h6><p class="text-muted small">{{ plan.description|linebreaks }}</p></div></div>{% endif %}
+    </div>
+</div>
+{% endblock %}
