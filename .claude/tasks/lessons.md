@@ -196,3 +196,33 @@ Same rule applies to `ProtectedError` on delete paths and any other DB-error pat
 Avoid `Model.save()` here only when there are signals you specifically want to skip; otherwise `instance.field = new_value; instance.save()` is the cleanest path because the instance stays in sync with the DB.
 
 **Concrete example in repo:** [apps/mes/management/commands/seed_mes.py — _seed_time_logs_and_reports](../../apps/mes/management/commands/seed_mes.py) — fixed 2026-04-29 (Module 6 manual-test walkthrough, BUG-02 / BUG-03). Regression test in [apps/mes/tests/test_seeder.py — TestBug02SeededRollupConsistency](../../apps/mes/tests/test_seeder.py).
+
+---
+
+## L-16 — When a `post_save` signal denormalises onto the parent, seed the parent's denorm fields AFTER the children, via `.update()` (which bypasses signals)
+
+**Rule:** If a child model has a `post_save` signal that writes denormalised fields onto the parent (e.g. `CalibrationRecord` writes `last_calibrated_at` / `next_due_at` onto `MeasurementEquipment`), a seeder that needs the parent in a specific denormalised state MUST set those fields via `Parent.all_objects.filter(...).update(...)` AFTER the children have been bulk-created. Setting them on the parent row first — the obvious order — gets silently overwritten the moment a single child is saved through `.create()`.
+
+**Why:** The QMS seeder set `MeasurementEquipment.next_due_at = now + 5 days` to demo a "due-soon yellow row" on the dashboard. Then it seeded 8 calibration records via `CalibrationRecord.all_objects.create()`. The `_propagate_calibration_to_equipment` `post_save` signal fired on every record and pushed the equipment's `next_due_at` to `cal_at + interval_days` — months in the future. The dashboard never showed a single yellow or red row even though the seeder claimed to produce two. The manual test (TC-LIST-04 in `qms-manual-test.md`) caught it on the first pass.
+
+**How to apply:** for any seeder that wants the parent row in a specific denorm state, run `Parent.all_objects.filter(pk=...).update(field=value)` AS THE LAST STEP for that fixture. `.update()` bypasses Django signals (per `QuerySet.update()` docs). Bonus: the same trick lets seeders age data deliberately ("this calibration was filed 380 days ago, equipment is overdue") without the signal undoing the test fixture.
+
+**Concrete example in repo:** [apps/qms/management/commands/seed_qms.py — `_pin_equipment_due_dates`](../../apps/qms/management/commands/seed_qms.py) — added 2026-05-01 (Module 7 manual-test walkthrough, BUG-01).
+
+---
+
+## L-17 — `on_delete` on regulated/audit-trail child FKs is an audit decision, not just a referential decision — default to PROTECT
+
+**Rule:** When a child model represents a regulated or audit-trail record (CalibrationRecord, AuditLog, ApprovalDecision, NCR closure, certificate, payment, etc.), the FK to the parent MUST use `on_delete=models.PROTECT`. Otherwise a single click on the parent's Delete button silently destroys the entire history. CASCADE is appropriate ONLY when the child is structurally part of the parent (e.g., `MESWorkOrderOperation` rows under a `MESWorkOrder` — operations make no sense without their work order) AND there is no external regulatory reason to keep it.
+
+**Why:** `CalibrationRecord.equipment` was originally `on_delete=CASCADE`. The `EquipmentDeleteView` had a `try / except ProtectedError` block (copy-pasted from a model that did use PROTECT) — but PROTECT was never set, so the `ProtectedError` never raised, the catch block was dead code, and equipment with a full calibration history was silently deleted. Calibration records vanished with it. ISO/regulatory auditors would not have a calibration audit trail to review for any retired instrument. Manual test TC-DELETE-07 caught it: the test EXPECTED the delete to be blocked with the toast `Cannot delete - equipment has calibration history.` but the equipment was deleted instead.
+
+**How to apply:** when adding a new model with an FK, ask: "if the parent is deleted, is the child's history still useful or required?" If yes (audit, regulation, certification, payment, approval log, calibration log), use `PROTECT`. Add a `try / except ProtectedError` in the parent's delete view with a friendly toast naming the blocking child type. If the answer is no (purely structural composition), use CASCADE deliberately.
+
+When auditing existing models, a quick grep:
+```
+grep -rn "on_delete=models.CASCADE" apps/
+```
+followed by reading each child model name aloud — if the name has "Record", "Log", "Approval", "Certificate", "Audit", "Payment", "Acknowledgement", or similar, double-check that CASCADE is intentional.
+
+**Concrete example in repo:** [apps/qms/models.py — `CalibrationRecord.equipment`](../../apps/qms/models.py) — fixed 2026-05-01 in [apps/qms/migrations/0002_alter_calibrationrecord_equipment.py](../../apps/qms/migrations/0002_alter_calibrationrecord_equipment.py) (Module 7 manual-test walkthrough, BUG-02). Regression test in [apps/qms/tests/test_views_workflow.py — `test_equipment_with_calibration_history_protected_from_delete`](../../apps/qms/tests/test_views_workflow.py).
