@@ -23,3 +23,5 @@ class Command(BaseCommand):
         call_command('seed_mrp', flush=options.get('flush', False))
         self.stdout.write(self.style.HTTP_INFO('→ seed_mes'))
         call_command('seed_mes', flush=options.get('flush', False))
+        self.stdout.write(self.style.HTTP_INFO('→ seed_qms'))
+        call_command('seed_qms', flush=options.get('flush', False))
