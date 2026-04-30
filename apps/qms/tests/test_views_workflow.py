@@ -164,3 +164,21 @@ class TestCalibrationWorkflow:
         equipment.refresh_from_db()
         assert equipment.status == 'retired'
         assert equipment.is_active is False
+
+    def test_equipment_with_calibration_history_protected_from_delete(
+        self, admin_client, acme, equipment, acme_admin,
+    ):
+        """Lesson L-17: regulated audit-trail child models use PROTECT on the
+        parent FK so a single click cannot wipe the calibration history.
+        """
+        CalibrationRecord.objects.create(
+            tenant=acme, record_number='CAL-PROT-1',
+            equipment=equipment, calibrated_at=timezone.now(),
+            result='pass',
+        )
+        # Try to delete equipment - should fail with ProtectedError -> redirect + warning
+        admin_client.post(reverse('qms:equipment_delete', args=[equipment.pk]))
+        # Equipment must still exist, calibration record must still exist
+        equipment.refresh_from_db()
+        assert equipment.pk is not None
+        assert CalibrationRecord.objects.filter(equipment=equipment).count() == 1
