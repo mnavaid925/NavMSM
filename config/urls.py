@@ -14,6 +14,7 @@ urlpatterns = [
     path('pps/', include('apps.pps.urls')),
     path('mrp/', include('apps.mrp.urls')),
     path('mes/', include('apps.mes.urls')),
+    path('qms/', include('apps.qms.urls')),
 ]
 
 if settings.DEBUG:
