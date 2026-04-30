@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if inspection %}Edit{% else %}New{% endif %} FQC Inspection{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if inspection %}Edit Inspection - {{ inspection.inspection_number }}{% else %}New FQC Inspection{% endif %}</h4>
+    <a href="{% url 'qms:fqc_inspection_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex gap-2"><button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+<a href="{% url 'qms:fqc_inspection_list' %}" class="btn btn-light">Cancel</a></div>
+</form>
+</div></div>
+{% endblock %}
