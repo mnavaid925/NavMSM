@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}IPQC Plans{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">In-Process Inspection Plans</h4>
+        <div class="text-muted small">Per-routing-operation checkpoints &middot; SPC chart configuration.</div></div>
+    <a href="{% url 'qms:ipqc_plan_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Plan</a>
+</div>
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Plan, product, op..."></div>
+        <div class="col-md-3"><select name="chart_type" class="form-select"><option value="">Any chart</option>{% for v, label in chart_choices %}<option value="{{ v }}" {% if request.GET.chart_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><select name="frequency" class="form-select"><option value="">Any frequency</option>{% for v, label in frequency_choices %}<option value="{{ v }}" {% if request.GET.frequency == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Name</th><th>Product</th><th>Operation</th><th>Frequency</th><th>Chart</th><th>USL/LSL</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for p in plans %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'qms:ipqc_plan_detail' p.pk %}">{{ p.name }}</a></td>
+                    <td class="small">{{ p.product.sku }}</td>
+                    <td class="small">#{{ p.routing_operation.sequence }} {{ p.routing_operation.operation_name|truncatechars:20 }}</td>
+                    <td class="small">{{ p.get_frequency_display }} ({{ p.frequency_value }})</td>
+                    <td class="small">{{ p.get_chart_type_display }}</td>
+                    <td class="small">{{ p.usl|default:"-" }} / {{ p.lsl|default:"-" }}</td>
+                    <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'qms:ipqc_plan_detail' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'qms:ipqc_plan_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'qms:ipqc_plan_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete this plan?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No IPQC plans yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if is_paginated %}<nav><ul class="pagination justify-content-center mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}<li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}</ul></nav>{% endif %}
+</div></div>
+{% endblock %}
