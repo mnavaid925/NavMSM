@@ -591,6 +591,29 @@ def _seed_equipment(tenant, stdout):
     return equipment
 
 
+def _pin_equipment_due_dates(equipment, stdout):
+    """After calibrations have been bulk-seeded, force the first two
+    equipment items into deliberate due-soon / overdue states for the
+    dashboard demo (Lesson L-16: post_save signal on CalibrationRecord
+    overwrites the parent equipment's denorm fields, so we must use
+    .update() AFTER the children exist to bypass the signal).
+    """
+    if len(equipment) < 2:
+        return
+    now = timezone.now()
+    # Equipment 1 -> due in 5 days (yellow row)
+    MeasurementEquipment.all_objects.filter(pk=equipment[0].pk).update(
+        last_calibrated_at=now - timedelta(days=360),
+        next_due_at=now + timedelta(days=5),
+    )
+    # Equipment 2 -> overdue 15 days (red row)
+    MeasurementEquipment.all_objects.filter(pk=equipment[1].pk).update(
+        last_calibrated_at=now - timedelta(days=380),
+        next_due_at=now - timedelta(days=15),
+    )
+    stdout.write('  equipment due-dates: pinned 1 due-in-5d, 1 overdue')
+
+
 def _seed_calibrations(tenant, equipment, standards, admin_user, stdout):
     if CalibrationRecord.all_objects.filter(tenant=tenant).exists():
         stdout.write('  calibrations: skipped (already seeded)')
@@ -687,6 +710,7 @@ class Command(BaseCommand):
             standards = _seed_calibration_standards(tenant, self.stdout)
             equipment = _seed_equipment(tenant, self.stdout)
             _seed_calibrations(tenant, equipment, standards, admin_user, self.stdout)
+            _pin_equipment_due_dates(equipment, self.stdout)
 
         self.stdout.write(self.style.SUCCESS('\nQMS seed complete.'))
         self.stdout.write(self.style.WARNING(
