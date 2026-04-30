@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ plan.product.sku }} IQC Plan v{{ plan.version }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ plan.product.sku }} <small class="text-muted">- {{ plan.product.name }}</small></h4>
+        <div class="text-muted small">IQC Plan v{{ plan.version }} &middot; {{ plan.get_aql_level_display }} &middot; AQL {{ plan.aql_value }} &middot; {{ plan.get_sample_method_display }}</div>
+    </div>
+    <div>
+        <a href="{% url 'qms:iqc_plan_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'qms:iqc_plan_edit' plan.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Characteristics</h5>
+            <span class="badge bg-primary-subtle text-primary">{{ characteristics|length }} item{{ characteristics|length|pluralize }}</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="table mb-0 align-middle">
+                <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Nominal</th><th>USL</th><th>LSL</th><th>UoM</th><th>Critical</th><th></th></tr></thead>
+                <tbody>
+                {% for c in characteristics %}
+                <tr>
+                    <td class="small">{{ c.sequence|stringformat:"03d" }}</td>
+                    <td class="small">{{ c.name }}</td>
+                    <td class="small">{{ c.get_characteristic_type_display }}</td>
+                    <td class="small">{{ c.nominal|default:"-" }}</td>
+                    <td class="small">{{ c.usl|default:"-" }}</td>
+                    <td class="small">{{ c.lsl|default:"-" }}</td>
+                    <td class="small">{{ c.unit_of_measure }}</td>
+                    <td>{% if c.is_critical %}<span class="badge bg-danger-subtle text-danger">Critical</span>{% endif %}</td>
+                    <td class="text-end">
+                        <form method="post" action="{% url 'qms:iqc_characteristic_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Remove this characteristic?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="9" class="text-center text-muted py-3">No characteristics yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+
+        <div class="card mt-3"><div class="card-header"><h5 class="card-title mb-0">Add Characteristic</h5></div>
+            <div class="card-body">
+            <form method="post" action="{% url 'qms:iqc_characteristic_create' plan.pk %}">{% csrf_token %}
+                {{ characteristic_form|crispy }}
+                <button class="btn btn-primary"><i class="ri-add-line me-1"></i> Add</button>
+            </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card"><div class="card-header"><h5 class="card-title mb-0">Recent Inspections</h5></div>
+            <div class="card-body p-0">
+            <table class="table mb-0 align-middle">
+                <thead><tr><th>Number</th><th>Lot</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for i in recent_inspections %}
+                <tr><td class="small"><a href="{% url 'qms:iqc_inspection_detail' i.pk %}">{{ i.inspection_number }}</a></td>
+                    <td class="small">{{ i.lot_number|default:"-" }}</td>
+                    <td>{% if i.status == 'accepted' %}<span class="badge bg-success-subtle text-success">Accepted</span>
+                        {% elif i.status == 'rejected' %}<span class="badge bg-danger-subtle text-danger">Rejected</span>
+                        {% else %}<span class="badge bg-info-subtle text-info">{{ i.get_status_display }}</span>{% endif %}</td></tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No inspections yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+
+        {% if plan.description %}
+        <div class="card mt-3"><div class="card-body"><h6>Description</h6><p class="text-muted">{{ plan.description|linebreaks }}</p></div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
