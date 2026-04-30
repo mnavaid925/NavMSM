@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Calibration Standards{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Calibration Standards</h4>
+        <div class="text-muted small">Reference standards used during calibration (e.g. NIST-traceable gauge blocks).</div></div>
+    <a href="{% url 'qms:standard_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Standard</a>
+</div>
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-8"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Standard#, name..."></div>
+        <div class="col-md-2"><select name="active" class="form-select"><option value="">All</option><option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option><option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>Standard#</th><th>Name</th><th>Traceable to</th><th>Expiry</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for s in standards %}
+                <tr>
+                    <td class="small fw-semibold">{{ s.standard_number }}</td>
+                    <td class="small">{{ s.name }}</td>
+                    <td class="small">{{ s.traceable_to|default:"-" }}</td>
+                    <td class="small">{{ s.expiry_date|default:"-" }}</td>
+                    <td>{% if s.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'qms:standard_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'qms:standard_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete this standard?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No standards yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if is_paginated %}<nav><ul class="pagination justify-content-center mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}<li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}</ul></nav>{% endif %}
+</div></div>
+{% endblock %}
