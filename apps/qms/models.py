@@ -979,8 +979,11 @@ class CalibrationRecord(TenantAwareModel, TimeStampedModel):
     ]
 
     record_number = models.CharField(max_length=30)
+    # PROTECT so a deleted equipment record cannot silently erase its
+    # calibration history. The view layer surfaces ProtectedError as a
+    # toast: "Cannot delete - equipment has calibration history."
     equipment = models.ForeignKey(
-        MeasurementEquipment, on_delete=models.CASCADE,
+        MeasurementEquipment, on_delete=models.PROTECT,
         related_name='calibration_records',
     )
     calibrated_at = models.DateTimeField()
