@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Quality Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Quality Management (QMS)</h4>
+        <div class="text-muted small">Module 7 - IQC, IPQC, FQC, NCR/CAPA, calibration management.</div>
+    </div>
+    <div>
+        <a href="{% url 'qms:ncr_create' %}" class="btn btn-outline-danger"><i class="ri-error-warning-line me-1"></i> Raise NCR</a>
+        <a href="{% url 'qms:iqc_inspection_create' %}" class="btn btn-primary"><i class="ri-search-line me-1"></i> New IQC</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-danger-subtle rounded p-2 me-3"><i class="ri-error-warning-line text-danger fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Open NCRs</div>
+                    <h4 class="mb-0">{{ open_ncrs|intcomma }}</h4>
+                    <div class="text-muted small">{{ critical_ncrs }} critical</div>
+                </div>
+            </div>
+            <a href="{% url 'qms:ncr_list' %}?status=open" class="btn btn-sm btn-link p-0 mt-2">All NCRs <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-info-subtle rounded p-2 me-3"><i class="ri-inbox-line text-info fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">IQC Pending</div>
+                    <h4 class="mb-0">{{ iqc_pending|intcomma }}</h4>
+                    <div class="text-muted small">incoming inspections waiting</div>
+                </div>
+            </div>
+            <a href="{% url 'qms:iqc_inspection_list' %}?status=pending" class="btn btn-sm btn-link p-0 mt-2">View list <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-success-subtle rounded p-2 me-3"><i class="ri-checkbox-circle-line text-success fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">FQC Pending</div>
+                    <h4 class="mb-0">{{ fqc_pending|intcomma }}</h4>
+                    <div class="text-muted small">final inspections waiting</div>
+                </div>
+            </div>
+            <a href="{% url 'qms:fqc_inspection_list' %}?status=pending" class="btn btn-sm btn-link p-0 mt-2">View list <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-warning-subtle rounded p-2 me-3"><i class="ri-tools-line text-warning fs-4"></i></div>
+                <div>
+                    <div class="text-muted small text-uppercase">Calibration Due</div>
+                    <h4 class="mb-0">{{ equipment_due_soon|intcomma }}</h4>
+                    <div class="text-muted small">{{ equipment_overdue }} overdue</div>
+                </div>
+            </div>
+            <a href="{% url 'qms:equipment_list' %}?due=soon" class="btn btn-sm btn-link p-0 mt-2">Equipment due <i class="ri-arrow-right-line"></i></a>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="ri-error-warning-line me-1"></i> Recent NCRs</h5>
+                <a href="{% url 'qms:ncr_list' %}" class="btn btn-sm btn-link p-0">All <i class="ri-arrow-right-line"></i></a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>NCR#</th><th>Title</th><th>Source</th><th>Severity</th><th>Status</th></tr></thead>
+                    <tbody>
+                    {% for n in recent_ncrs %}
+                        <tr>
+                            <td class="fw-semibold"><a href="{% url 'qms:ncr_detail' n.pk %}">{{ n.ncr_number }}</a></td>
+                            <td class="small">{{ n.title|truncatechars:50 }}</td>
+                            <td class="small">{{ n.get_source_display }}</td>
+                            <td>
+                                {% if n.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                                {% elif n.severity == 'major' %}<span class="badge bg-warning text-dark">Major</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary">Minor</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if n.status == 'closed' %}<span class="badge bg-success text-white">Closed</span>
+                                {% elif n.status == 'cancelled' %}<span class="badge bg-secondary text-white">Cancelled</span>
+                                {% elif n.status == 'resolved' %}<span class="badge bg-info-subtle text-info">Resolved</span>
+                                {% elif n.status == 'awaiting_capa' %}<span class="badge bg-warning-subtle text-warning">Awaiting CAPA</span>
+                                {% elif n.status == 'investigating' %}<span class="badge bg-primary-subtle text-primary">Investigating</span>
+                                {% else %}<span class="badge bg-danger-subtle text-danger">Open</span>{% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No NCRs yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-tools-line me-1"></i> Equipment Due Soon</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Equipment</th><th>Type</th><th class="text-end">Due</th></tr></thead>
+                    <tbody>
+                    {% for e in due_equipment %}
+                        <tr {% if e.next_due_at and e.next_due_at < now %}class="table-danger"{% elif e.next_due_at and e.next_due_at <= soon_cutoff %}class="table-warning"{% endif %}>
+                            <td class="small"><a href="{% url 'qms:equipment_detail' e.pk %}">{{ e.equipment_number }}</a> <span class="text-muted">- {{ e.name|truncatechars:25 }}</span></td>
+                            <td class="small">{{ e.get_equipment_type_display }}</td>
+                            <td class="small text-end">{{ e.next_due_at|date:"M j Y"|default:"-" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted py-4">No equipment registered.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h5 class="card-title mb-0"><i class="ri-list-check me-1"></i> Open Corrective Actions</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>NCR</th><th>Action</th><th>Owner</th><th class="text-end">Due</th></tr></thead>
+                    <tbody>
+                    {% for c in open_capa_rows %}
+                        <tr>
+                            <td class="small"><a href="{% url 'qms:ncr_detail' c.ncr.pk %}">{{ c.ncr.ncr_number }}</a></td>
+                            <td class="small">{{ c.action_text|truncatechars:30 }}</td>
+                            <td class="small">{{ c.owner.username|default:"-" }}</td>
+                            <td class="small text-end">{{ c.due_date|date:"M j"|default:"-" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted py-4">No open corrective actions.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
