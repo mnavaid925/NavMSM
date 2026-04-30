@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Measurement Equipment{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Measurement Equipment</h4>
+        <div class="text-muted small">Calipers, gauges, scales &middot; calibration scheduling.</div></div>
+    <a href="{% url 'qms:equipment_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Equipment</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="EQP#, name, serial..."></div>
+        <div class="col-md-2"><select name="equipment_type" class="form-select"><option value="">Any type</option>{% for v, label in type_choices %}<option value="{{ v }}" {% if request.GET.equipment_type == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="status" class="form-select"><option value="">Any status</option>{% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="due" class="form-select"><option value="">All</option><option value="soon" {% if request.GET.due == 'soon' %}selected{% endif %}>Due in 7 days</option><option value="overdue" {% if request.GET.due == 'overdue' %}selected{% endif %}>Overdue</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>EQP#</th><th>Name</th><th>Type</th><th>Serial</th><th>Location</th><th>Last Cal</th><th>Next Due</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for e in equipment %}
+                <tr {% if e.next_due_at and e.next_due_at < now %}class="table-danger"{% elif e.next_due_at and e.next_due_at <= soon_cutoff %}class="table-warning"{% endif %}>
+                    <td class="small fw-semibold"><a href="{% url 'qms:equipment_detail' e.pk %}">{{ e.equipment_number }}</a></td>
+                    <td class="small">{{ e.name|truncatechars:25 }}</td>
+                    <td class="small">{{ e.get_equipment_type_display }}</td>
+                    <td class="small">{{ e.serial_number }}</td>
+                    <td class="small">{{ e.assigned_work_center.code|default:"-" }}</td>
+                    <td class="small">{{ e.last_calibrated_at|date:"M j Y"|default:"-" }}</td>
+                    <td class="small">{{ e.next_due_at|date:"M j Y"|default:"-" }}</td>
+                    <td>
+                        {% if e.status == 'active' %}<span class="badge bg-success-subtle text-success">Active</span>
+                        {% elif e.status == 'out_of_service' %}<span class="badge bg-warning-subtle text-warning">Out of Service</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Retired</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'qms:equipment_detail' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        <a href="{% url 'qms:equipment_edit' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        <a href="{% url 'qms:calibration_create' %}?equipment={{ e.pk }}" class="btn btn-sm btn-outline-success"><i class="ri-tools-line"></i> Calibrate</a>
+                        <form method="post" action="{% url 'qms:equipment_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No equipment registered.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if is_paginated %}<nav><ul class="pagination justify-content-center mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}<li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}</ul></nav>{% endif %}
+</div></div>
+{% endblock %}
