@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if plan %}Edit{% else %}New{% endif %} IQC Plan{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{% if plan %}Edit IQC Plan - {{ plan.product.sku }} v{{ plan.version }}{% else %}New IQC Plan{% endif %}</h4>
+    <a href="{% url 'qms:iqc_plan_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+<div class="card"><div class="card-body">
+    <form method="post">{% csrf_token %}{{ form|crispy }}
+        <div class="d-flex gap-2"><button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'qms:iqc_plan_list' %}" class="btn btn-light">Cancel</a></div>
+    </form>
+</div></div>
+{% endblock %}
