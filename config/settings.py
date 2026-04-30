@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'apps.pps',
     'apps.mrp',
     'apps.mes',
+    'apps.qms',
 ]
 
 MIDDLEWARE = [
