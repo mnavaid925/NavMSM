@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ ncr.ncr_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ ncr.ncr_number }} <small class="text-muted">- {{ ncr.title }}</small></h4>
+        <div class="text-muted small">{{ ncr.get_source_display }} &middot; {{ ncr.get_severity_display }} &middot; reported {{ ncr.reported_at|date:"M j Y, H:i" }}</div></div>
+    <div>
+        <a href="{% url 'qms:ncr_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        {% if ncr.is_editable %}<a href="{% url 'qms:ncr_edit' ncr.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>{% endif %}
+        {% if ncr.can_investigate %}<form method="post" action="{% url 'qms:ncr_investigate' ncr.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-info text-white"><i class="ri-search-line"></i> Investigate</button></form>{% endif %}
+        {% if ncr.can_await_capa %}<form method="post" action="{% url 'qms:ncr_await_capa' ncr.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-warning"><i class="ri-time-line"></i> Awaiting CAPA</button></form>{% endif %}
+        {% if ncr.can_resolve %}<form method="post" action="{% url 'qms:ncr_resolve' ncr.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-success"><i class="ri-checkbox-circle-line"></i> Resolve</button></form>{% endif %}
+        {% if ncr.can_cancel %}<form method="post" action="{% url 'qms:ncr_cancel' ncr.pk %}" style="display:inline" onsubmit="return confirm('Cancel this NCR?');">{% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-close-line"></i> Cancel</button></form>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-body">
+            <div class="mb-2">
+                {% if ncr.status == 'closed' %}<span class="badge bg-success text-white fs-6 px-3 py-2">Closed</span>
+                {% elif ncr.status == 'cancelled' %}<span class="badge bg-secondary text-white fs-6 px-3 py-2">Cancelled</span>
+                {% elif ncr.status == 'resolved' %}<span class="badge bg-info text-white fs-6 px-3 py-2">Resolved</span>
+                {% elif ncr.status == 'awaiting_capa' %}<span class="badge bg-warning text-dark fs-6 px-3 py-2">Awaiting CAPA</span>
+                {% elif ncr.status == 'investigating' %}<span class="badge bg-primary text-white fs-6 px-3 py-2">Investigating</span>
+                {% else %}<span class="badge bg-danger text-white fs-6 px-3 py-2">Open</span>{% endif %}
+            </div>
+            {% if ncr.description %}<div class="mb-3"><h6>Description</h6><p class="text-muted">{{ ncr.description|linebreaks }}</p></div>{% endif %}
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Product</span>{{ ncr.product.sku|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Lot</span>{{ ncr.lot_number|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Quantity Affected</span>{{ ncr.quantity_affected }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Reported by</span>{{ ncr.reported_by.username|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Assigned to</span>{{ ncr.assigned_to.username|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Closed</span>{% if ncr.closed_at %}{{ ncr.closed_at|date:"M j Y, H:i" }} by {{ ncr.closed_by.username }}{% else %}-{% endif %}</li>
+                {% if ncr.iqc_inspection %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">IQC source</span><a href="{% url 'qms:iqc_inspection_detail' ncr.iqc_inspection.pk %}">{{ ncr.iqc_inspection.inspection_number }}</a></li>{% endif %}
+                {% if ncr.ipqc_inspection %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">IPQC source</span><a href="{% url 'qms:ipqc_inspection_detail' ncr.ipqc_inspection.pk %}">{{ ncr.ipqc_inspection.inspection_number }}</a></li>{% endif %}
+                {% if ncr.fqc_inspection %}<li class="list-group-item d-flex justify-content-between"><span class="text-muted">FQC source</span><a href="{% url 'qms:fqc_inspection_detail' ncr.fqc_inspection.pk %}">{{ ncr.fqc_inspection.inspection_number }}</a></li>{% endif %}
+            </ul>
+            {% if ncr.resolution_summary %}<div class="mt-3"><h6>Resolution Summary</h6><p class="text-muted">{{ ncr.resolution_summary|linebreaks }}</p></div>{% endif %}
+        </div></div>
+
+        <ul class="nav nav-tabs mt-4" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#rca-tab">Root Cause</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ca-tab">Corrective Actions ({{ cas|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#pa-tab">Preventive Actions ({{ pas|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#att-tab">Attachments ({{ attachments|length }})</a></li>
+        </ul>
+        <div class="tab-content border border-top-0 p-3 bg-white">
+            <div class="tab-pane fade show active" id="rca-tab">
+                <form method="post" action="{% url 'qms:ncr_rca_edit' ncr.pk %}">{% csrf_token %}{{ rca_form|crispy }}<button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save RCA</button></form>
+            </div>
+            <div class="tab-pane fade" id="ca-tab">
+                <table class="table align-middle">
+                    <thead><tr><th>#</th><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                    {% for c in cas %}<tr>
+                        <td class="small">#{{ c.sequence }}</td>
+                        <td class="small">{{ c.action_text|truncatechars:60 }}</td>
+                        <td class="small">{{ c.owner.username|default:"-" }}</td>
+                        <td class="small">{{ c.due_date|default:"-" }}</td>
+                        <td>{% if c.status == 'completed' %}<span class="badge bg-success-subtle text-success">Done</span>{% elif c.status == 'in_progress' %}<span class="badge bg-info-subtle text-info">In Progress</span>{% elif c.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>{% else %}<span class="badge bg-warning-subtle text-warning">Open</span>{% endif %}</td>
+                        <td class="text-end">
+                            <a href="{% url 'qms:ca_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            {% if c.can_complete %}<form method="post" action="{% url 'qms:ca_complete' c.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-success"><i class="ri-check-line"></i></button></form>{% endif %}
+                            <form method="post" action="{% url 'qms:ca_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        </td>
+                    </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No corrective actions yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+                <hr><h6>Add Corrective Action</h6>
+                <form method="post" action="{% url 'qms:ca_create' ncr.pk %}">{% csrf_token %}{{ ca_form|crispy }}<button class="btn btn-primary"><i class="ri-add-line me-1"></i> Add</button></form>
+            </div>
+            <div class="tab-pane fade" id="pa-tab">
+                <table class="table align-middle">
+                    <thead><tr><th>#</th><th>Action</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                    {% for p in pas %}<tr>
+                        <td class="small">#{{ p.sequence }}</td>
+                        <td class="small">{{ p.action_text|truncatechars:60 }}</td>
+                        <td class="small">{{ p.owner.username|default:"-" }}</td>
+                        <td class="small">{{ p.due_date|default:"-" }}</td>
+                        <td>{% if p.status == 'completed' %}<span class="badge bg-success-subtle text-success">Done</span>{% elif p.status == 'in_progress' %}<span class="badge bg-info-subtle text-info">In Progress</span>{% elif p.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">Cancelled</span>{% else %}<span class="badge bg-warning-subtle text-warning">Open</span>{% endif %}</td>
+                        <td class="text-end">
+                            <a href="{% url 'qms:pa_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            {% if p.can_complete %}<form method="post" action="{% url 'qms:pa_complete' p.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-success"><i class="ri-check-line"></i></button></form>{% endif %}
+                            <form method="post" action="{% url 'qms:pa_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        </td>
+                    </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No preventive actions yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+                <hr><h6>Add Preventive Action</h6>
+                <form method="post" action="{% url 'qms:pa_create' ncr.pk %}">{% csrf_token %}{{ pa_form|crispy }}<button class="btn btn-primary"><i class="ri-add-line me-1"></i> Add</button></form>
+            </div>
+            <div class="tab-pane fade" id="att-tab">
+                <ul class="list-group mb-3">
+                {% for a in attachments %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div><a href="{% url 'qms:ncr_attachment_download' a.pk %}"><i class="ri-attachment-line"></i> {{ a.description|default:a.file.name }}</a> <span class="text-muted small ms-2">{{ a.uploaded_by.username }} on {{ a.created_at|date:"M j, H:i" }}</span></div>
+                        <form method="post" action="{% url 'qms:ncr_attachment_delete' a.pk %}" onsubmit="return confirm('Delete attachment?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </li>
+                {% empty %}<li class="list-group-item text-muted">No attachments.</li>{% endfor %}
+                </ul>
+                <hr><h6>Add Attachment</h6>
+                <form method="post" action="{% url 'qms:ncr_attachment_create' ncr.pk %}" enctype="multipart/form-data">{% csrf_token %}{{ attachment_form|crispy }}<button class="btn btn-primary"><i class="ri-upload-line me-1"></i> Upload</button></form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if ncr.status == 'resolved' %}
+        <div class="card"><div class="card-body">
+            <h6>Close NCR</h6>
+            <form method="post" action="{% url 'qms:ncr_close' ncr.pk %}">{% csrf_token %}{{ close_form|crispy }}
+            <button class="btn btn-success w-100"><i class="ri-checkbox-circle-line me-1"></i> Close NCR</button></form>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
