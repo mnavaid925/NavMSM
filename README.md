@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, and **Module 6 — Shop Floor Control (MES)**. The remaining 16 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, and **Module 7 — Quality Management (QMS)**. The remaining 15 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -25,6 +25,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 15. [Module 4 — Production Planning & Scheduling](#module-4--production-planning--scheduling)
 16. [Module 5 — Material Requirements Planning (MRP)](#module-5--material-requirements-planning-mrp)
 17. [Module 6 — Shop Floor Control (MES)](#module-6--shop-floor-control-mes)
+18. [Module 7 — Quality Management (QMS)](#module-7--quality-management-qms)
 18. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
@@ -45,6 +46,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 3 — Bill of Materials (BOM) Management** — multi-level BOMs with self-referencing tree and phantom assemblies; transparent recursive explosion; immutable revision snapshots with one-click rollback; alternate / substitute material catalog with approval workflow; per-component cost elements (material / labor / overhead / tooling) with cascading roll-up through default released sub-assembly BOMs; EBOM / MBOM / SBOM discriminator with sync mappings and automated drift detection.
 - **Module 4 — Production Planning & Scheduling** — Master Production Schedule with horizon + time-bucket planning and draft → released workflow; demand forecasts (manual / sales-order / historical); work centers, working calendars, and recomputable capacity load with bottleneck flagging; routings with sequenced operations; production orders with forward / backward / infinite scheduling laid down on the calendar by a pure-function scheduler service; ApexCharts Gantt of scheduled operations; what-if scenario simulator that never mutates the base MPS; deterministic greedy optimizer with weighted objectives (changeovers / idle / lateness / priority) and before/after KPI deltas.
 - **Module 6 — Shop Floor Control (MES)** — one-click dispatch from a released `pps.ProductionOrder` into a `MESWorkOrder` (auto-numbered `WO-00001`) with per-routing-op fan-out; touchscreen operator terminal at `/mes/terminal/` with Start / Pause / Resume / Stop buttons backed by an append-only `OperatorTimeLog`; production reports (good / scrap / rework) that bump per-op denorms and roll up to the parent work order; andon alerts (quality / material / equipment / safety / other) with severity + acknowledge / resolve / cancel workflow; paperless work instructions with versioned content + 25 MB attachment + video URL, auth-gated downloads, automatic version supersession on release, and per-operator typed-signature acknowledgements.
+- **Module 7 — Quality Management (QMS)** — Incoming Quality Control with ANSI/ASQ Z1.4 single-sampling AQL plans, per-product characteristics, and accept / reject / accept-with-deviation workflow; In-Process Quality Control with checkpoint plans pinned to PPS routing operations, X-bar/R SPC chart math (A2/D3/D4 constants) + Western Electric runs rules 1–4, ApexCharts SPC visualisation; Final Quality Control with finished-good test protocols and HTML Certificate-of-Analysis generation (browser print-to-PDF); Non-Conformance Reports (auto-numbered `NCR-00001`) sourced from IQC / IPQC / FQC / customer with full root-cause analysis (5-Why, fishbone, FMEA), corrective &amp; preventive action tracking, attachment uploads, and `open → investigating → awaiting_capa → resolved → closed` workflow; Calibration Management with measurement-equipment registry, due-tracker (rows go red ≤7 days), append-only calibration records (pass / pass-with-adjustment / fail), tolerance verification, NIST-traceable reference standards, and signal-driven `next_due_at` propagation back onto the parent equipment.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
@@ -193,6 +195,29 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/mes/instructions/versions/<pk>/release/` | POST — release a version (auto-obsoletes prior released version, updates `current_version`, invalidates prior acks) |
 | `/mes/instructions/versions/<pk>/download/` | Auth-gated download for a version's attachment |
 | `/mes/instructions/<pk>/ack/` | POST — operator typed-signature acknowledgement of the current released version |
+| `/qms/` | QMS dashboard — KPI cards (open NCRs, IQC pending, FQC pending, equipment due ≤7d, open CAPAs), recent NCRs + open corrective actions + equipment due |
+| `/qms/iqc/plans/` and CRUD | IQC plan CRUD with characteristic CRUD inline on detail |
+| `/qms/iqc/inspections/` and CRUD | IQC inspection list + detail with measurement entry inline + Start / Accept / Reject / Accept-with-deviation actions |
+| `/qms/ipqc/plans/` and CRUD | Process inspection plan + checkpoint CRUD (auto-creates an SPC chart shell when chart_type ≠ none) |
+| `/qms/ipqc/inspections/` and CRUD | Process inspection list + detail; auto-pushes a `ControlChartPoint` when a chart exists |
+| `/qms/ipqc/charts/` and `<pk>/` | SPC chart list + ApexCharts line chart with UCL/LCL annotations (uses `json_script` per Lesson L-07) |
+| `/qms/ipqc/charts/<pk>/recompute/` | POST — recompute UCL / LCL / CL from latest 25 subgroups |
+| `/qms/fqc/plans/` and CRUD | Final inspection plan + test spec CRUD |
+| `/qms/fqc/inspections/` and CRUD | Final inspection list + detail with test-result entry + Start / Pass / Fail / Release-with-deviation actions |
+| `/qms/fqc/inspections/<pk>/coa/` | View / generate CoA (HTML view; Save as PDF via browser print) |
+| `/qms/fqc/inspections/<pk>/coa/release/` | POST — mark CoA released to customer |
+| `/qms/ncr/` and CRUD | NCR list filterable by source / severity / status; full lifecycle (Investigate / Awaiting CAPA / Resolve / Close / Cancel) |
+| `/qms/ncr/<pk>/` | NCR detail with tabs for Root Cause, Corrective Actions, Preventive Actions, Attachments + workflow buttons |
+| `/qms/ncr/<pk>/rca/edit/` | RCA edit (one-to-one) |
+| `/qms/ncr/<pk>/ca/new/` · `<pk>/edit/` · `<pk>/delete/` · `<pk>/complete/` | Corrective action CRUD + complete |
+| `/qms/ncr/<pk>/pa/new/` · `<pk>/edit/` · `<pk>/delete/` · `<pk>/complete/` | Preventive action CRUD + complete |
+| `/qms/ncr/attachments/<pk>/download/` | Auth-gated NCR attachment download |
+| `/qms/equipment/` and CRUD | Measurement equipment registry with `Due ≤7d` filter and red highlight |
+| `/qms/equipment/<pk>/` | Equipment detail with calibration history table |
+| `/qms/equipment/<pk>/retire/` | POST — retire equipment (terminal status) |
+| `/qms/calibrations/` and CRUD | Calibration record list filterable by equipment / result |
+| `/qms/calibrations/<pk>/certificate/` | Auth-gated certificate download |
+| `/qms/calibration-standards/` and CRUD | Reference-standard catalog (NIST-traceable gauges, etc.) |
 
 ---
 
@@ -327,7 +352,7 @@ NavMSM/
 │   │       └── seed_mrp.py       # Idempotent demo data per tenant (forecasts,
 │   │                             # inventory, receipts, completed MRP run)
 │   │
-│   └── mes/                      # MODULE 6 — Shop Floor Control (MES)
+│   ├── mes/                      # MODULE 6 — Shop Floor Control (MES)
 │       ├── models.py             # MESWorkOrder, MESWorkOrderOperation,
 │       │                         # ShopFloorOperator, OperatorTimeLog,
 │       │                         # ProductionReport, AndonAlert,
@@ -347,9 +372,45 @@ NavMSM/
 │       ├── views.py              # Full CRUD + workflow + Terminal kiosk + dispatch
 │       ├── urls.py
 │       ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_mes.py       # Idempotent demo data (operators, work orders,
+│   │                             # time logs, reports, andon, instructions, acks)
+│   │
+│   └── qms/                      # MODULE 7 — Quality Management (QMS)
+│       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
+│       │                         # IncomingInspection, InspectionMeasurement,
+│       │                         # ProcessInspectionPlan, ProcessInspection,
+│       │                         # SPCChart, ControlChartPoint,
+│       │                         # FinalInspectionPlan, FinalTestSpec,
+│       │                         # FinalInspection, FinalTestResult,
+│       │                         # CertificateOfAnalysis,
+│       │                         # NonConformanceReport, RootCauseAnalysis,
+│       │                         # CorrectiveAction, PreventiveAction,
+│       │                         # NCRAttachment,
+│       │                         # MeasurementEquipment, CalibrationStandard,
+│       │                         # CalibrationRecord, ToleranceVerification
+│       ├── services/
+│       │   ├── aql.py            # ANSI/ASQ Z1.4 single-sampling table (pure)
+│       │   ├── spc.py            # X-bar/R limits + Western Electric rules (pure)
+│       │   └── coa.py            # CoA payload builder (pure dict)
+│       ├── signals.py            # Audit-log receivers on IQC / IPQC / FQC /
+│       │                         # NCR / CoA / CA / PA status transitions;
+│       │                         # CalibrationRecord post_save propagates
+│       │                         # last_calibrated_at + next_due_at to the
+│       │                         # parent MeasurementEquipment (Lesson L-15)
+│       ├── forms.py              # ModelForms with manual (tenant, …) uniqueness
+│       │                         # checks, file-extension allowlists +
+│       │                         # 25 MB cap, per-workflow clean_<field>
+│       ├── views.py              # Full CRUD + workflow + SPC chart + CoA
+│       │                         # generation + auth-gated downloads
+│       ├── urls.py
+│       ├── admin.py
 │       └── management/commands/
-│           └── seed_mes.py       # Idempotent demo data (operators, work orders,
-│                                 # time logs, reports, andon, instructions, acks)
+│           └── seed_qms.py       # Idempotent demo data (IQC plans + inspections,
+│                                 # IPQC plans + SPC chart with 25 points,
+│                                 # FQC plans + inspections + CoAs,
+│                                 # NCRs with RCA + CA + PA, equipment +
+│                                 # calibration standards + records)
 │
 ├── templates/
 │   ├── base.html                 # master layout with data-* attrs
@@ -362,7 +423,8 @@ NavMSM/
 │   ├── bom/                      # index, boms/, lines/, revisions/, alternates/, substitution_rules/, cost_elements/, sync_maps/
 │   ├── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
 │   ├── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
-│   └── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
+│   ├── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
+│   └── qms/                      # index, iqc/{plans,inspections}, ipqc/{plans,inspections,charts}, fqc/{plans,inspections,coa}, ncr/, equipment/, calibrations/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -504,6 +566,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 4 — PPS)** — 4 work centers (machine / labor / cell / assembly_line) each with Mon–Fri 08:00–17:00 calendars, 5 routings (one per seeded finished-good) with 2–4 sequenced operations, 8 demand forecasts spanning 2 weeks across 4 products, 1 released `MasterProductionSchedule` covering 4 weeks with 8 lines, 6 production orders in mixed statuses (planned / released / in_progress / completed) — released and in-progress orders carry full `ScheduledOperation` chains laid down by the forward scheduler — 56 daily `CapacityLoad` snapshots, 1 completed What-If scenario with 2 changes + KPI result, 1 default `OptimizationObjective`, and 1 completed `OptimizationRun` with before/after result.
 - **Per tenant (Module 6 — MES)** — 5 `ShopFloorOperator` profiles (badges `B0001`–`B0005`) linked to seeded staff users, up to 6 `MESWorkOrder`s dispatched from released / in-progress production orders (with the parent's status preserved) — each with its own `MESWorkOrderOperation` chain — ~12 `OperatorTimeLog` rows across the in-progress and completed work orders, ~8 `ProductionReport` rows with mixed scrap reasons, 4 `AndonAlert`s spanning open / acknowledged / resolved / cancelled states, 3 `WorkInstruction`s with 1–2 `WorkInstructionVersion`s each (one released, one draft) attached to seeded routing operations (one carries a `video_url`), and 4 `WorkInstructionAcknowledgement` rows on the released versions.
 - **Per tenant (Module 5 — MRP)** — 2 `ForecastModel`s (moving_avg + naive_seasonal), 24 monthly `SeasonalityProfile` rows across 2 finished-goods, 1 completed `ForecastRun` with 16 `ForecastResult` rows, 8 `InventorySnapshot` rows covering finished-goods + components with mixed lot-sizing rules (L4L / FOQ / POQ / Min-Max), 5 `ScheduledReceipt`s (open POs / planned production / transfers), 1 completed `MRPCalculation` (linked to the seeded MPS) with **19 planned orders**, **10 PR suggestions**, and **35 exceptions**, plus 1 completed `MRPRun` + `MRPRunResult` capturing coverage / planned-orders / late-orders KPIs.
+- **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -959,9 +1022,109 @@ Module 6 is implemented in [`apps/mes/`](apps/mes/) with full CRUD across 5 sub-
 
 - Badge-scan kiosk authentication (today: standard `LoginRequiredMixin` + `request.user.shop_floor_operator` lookup)
 - Per-station physical signage integration (Andon → physical light tower)
-- Statistical Process Control (SPC) charts on production reports
+- ~~Statistical Process Control (SPC) charts on production reports~~ ✅ shipped in Module 7
 - Sub-batch / lot serialisation on output quantities — Module 8 (Inventory) territory
-- Integration with the Quality module for in-line inspections — Module 7 (QMS) will consume `ProductionReport.scrap_reason` later
+- ~~Integration with the Quality module for in-line inspections~~ ✅ Module 7 (QMS) consumes `MESWorkOrderOperation` directly via `ProcessInspection.work_order_operation`
+
+---
+
+## Module 7 — Quality Management (QMS)
+
+Module 7 is implemented in [`apps/qms/`](apps/qms/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (AQL sample-size lookup, X-bar/R control-limit math, Western Electric runs rules, CoA payload assembly) lives behind small pure-function services in [`apps/qms/services/`](apps/qms/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 7.1 — Incoming Quality Control (IQC)
+
+- **`IncomingInspectionPlan`** — per-product plan with `aql_level` (I / II / III general), `aql_value` (0.10 – 10.0), `sample_method` (single / double / reduced), `version`, `is_active`. Unique per `(tenant, product, version)`.
+- **`InspectionCharacteristic`** — one row per measurable characteristic on a plan, with `nominal`, `usl`, `lsl`, `unit_of_measure`, `is_critical`. Unique per `(plan, sequence)`.
+- **`IncomingInspection`** — auto-numbered `IQC-00001` per tenant; FK `plm.Product` + free-text `supplier_name` / `po_reference` / `lot_number` (procurement Module 9 will replace these with FKs); `received_qty`, computed `sample_size` / `accept_number` / `reject_number` from the AQL service; status workflow `pending → in_inspection → accepted / rejected / accepted_with_deviation`.
+- **`InspectionMeasurement`** — one measurement per characteristic per inspection. Unique per `(inspection, characteristic)`.
+
+**AQL lookup** — [`services/aql.py`](apps/qms/services/aql.py) ships a complete ANSI/ASQ Z1.4 single-sampling table for general inspection levels I/II/III with the standard lot-size brackets (2 → 500 000+) and AQL values 0.10 – 10.0. `lookup_plan(lot_size, aql, level)` returns `(code_letter, sample_size, accept_number, reject_number)` and resolves down-arrow indirection automatically. Pure function, fully unit-testable.
+
+### Sub-module 7.2 — In-Process Quality Control (IPQC)
+
+- **`ProcessInspectionPlan`** — pins an inspection plan to a `pps.RoutingOperation`; carries `frequency` (every part / every N parts / every N minutes / shift start / lot change), `chart_type` (`x_bar_r` / `p` / `np` / `c` / `u` / `none`), `subgroup_size` (2 – 25), `nominal` / `usl` / `lsl`. Unique per `(tenant, product, routing_operation)`.
+- **`ProcessInspection`** — auto-numbered `IPQC-00001`; links to a `mes.MESWorkOrderOperation`; carries `subgroup_index`, `measured_value`, `result` (`pass` / `fail` / `borderline`), optional 25 MB `attachment` (allowlist `.pdf .png .jpg .jpeg`).
+- **`SPCChart`** — one-to-one with the plan; recomputed on demand from the latest 25 subgroups; carries `ucl` / `cl` / `lcl` for X-bar and `ucl_r` / `cl_r` / `lcl_r` for R, plus `sample_size_used` and `recomputed_at`.
+- **`ControlChartPoint`** — append-only point; `is_out_of_control` and `rule_violations` JSON populated at insert time by `services/spc.py`.
+
+**SPC math** — [`services/spc.py`](apps/qms/services/spc.py) ships pure functions: `compute_xbar_r(subgroups) → XBarRLimits` using A2/D3/D4 constants for subgroup sizes 2–10; `check_western_electric(points, cl, ucl, lcl) → list[ViolationCode]` covering rules R1 (3-sigma), R2 (2 of 3 in zone A), R3 (4 of 5 in zone B+), R4 (8 consecutive on same side). The SPC chart detail page renders an ApexCharts line+annotation chart fed via Django's `{% json_script %}` (Lesson L-07 — never raw `json.dumps`).
+
+### Sub-module 7.3 — Final Quality Control (FQC)
+
+- **`FinalInspectionPlan`** — finished-good test protocol; unique per `(tenant, product, version)`.
+- **`FinalTestSpec`** — typed test rows (mechanical / electrical / dimensional / visual / chemical / performance / other) with `nominal`, `usl`, `lsl`, `is_critical`. Unique per `(plan, sequence)`.
+- **`FinalInspection`** — auto-numbered `FQC-00001`; FK `mes.MESWorkOrder`; status workflow `pending → in_inspection → passed / failed / released_with_deviation`.
+- **`FinalTestResult`** — pass/fail per test per inspection. Unique per `(inspection, spec)`.
+- **`CertificateOfAnalysis`** — auto-numbered `COA-00001`, one-to-one with a passed (or released-with-deviation) FQC inspection; carries `customer_name`, `customer_reference`, `released_to_customer` flag with timestamp + actor; only generated by an explicit click and only for `passed` / `released_with_deviation` statuses.
+
+**CoA generation** — v1 renders an HTML certificate at `/qms/fqc/inspections/<pk>/coa/`; users click "Print / Save as PDF" to produce a PDF via the browser. The page hides chrome via `@media print`. Server-side PDF generation (`xhtml2pdf` / WeasyPrint) is intentionally deferred to a follow-up phase to keep the dependency surface small — same pattern as the mock payment gateway.
+
+### Sub-module 7.4 — Non-Conformance & CAPA
+
+- **`NonConformanceReport`** — auto-numbered `NCR-00001`; `source` (iqc / ipqc / fqc / customer / internal_audit / supplier_audit / other), `severity` (minor / major / critical), `status` workflow `open → investigating → awaiting_capa → resolved → closed` (`cancelled` from any non-terminal). Optional FKs to `IncomingInspection` / `ProcessInspection` / `FinalInspection` (one populated, others null) trace the NCR back to the source inspection.
+- **`RootCauseAnalysis`** — one-to-one with the NCR; `method` (5-Why / fishbone / Pareto / FMEA / other), `analysis_text`, `root_cause_summary`. The empty RCA shell is auto-created when the NCR is raised so the detail page always shows the form.
+- **`CorrectiveAction`** + **`PreventiveAction`** — sequenced action items with `owner`, `due_date`, `effectiveness_verified` flag, `verification_notes`, status `open → in_progress → completed` (`cancelled`).
+- **`NCRAttachment`** — file upload (allowlist `.pdf .png .jpg .jpeg .docx .xlsx .txt .zip`, 25 MB cap); auth-gated download.
+
+**Workflow buttons** (NCR detail page): Investigate (open → investigating), Awaiting CAPA (investigating → awaiting_capa), Resolve (investigating / awaiting_capa → resolved), Close (resolved → closed; requires `resolution_summary`), Cancel (any non-terminal → cancelled). Every transition uses the conditional `UPDATE … WHERE status IN (…)` race-safe pattern.
+
+### Sub-module 7.5 — Calibration Management
+
+- **`MeasurementEquipment`** — auto-numbered `EQP-00001`; `equipment_type` (caliper / micrometer / gauge / thermometer / scale / multimeter / pressure / torque / other); `serial_number` unique per tenant; optional FK to `pps.WorkCenter` (assigned location); `range_min` / `range_max` / `tolerance` / `unit_of_measure`; `calibration_interval_days` (1 – 3650); `last_calibrated_at` / `next_due_at` (auto-updated by signal); status `active ↔ out_of_service`, `retired` is terminal.
+- **`CalibrationStandard`** — per-tenant catalog of reference standards (e.g. NIST-traceable gauge blocks).
+- **`CalibrationRecord`** — auto-numbered `CAL-00001`, append-only event log; `result` (pass / pass_with_adjustment / fail); optional `certificate_file` (allowlist `.pdf .png .jpg .jpeg`, 25 MB) with auth-gated download. `notes` are required when `result='fail'` (Lesson L-14).
+- **`ToleranceVerification`** — per-record point check (nominal, as_found, as_left, tolerance, is_within_tolerance).
+
+**Equipment due tracker** — the equipment list view tints rows red when `next_due_at < now` and yellow when within 7 days. The dashboard surfaces both counts as KPI cards. Filing a `CalibrationRecord` triggers a `post_save` signal that updates the parent equipment's `last_calibrated_at` and recomputes `next_due_at` from `calibrated_at + interval_days` (Lesson L-15: the new value is captured into a local before the `update()` call so the in-memory equipment instance never goes stale).
+
+### Audit signals
+
+[`apps/qms/signals.py`](apps/qms/signals.py) wires:
+
+- `pre_save` + `post_save` on `IncomingInspection`, `FinalInspection`, `NonConformanceReport` → `apps.tenants.TenantAuditLog` on creation and every status transition.
+- `pre_save` + `post_save` on `ProcessInspection` → audit on creation and on every `result` change (`pass` ↔ `fail` ↔ `borderline`).
+- `post_save` on `CertificateOfAnalysis` → audit on `released_to_customer` flip from False to True.
+- `post_save` on `CorrectiveAction` and `PreventiveAction` → audit on transitions to `completed` / `cancelled`.
+- `post_save` on `CalibrationRecord` → audit + propagates `last_calibrated_at` and `next_due_at` to the parent `MeasurementEquipment`.
+
+### Operator vs Admin matrix
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages, SPC chart view | Authenticated tenant user | `TenantRequiredMixin` |
+| File an inspection (IQC / IPQC / FQC), file a measurement, raise an NCR, record a calibration, complete CA / PA, generate a CoA, IQC accept / reject | Authenticated tenant user | `TenantRequiredMixin` |
+| Create / edit / delete inspection plans, edit / delete inspections, NCR workflow transitions (Investigate / Resolve / Close / Cancel), CoA release-to-customer, equipment retire / delete, calibration-standard CRUD, IQC release-with-deviation, FQC release-with-deviation | Tenant admin | `TenantAdminRequiredMixin` |
+
+A regression test file ([`apps/qms/tests/test_security.py`](apps/qms/tests/test_security.py) — `TestRBACMatrix`) asserts redirect + state-not-changed for every admin-gated POST.
+
+### File-upload security
+
+Auth-gated download views ([`apps/qms/views.py`](apps/qms/views.py) — `NCRAttachmentDownloadView`, `CalibrationCertificateDownloadView`) verify tenant ownership via `get_object_or_404(..., tenant=request.tenant)` then stream via `FileResponse`. Templates link to these via `{% url %}` rather than `.file.url`. File-extension allowlists (defined in [`apps/qms/forms.py`](apps/qms/forms.py)):
+
+| Surface | Allowed extensions | Notes |
+|---|---|---|
+| NCR attachments | `.pdf .png .jpg .jpeg .docx .xlsx .txt .zip` | |
+| Calibration certificates | `.pdf .png .jpg .jpeg` | |
+| IPQC inspection attachments | `.pdf .png .jpg .jpeg` | |
+
+All uploads are capped at **25 MB**.
+
+### Test suite
+
+Run the QMS test suite with `pytest apps/qms/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory). The suite covers model invariants + validator bounds, form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required fields, file-extension allowlist), pure-function AQL table lookups across all 3 levels, X-bar/R limit math + Western Electric rules R1 / R4 + helpers, IQC / FQC / NCR / Calibration end-to-end workflow paths, RBAC matrix + multi-tenant IDOR + anonymous-redirect, and audit-log emission including the L-15 calibration → equipment propagation. **85 tests, ~19 s runtime.**
+
+### Out of scope (deferred)
+
+- **Procurement integration** — IQC's `supplier_name` / `po_reference` are free-text strings until Module 9 (Procurement) ships and provides the FK.
+- **Real PDF CoA generation** — v1 is HTML + browser print-to-PDF; `xhtml2pdf` / WeasyPrint server-side rendering is a follow-up.
+- **MES Andon auto-raise on critical NCR** — placeholder hook only; the actual `mes.AndonAlert` auto-creation is deferred (don't want to entangle the MES tests).
+- **Customer portal CoA self-serve** — `released_to_customer` flag is set, but the customer-facing surface is Module 17 (Sales) territory.
+- **Statistical capability indices (Cp / Cpk / Pp / Ppk)** — only UCL / LCL / CL + Western Electric rules 1 – 4 ship in v1.
+- **p / np / c / u attribute-chart limit math** — model fields exist; the formula coverage will land in a follow-up alongside Cp/Cpk.
+- **Gage R&R studies** — calibration covers single-instrument tolerance; multi-operator/multi-trial reproducibility study is deferred.
+- **8D problem-solving template** for NCRs — v1 is RCA + CA + PA only; the formal 8D format is a follow-up template choice.
+- **CSV bulk import** for inspection plans / equipment.
 
 ---
 
@@ -997,7 +1160,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_pps [--flush]` | Seed PPS demo data (work centers, calendars, routings, MPS, production orders + scheduled operations, capacity load, scenario, optimizer run) per tenant |
 | `python manage.py seed_mrp [--flush]` | Seed MRP demo data (forecast models + seasonality + completed forecast run, inventory snapshots, scheduled receipts, completed MRP run with planned orders / PRs / exceptions) per tenant |
 | `python manage.py seed_mes [--flush]` | Seed MES demo data (operators, MES work orders fanned out from PPS production orders, time logs, production reports, andon alerts, work instructions with versions + acks) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` |
+| `python manage.py seed_qms [--flush]` | Seed QMS demo data (IQC plans + inspections, IPQC plans + SPC chart with 25 points, FQC plans + inspections + CoAs, NCRs with RCA + CA + PA, equipment + calibration standards + records) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -1005,6 +1169,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/mes/tests/` | Run the MES test suite (142 tests, ~9 s; covers model invariants, dispatcher / time-logging / reporting services, forms, workflow, audit-log emission, multi-tenant IDOR, CSRF, plus 8 seeder-regression tests for the 6 BUGs found during the manual-test walkthrough) |
 | `pytest --cov=apps/plm` | Run with coverage report |
 | `pytest --cov=apps/pps` | Run PPS coverage report (services + signals + forms + models ≥ 84% each) |
+| `pytest apps/qms/tests/` | Run the QMS test suite (85 tests, ~19 s; covers AQL table, SPC math + Western Electric rules, model invariants, form validation, IQC/FQC/NCR/Calibration workflow, RBAC matrix, multi-tenant IDOR, audit-log emission) |
 
 ---
 
@@ -1049,14 +1214,14 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), and **Module 6** (Shop Floor Control / MES). The 16 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), and **Module 7** (Quality Management / QMS). The 15 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
 4. ~~Production Planning & Scheduling~~ ✅ shipped
 5. ~~Material Requirements Planning (MRP)~~ ✅ shipped
 6. ~~Shop Floor Control (MES)~~ ✅ shipped
-7. Quality Management (QMS)
+7. ~~Quality Management (QMS)~~ ✅ shipped
 8. Inventory & Warehouse
 9. Procurement & Supplier Portal
 10. Equipment & Asset Management (EAM)
