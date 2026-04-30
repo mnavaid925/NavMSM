@@ -134,6 +134,28 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarQMS" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-shield-check-line"></i> <span>Quality (QMS)</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarQMS" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'qms:index' %}" class="nav-link">QMS Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:iqc_inspection_list' %}" class="nav-link">IQC Inspections</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:iqc_plan_list' %}" class="nav-link">IQC Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:ipqc_inspection_list' %}" class="nav-link">IPQC Inspections</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:ipqc_plan_list' %}" class="nav-link">IPQC Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:spc_chart_list' %}" class="nav-link">SPC Charts</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:fqc_inspection_list' %}" class="nav-link">FQC Inspections</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:fqc_plan_list' %}" class="nav-link">FQC Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:ncr_list' %}" class="nav-link">NCRs &amp; CAPA</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:equipment_list' %}" class="nav-link">Equipment</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:calibration_list' %}" class="nav-link">Calibrations</a></li>
+                            <li class="nav-item"><a href="{% url 'qms:standard_list' %}" class="nav-link">Reference Standards</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
