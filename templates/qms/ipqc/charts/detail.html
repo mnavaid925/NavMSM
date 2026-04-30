@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}SPC Chart - {{ chart.plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">SPC Chart - {{ chart.plan.name }}</h4>
+        <div class="text-muted small">{{ chart.plan.product.sku }} &middot; {{ chart.get_chart_type_display }} &middot; n={{ chart.subgroup_size }}</div></div>
+    <div>
+        <a href="{% url 'qms:spc_chart_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <form method="post" action="{% url 'qms:spc_chart_recompute' chart.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-primary"><i class="ri-refresh-line"></i> Recompute Limits</button></form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-9">
+        <div class="card"><div class="card-body">
+            <div id="spc-chart" style="min-height:400px"></div>
+            {{ series|json_script:"spc-data" }}
+            <script type="application/json" id="spc-limits">{
+                "ucl": {% if chart.ucl %}{{ chart.ucl }}{% else %}null{% endif %},
+                "cl": {% if chart.cl %}{{ chart.cl }}{% else %}null{% endif %},
+                "lcl": {% if chart.lcl %}{{ chart.lcl }}{% else %}null{% endif %}
+            }</script>
+        </div></div>
+    </div>
+
+    <div class="col-lg-3">
+        <div class="card"><div class="card-body">
+            <h6>Control Limits</h6>
+            <ul class="list-group list-group-flush mb-3">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">UCL</span>{{ chart.ucl|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">CL</span>{{ chart.cl|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">LCL</span>{{ chart.lcl|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">UCL R</span>{{ chart.ucl_r|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">CL R</span>{{ chart.cl_r|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">LCL R</span>{{ chart.lcl_r|default:"-" }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Subgroups used</span>{{ chart.sample_size_used }}</li>
+            </ul>
+            <div class="text-muted small">Limits computed using A2/D3/D4 constants per subgroup size {{ chart.subgroup_size }}.</div>
+        </div></div>
+
+        <div class="card mt-3"><div class="card-header"><h6 class="mb-0">Out-of-control points</h6></div>
+            <div class="card-body p-0">
+                <table class="table mb-0 align-middle">
+                    <thead><tr><th>#</th><th>Value</th><th>Rules</th></tr></thead>
+                    <tbody>
+                    {% for p in points %}{% if p.is_out_of_control %}
+                    <tr class="table-danger small"><td>#{{ p.subgroup_index }}</td><td>{{ p.value }}</td><td>{{ p.rule_violations|join:", " }}</td></tr>
+                    {% endif %}{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.45.0"></script>
+<script>
+(function(){
+    const series = JSON.parse(document.getElementById('spc-data').textContent);
+    const limits = JSON.parse(document.getElementById('spc-limits').textContent);
+    if (!series.length) return;
+    const annotations = {yaxis: []};
+    if (limits.ucl !== null) annotations.yaxis.push({y: limits.ucl, borderColor: '#dc3545', strokeDashArray: 4, label: {text: 'UCL', style: {background: '#dc3545', color: '#fff'}}});
+    if (limits.cl !== null) annotations.yaxis.push({y: limits.cl, borderColor: '#198754', strokeDashArray: 4, label: {text: 'CL', style: {background: '#198754', color: '#fff'}}});
+    if (limits.lcl !== null) annotations.yaxis.push({y: limits.lcl, borderColor: '#dc3545', strokeDashArray: 4, label: {text: 'LCL', style: {background: '#dc3545', color: '#fff'}}});
+    const options = {
+        chart: {type: 'line', height: 400, toolbar: {show: true}},
+        series: [{name: 'Subgroup mean', data: series.map(p => ({x: p.x, y: p.y, fillColor: p.is_ooc ? '#dc3545' : '#0d6efd'}))}],
+        xaxis: {title: {text: 'Subgroup index'}},
+        yaxis: {title: {text: 'Measured value'}},
+        markers: {size: 5},
+        stroke: {curve: 'straight', width: 2},
+        annotations: annotations,
+        colors: ['#0d6efd'],
+    };
+    new ApexCharts(document.querySelector('#spc-chart'), options).render();
+})();
+</script>
+{% endblock %}
