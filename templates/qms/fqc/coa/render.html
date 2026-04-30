@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ coa.coa_number }} CoA{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center d-print-none">
+    <div><h4 class="mb-1">{{ coa.coa_number }}</h4>
+        <div class="text-muted small">Certificate of Analysis &middot; {{ inspection.inspection_number }} &middot; {{ payload.product.sku }}</div></div>
+    <div>
+        <a href="{% url 'qms:fqc_inspection_detail' inspection.pk %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <button onclick="window.print()" class="btn btn-primary"><i class="ri-printer-line"></i> Print / Save as PDF</button>
+        {% if not coa.released_to_customer %}
+        <form method="post" action="{% url 'qms:coa_release' inspection.pk %}" style="display:inline" onsubmit="return confirm('Release this CoA to customer?');">{% csrf_token %}<button class="btn btn-success"><i class="ri-send-plane-line"></i> Release to Customer</button></form>
+        {% else %}
+        <span class="badge bg-success text-white px-3 py-2">Released to customer</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card"><div class="card-body p-5" style="max-width: 900px; margin: 0 auto;">
+
+<div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+        <h2 class="mb-0">{{ payload.tenant.name }}</h2>
+        <div class="text-muted small">{{ payload.tenant.address|linebreaksbr }}</div>
+        <div class="text-muted small">{{ payload.tenant.email }} {% if payload.tenant.phone %}&middot; {{ payload.tenant.phone }}{% endif %}</div>
+    </div>
+    <div class="text-end">
+        <h3 class="text-primary mb-0">CERTIFICATE OF ANALYSIS</h3>
+        <div class="small">CoA Number: <strong>{{ coa.coa_number }}</strong></div>
+        <div class="small">Issued: {{ payload.issued_at|date:"M j, Y" }}</div>
+        <div class="small">Issued by: {{ payload.issued_by }}</div>
+    </div>
+</div>
+
+<hr>
+
+<div class="row mb-4 mt-3">
+    <div class="col-6">
+        <h6 class="text-muted text-uppercase small">Customer</h6>
+        <div><strong>{{ payload.customer_name|default:"(not specified)" }}</strong></div>
+        {% if payload.customer_reference %}<div class="small text-muted">Reference: {{ payload.customer_reference }}</div>{% endif %}
+    </div>
+    <div class="col-6">
+        <h6 class="text-muted text-uppercase small">Product</h6>
+        <div><strong>{{ payload.product.sku }}</strong></div>
+        <div class="small">{{ payload.product.name }}</div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-3"><div class="text-muted small text-uppercase">Lot</div><div>{{ payload.inspection.lot_number|default:"-" }}</div></div>
+    <div class="col-3"><div class="text-muted small text-uppercase">Tested Qty</div><div>{{ payload.inspection.tested_qty }} {{ payload.product.unit_of_measure }}</div></div>
+    <div class="col-3"><div class="text-muted small text-uppercase">Accepted</div><div>{{ payload.inspection.accepted_qty }}</div></div>
+    <div class="col-3"><div class="text-muted small text-uppercase">Plan</div><div>{{ payload.plan.name }} v{{ payload.plan.version }}</div></div>
+</div>
+
+<h5>Test Results</h5>
+<table class="table table-bordered table-sm">
+    <thead class="table-light">
+        <tr><th>#</th><th>Test</th><th>Method</th><th>Specification</th><th>Result</th><th>UoM</th><th>Pass</th></tr>
+    </thead>
+    <tbody>
+    {% for r in payload.results %}
+        <tr>
+            <td>{{ r.sequence|stringformat:"03d" }}</td>
+            <td>{{ r.test_name }}{% if r.is_critical %} <span class="badge bg-danger-subtle text-danger ms-1">Critical</span>{% endif %}</td>
+            <td>{{ r.method }}</td>
+            <td>{{ r.spec_target|default:"-" }}{% if r.spec_usl %} (USL {{ r.spec_usl }}){% endif %}{% if r.spec_lsl %} (LSL {{ r.spec_lsl }}){% endif %}</td>
+            <td><strong>{{ r.measured|default:"-" }}</strong></td>
+            <td>{{ r.unit_of_measure }}</td>
+            <td>{% if r.is_pass %}<span class="badge bg-success-subtle text-success">PASS</span>{% else %}<span class="badge bg-danger-subtle text-danger">FAIL</span>{% endif %}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="7" class="text-center text-muted">No test results recorded.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<div class="alert alert-{% if payload.released_with_deviation %}warning{% elif payload.all_passed %}success{% else %}danger{% endif %} mt-4">
+    <strong>Conclusion:</strong>
+    {% if payload.released_with_deviation %}This lot is released with deviation. See deviation notes below.
+    {% elif payload.all_passed %}All tests passed. Lot conforms to the specification stated above.
+    {% else %}One or more tests failed. Lot does NOT conform to specification.{% endif %}
+</div>
+
+{% if payload.inspection.deviation_notes %}
+<div class="mt-3"><h6>Deviation Notes</h6><p>{{ payload.inspection.deviation_notes|linebreaks }}</p></div>
+{% endif %}
+
+<div class="row mt-5 pt-4 border-top">
+    <div class="col-6">
+        <div class="text-muted small">Inspector signature</div>
+        <div class="border-bottom pb-4">{{ payload.issued_by }}</div>
+        <div class="small text-muted mt-1">Issued: {{ payload.issued_at|date:"M j, Y" }}</div>
+    </div>
+    <div class="col-6 text-end">
+        <div class="text-muted small">Quality Manager</div>
+        <div class="border-bottom pb-4">&nbsp;</div>
+        <div class="small text-muted mt-1">Approved date: ____________________</div>
+    </div>
+</div>
+
+</div></div>
+
+{% if not coa.released_to_customer %}
+<div class="card mt-3 d-print-none"><div class="card-body">
+    <h6>Customer Details</h6>
+    <form method="post">{% csrf_token %}
+    <div class="row g-2">
+        <div class="col-md-5"><label class="form-label small">Customer Name</label><input name="customer_name" value="{{ coa.customer_name }}" class="form-control"></div>
+        <div class="col-md-4"><label class="form-label small">Customer Reference</label><input name="customer_reference" value="{{ coa.customer_reference }}" class="form-control"></div>
+        <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100"><i class="ri-save-line me-1"></i> Save</button></div>
+    </div>
+    <input type="hidden" name="notes" value="{{ coa.notes }}">
+    </form>
+</div></div>
+{% endif %}
+
+<style>
+@media print {
+    body { background: #fff !important; }
+    .no-print, header, footer, nav, .topbar, .vertical-menu, .sidebar { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+}
+</style>
+{% endblock %}
