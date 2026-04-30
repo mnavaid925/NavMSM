@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load url_tags %}
+{% block title %}Non-Conformance Reports{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Non-Conformance Reports</h4>
+        <div class="text-muted small">NCR logging &middot; root-cause analysis &middot; corrective &amp; preventive actions.</div></div>
+    <a href="{% url 'qms:ncr_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Raise NCR</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="NCR#, title, lot..."></div>
+        <div class="col-md-2"><select name="source" class="form-select"><option value="">Any source</option>{% for v, label in source_choices %}<option value="{{ v }}" {% if request.GET.source == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="severity" class="form-select"><option value="">Any severity</option>{% for v, label in severity_choices %}<option value="{{ v }}" {% if request.GET.severity == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="status" class="form-select"><option value="">Any status</option>{% for v, label in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead><tr><th>NCR#</th><th>Title</th><th>Source</th><th>Severity</th><th>Status</th><th>Product</th><th>Reported</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for n in ncrs %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'qms:ncr_detail' n.pk %}">{{ n.ncr_number }}</a></td>
+                    <td class="small">{{ n.title|truncatechars:40 }}</td>
+                    <td class="small">{{ n.get_source_display }}</td>
+                    <td>
+                        {% if n.severity == 'critical' %}<span class="badge bg-danger text-white">Critical</span>
+                        {% elif n.severity == 'major' %}<span class="badge bg-warning text-dark">Major</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">Minor</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if n.status == 'closed' %}<span class="badge bg-success text-white">Closed</span>
+                        {% elif n.status == 'cancelled' %}<span class="badge bg-secondary text-white">Cancelled</span>
+                        {% elif n.status == 'resolved' %}<span class="badge bg-info-subtle text-info">Resolved</span>
+                        {% elif n.status == 'awaiting_capa' %}<span class="badge bg-warning-subtle text-warning">Awaiting CAPA</span>
+                        {% elif n.status == 'investigating' %}<span class="badge bg-primary-subtle text-primary">Investigating</span>
+                        {% else %}<span class="badge bg-danger-subtle text-danger">Open</span>{% endif %}
+                    </td>
+                    <td class="small">{{ n.product.sku|default:"-" }}</td>
+                    <td class="small text-muted">{{ n.reported_at|date:"M j, H:i" }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'qms:ncr_detail' n.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                        {% if n.is_editable %}<a href="{% url 'qms:ncr_edit' n.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                        {% if n.status == 'open' or n.status == 'cancelled' %}
+                        <form method="post" action="{% url 'qms:ncr_delete' n.pk %}" style="display:inline" onsubmit="return confirm('Delete this NCR?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No NCRs yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if is_paginated %}<nav><ul class="pagination justify-content-center mb-0">{% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.previous_page_number %}">&laquo;</a></li>{% endif %}<li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>{% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{% querystring_replace page=page_obj.next_page_number %}">&raquo;</a></li>{% endif %}</ul></nav>{% endif %}
+</div></div>
+{% endblock %}
