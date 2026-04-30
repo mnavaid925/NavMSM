@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}{{ plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ plan.name }}</h4>
+        <div class="text-muted small">{{ plan.product.sku }} &middot; op #{{ plan.routing_operation.sequence }} {{ plan.routing_operation.operation_name }} &middot; {{ plan.get_chart_type_display }}</div>
+    </div>
+    <div>
+        <a href="{% url 'qms:ipqc_plan_list' %}" class="btn btn-light"><i class="ri-arrow-left-line"></i> Back</a>
+        <a href="{% url 'qms:ipqc_plan_edit' plan.pk %}" class="btn btn-primary"><i class="ri-pencil-line"></i> Edit</a>
+        {% if chart %}<a href="{% url 'qms:spc_chart_detail' chart.pk %}" class="btn btn-info text-white"><i class="ri-line-chart-line"></i> SPC Chart</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card"><div class="card-body">
+            <h6>Configuration</h6>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Frequency</span>{{ plan.get_frequency_display }} ({{ plan.frequency_value }})</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Chart Type</span>{{ plan.get_chart_type_display }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Subgroup Size</span>{{ plan.subgroup_size }}</li>
+                <li class="list-group-item d-flex justify-content-between"><span class="text-muted">Nominal / USL / LSL</span>{{ plan.nominal|default:"-" }} / {{ plan.usl|default:"-" }} / {{ plan.lsl|default:"-" }} {{ plan.unit_of_measure }}</li>
+            </ul>
+            {% if plan.notes %}<div class="mt-3"><h6>Notes</h6><p class="text-muted small">{{ plan.notes|linebreaks }}</p></div>{% endif %}
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card"><div class="card-header"><h5 class="card-title mb-0">Recent Inspections</h5></div>
+            <div class="card-body p-0">
+                <table class="table mb-0 align-middle">
+                    <thead><tr><th>Number</th><th>Subgroup</th><th>Value</th><th>Result</th></tr></thead>
+                    <tbody>
+                    {% for i in recent_inspections %}<tr>
+                        <td class="small"><a href="{% url 'qms:ipqc_inspection_detail' i.pk %}">{{ i.inspection_number }}</a></td>
+                        <td class="small">#{{ i.subgroup_index }}</td>
+                        <td class="small">{{ i.measured_value|default:"-" }}</td>
+                        <td>{% if i.result == 'pass' %}<span class="badge bg-success-subtle text-success">Pass</span>{% elif i.result == 'fail' %}<span class="badge bg-danger-subtle text-danger">Fail</span>{% else %}<span class="badge bg-warning-subtle text-warning">Borderline</span>{% endif %}</td>
+                    </tr>
+                    {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No inspections yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
