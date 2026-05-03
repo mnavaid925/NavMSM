@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Stock Adjustments{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Stock Adjustments</h4><div class="text-muted small">Variance corrections for damage / loss / count discrepancies.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'inventory:adjustment_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Adjustment</a>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Adjustment#..."></div>
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Any status</option>{% for v, label in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><select name="reason" class="form-select"><option value="">Any reason</option>{% for v, label in reason_choices %}<option value="{{ v }}" {% if reason_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Adjustment#</th><th>Warehouse</th><th>Reason</th><th>Posted at</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for a in page_obj %}
+            <tr><td class="small fw-semibold"><a href="{% url 'inventory:adjustment_detail' a.pk %}">{{ a.adjustment_number }}</a></td>
+            <td class="small">{{ a.warehouse.code }}</td>
+            <td class="small">{{ a.get_reason_display }}</td>
+            <td class="small">{{ a.posted_at|date:"M j Y H:i"|default:"-" }}</td>
+            <td>
+                {% if a.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                {% elif a.status == 'posted' %}<span class="badge bg-success-subtle text-success">Posted</span>
+                {% else %}<span class="badge bg-danger-subtle text-danger">Cancelled</span>{% endif %}
+            </td>
+            <td class="text-end"><a href="{% url 'inventory:adjustment_detail' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a></td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No adjustments.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
