@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}{{ lot.lot_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ lot.lot_number }} <small class="text-muted">{{ lot.product.sku }}</small></h4>
+        <div class="text-muted small">{{ lot.get_status_display }} &middot; Mfd {{ lot.manufactured_date|date:"M j Y"|default:"-" }} &middot; Exp {{ lot.expiry_date|date:"M j Y"|default:"-" }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:lot_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'inventory:lot_edit' lot.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-7"><div class="card mb-3"><div class="card-body">
+        <h5>Stock Items (current locations)</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Bin</th><th>Serial</th><th>On Hand</th><th>Reserved</th></tr></thead>
+            <tbody>
+            {% for s in stock_items %}
+                <tr><td class="small">{{ s.bin }}</td>
+                <td class="small">{{ s.serial.serial_number|default:"-" }}</td>
+                <td class="small">{{ s.qty_on_hand }}</td>
+                <td class="small">{{ s.qty_reserved }}</td></tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No stock items.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <h5>Recent Movements</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>When</th><th>Type</th><th>Qty</th><th>From</th><th>To</th></tr></thead>
+            <tbody>
+            {% for m in movements %}
+                <tr><td class="small">{{ m.posted_at|date:"M j H:i" }}</td>
+                <td class="small">{{ m.get_movement_type_display }}</td>
+                <td class="small">{{ m.qty }}</td>
+                <td class="small">{{ m.from_bin|default:"-" }}</td>
+                <td class="small">{{ m.to_bin|default:"-" }}</td></tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No movements.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h6 class="text-muted">Supplier</h6><p>{{ lot.supplier_name|default:"-" }}</p>
+        <h6 class="text-muted">CoA Reference</h6><p>{{ lot.coa_reference|default:"-" }}</p>
+        <h6 class="text-muted">Notes</h6><p class="small">{{ lot.notes|default:"-"|linebreaksbr }}</p>
+    </div></div></div>
+</div>
+{% endblock %}
