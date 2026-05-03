@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ asn.asn_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ asn.asn_number }} <span class="badge bg-secondary-subtle text-secondary">{{ asn.get_status_display }}</span></h4>
+        <div class="text-muted small">PO <a href="{% url 'procurement:po_detail' asn.purchase_order.pk %}">{{ asn.purchase_order.po_number }}</a> | Carrier {{ asn.carrier|default:"-" }} | Tracking {{ asn.tracking_number|default:"-" }}</div></div>
+    <a href="{% url 'procurement:asn_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9"><div class="card"><div class="card-body">
+        <h5 class="card-title">Shipped lines</h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>PO Line</th><th>Product</th><th class="text-end">Qty Shipped</th><th>Lot</th><th>Serials</th><th></th></tr></thead>
+            <tbody>
+            {% for l in lines %}
+                <tr><td class="small">L{{ l.po_line.line_number }}</td>
+                <td class="small">{{ l.po_line.product.sku|default:"-" }}</td>
+                <td class="small text-end">{{ l.quantity_shipped }}</td>
+                <td class="small">{{ l.lot_number|default:"-" }}</td>
+                <td class="small">{{ l.serial_numbers|truncatechars:30 }}</td>
+                <td class="text-end">{% if asn.status == 'draft' %}<form method="post" action="{% url 'procurement:asn_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        {% if asn.status == 'draft' %}
+        <hr><h6>Add line</h6>
+        <form method="post" action="{% url 'procurement:asn_line_create' asn.pk %}">{% csrf_token %}{{ line_form|crispy }}<button class="btn btn-primary btn-sm">Add Line</button></form>
+        {% endif %}
+    </div></div></div>
+
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            <div class="d-grid gap-2">
+                {% if asn.status == 'draft' %}
+                    <form method="post" action="{% url 'procurement:asn_submit' asn.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-truck-line me-1"></i> Submit & Mark In Transit</button></form>
+                {% endif %}
+                {% if asn.status in 'submitted,in_transit' %}
+                    <form method="post" action="{% url 'procurement:asn_receive' asn.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-check-line me-1"></i> Mark Received</button></form>
+                {% endif %}
+                {% if asn.status not in 'received,cancelled' %}
+                    <form method="post" action="{% url 'procurement:asn_cancel' asn.pk %}" onsubmit="return confirm('Cancel ASN?');">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-close-circle-line"></i> Cancel</button></form>
+                {% endif %}
+            </div>
+        </div></div>
+
+        <div class="card mt-3"><div class="card-body">
+            <h6 class="card-title">Timeline</h6>
+            <dl class="small mb-0">
+                <dt>Ship Date</dt><dd>{{ asn.ship_date|date:"M j Y" }}</dd>
+                <dt>Expected Arrival</dt><dd>{{ asn.expected_arrival_date|date:"M j Y"|default:"-" }}</dd>
+                <dt>Submitted</dt><dd>{{ asn.submitted_at|date:"M j Y H:i"|default:"-" }} {% if asn.submitted_by %}<br>by {{ asn.submitted_by }}{% endif %}</dd>
+                <dt>Received</dt><dd>{{ asn.received_at|date:"M j Y H:i"|default:"-" }} {% if asn.received_by %}<br>by {{ asn.received_by }}{% endif %}</dd>
+            </dl>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
