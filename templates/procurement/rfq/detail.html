@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ rfq.rfq_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ rfq.rfq_number }} <span class="badge bg-secondary-subtle text-secondary">{{ rfq.get_status_display }}</span></h4>
+        <div class="text-muted small">{{ rfq.title }} | Round {{ rfq.round_number }} | Due {{ rfq.response_due_date|date:"M j Y"|default:"-" }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'procurement:rfq_compare' rfq.pk %}" class="btn btn-outline-primary"><i class="ri-bar-chart-line me-1"></i> Compare quotes</a>
+        <a href="{% url 'procurement:rfq_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9">
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Lines</h5>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>#</th><th>Product</th><th>Description</th><th class="text-end">Qty</th><th>UoM</th><th class="text-end">Target Price</th><th>Required</th><th></th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr><td class="small">{{ l.line_number }}</td><td class="small">{{ l.product.sku|default:"-" }}</td>
+                    <td class="small">{{ l.description|default:l.product.name|default:"-" }}</td>
+                    <td class="small text-end">{{ l.quantity }}</td><td class="small">{{ l.unit_of_measure }}</td>
+                    <td class="small text-end">{{ l.target_price|default:"-" }}</td>
+                    <td class="small">{{ l.required_date|date:"M j Y"|default:"-" }}</td>
+                    <td class="text-end">{% if rfq.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:rfq_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+                {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            {% if rfq.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+            <hr><h6>Add line</h6>
+            <form method="post" action="{% url 'procurement:rfq_line_create' rfq.pk %}">{% csrf_token %}{{ line_form|crispy }}<button class="btn btn-primary btn-sm">Add Line</button></form>
+            {% endif %}
+        </div></div>
+
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Invited Suppliers</h5>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Supplier</th><th>Invited</th><th>Responded</th><th>Participation</th><th></th></tr></thead>
+                <tbody>
+                {% for i in invited %}
+                    <tr><td class="small">{{ i.supplier.code }} - {{ i.supplier.name }}</td>
+                    <td class="small">{{ i.invited_at|date:"M j" }}</td>
+                    <td class="small">{{ i.responded_at|date:"M j"|default:"-" }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ i.get_participation_status_display }}</span></td>
+                    <td class="text-end">{% if rfq.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:rfq_invite_remove' i.pk %}" style="display:inline" onsubmit="return confirm('Remove invitation?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No suppliers invited yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+            {% if rfq.status in 'draft,issued' and request.user.is_tenant_admin or request.user.is_superuser %}
+            <hr><h6>Invite supplier</h6>
+            <form method="post" action="{% url 'procurement:rfq_invite' rfq.pk %}">{% csrf_token %}{{ supplier_form|crispy }}<button class="btn btn-primary btn-sm">Invite</button></form>
+            {% endif %}
+        </div></div>
+
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Submitted Quotations</h5>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Quote#</th><th>Supplier</th><th>Quote Date</th><th>Status</th><th class="text-end">Total</th></tr></thead>
+                <tbody>
+                {% for q in quotations %}
+                    <tr><td class="small fw-semibold"><a href="{% url 'procurement:quotation_detail' q.pk %}">{{ q.quote_number }}</a></td>
+                    <td class="small">{{ q.supplier.code }}</td><td class="small">{{ q.quote_date|date:"M j" }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ q.get_status_display }}</span></td>
+                    <td class="small text-end">{{ q.currency }} {{ q.grand_total }}</td></tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No quotations received yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            <div class="d-grid gap-2">
+                {% if rfq.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:rfq_issue' rfq.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-send-plane-line me-1"></i> Issue RFQ</button></form>
+                    <a href="{% url 'procurement:rfq_edit' rfq.pk %}" class="btn btn-outline-primary btn-sm"><i class="ri-pencil-line"></i> Edit</a>
+                {% endif %}
+                {% if rfq.status == 'issued' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:rfq_close' rfq.pk %}">{% csrf_token %}<button class="btn btn-warning btn-sm w-100"><i class="ri-lock-line me-1"></i> Close RFQ</button></form>
+                {% endif %}
+                {% if rfq.status == 'closed' and not award and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <hr><h6>Award</h6>
+                    <form method="post" action="{% url 'procurement:rfq_award' rfq.pk %}">{% csrf_token %}{{ award_form|crispy }}<button class="btn btn-success btn-sm w-100"><i class="ri-award-line me-1"></i> Award</button></form>
+                {% endif %}
+                {% if rfq.status not in 'awarded,cancelled' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:rfq_cancel' rfq.pk %}" onsubmit="return confirm('Cancel RFQ?');">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-close-circle-line"></i> Cancel</button></form>
+                {% endif %}
+            </div>
+        </div></div>
+
+        {% if award %}
+        <div class="card mt-3"><div class="card-body">
+            <h6 class="card-title">Award</h6>
+            <p class="small mb-1">Winner: <a href="{% url 'procurement:quotation_detail' award.quotation.pk %}">{{ award.quotation.quote_number }}</a></p>
+            <p class="small mb-1">By: {{ award.awarded_by|default:"-" }} on {{ award.awarded_at|date:"M j Y" }}</p>
+            <p class="small text-muted mb-0">{{ award.award_notes|truncatechars:120 }}</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
