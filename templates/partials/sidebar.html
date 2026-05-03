@@ -156,6 +156,29 @@
                 </li>
 
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarInventory" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-archive-2-line"></i> <span>Inventory</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarInventory" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'inventory:index' %}" class="nav-link">Inventory Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:stockitem_list' %}" class="nav-link">Stock On-Hand</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:warehouse_list' %}" class="nav-link">Warehouses</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:zone_list' %}" class="nav-link">Zones</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:bin_list' %}" class="nav-link">Bins</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:grn_list' %}" class="nav-link">Goods Receipts</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:movement_list' %}" class="nav-link">Movements</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:transfer_list' %}" class="nav-link">Transfers</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:adjustment_list' %}" class="nav-link">Adjustments</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:cc_sheet_list' %}" class="nav-link">Cycle Counts</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:cc_plan_list' %}" class="nav-link">Cycle Count Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:lot_list' %}" class="nav-link">Lots</a></li>
+                            <li class="nav-item"><a href="{% url 'inventory:serial_list' %}" class="nav-link">Serial Numbers</a></li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
                     </a>
