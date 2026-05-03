@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Stock Movements{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Stock Movements</h4><div class="text-muted small">Append-only ledger of every inventory change.</div></div>
+    <a href="{% url 'inventory:movement_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Movement</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="SKU or reference..."></div>
+        <div class="col-md-3"><select name="movement_type" class="form-select"><option value="">Any type</option>{% for v, label in movement_type_choices %}<option value="{{ v }}" {% if movement_type_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>When</th><th>Type</th><th>Product</th><th>Qty</th><th>From</th><th>To</th><th>Lot</th><th>Reference</th><th></th></tr></thead>
+        <tbody>
+        {% for m in page_obj %}
+            <tr><td class="small">{{ m.posted_at|date:"M j H:i" }}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ m.get_movement_type_display }}</span></td>
+            <td class="small fw-semibold">{{ m.product.sku }}</td>
+            <td class="small">{{ m.qty }}</td>
+            <td class="small">{{ m.from_bin|default:"-" }}</td>
+            <td class="small">{{ m.to_bin|default:"-" }}</td>
+            <td class="small">{{ m.lot.lot_number|default:"-" }}</td>
+            <td class="small">{{ m.reference|default:"-" }}</td>
+            <td class="text-end"><a href="{% url 'inventory:movement_detail' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a></td></tr>
+        {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No movements yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
