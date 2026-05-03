@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Storage Bins{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Storage Bins</h4><div class="text-muted small">Pick / pallet / shelf / rack locations.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'inventory:bin_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Bin</a>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Bin code..."></div>
+        <div class="col-md-2"><select name="bin_type" class="form-select"><option value="">Any type</option>{% for v, label in bin_type_choices %}<option value="{{ v }}" {% if bin_type_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="abc_class" class="form-select"><option value="">Any ABC</option><option value="A" {% if abc_filter == 'A' %}selected{% endif %}>A</option><option value="B" {% if abc_filter == 'B' %}selected{% endif %}>B</option><option value="C" {% if abc_filter == 'C' %}selected{% endif %}>C</option></select></div>
+        <div class="col-md-2"><select name="blocked" class="form-select"><option value="">Any state</option><option value="yes" {% if blocked_filter == 'yes' %}selected{% endif %}>Blocked</option><option value="no" {% if blocked_filter == 'no' %}selected{% endif %}>Open</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Warehouse</th><th>Zone</th><th>Bin</th><th>Type</th><th>Capacity</th><th>ABC</th><th>State</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for b in page_obj %}
+            <tr><td class="small">{{ b.zone.warehouse.code }}</td>
+            <td class="small">{{ b.zone.code }}</td>
+            <td class="small fw-semibold">{{ b.code }}</td>
+            <td class="small">{{ b.get_bin_type_display }}</td>
+            <td class="small">{{ b.capacity }}</td>
+            <td class="small">{{ b.abc_class|default:"-" }}</td>
+            <td>{% if b.is_blocked %}<span class="badge bg-warning-subtle text-warning">Blocked</span>{% else %}<span class="badge bg-success-subtle text-success">Open</span>{% endif %}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'inventory:bin_edit' b.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'inventory:bin_delete' b.pk %}" style="display:inline" onsubmit="return confirm('Delete bin {{ b.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td></tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No bins yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
