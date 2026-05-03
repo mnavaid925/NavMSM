@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ adj.adjustment_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ adj.adjustment_number }}</h4>
+        <div class="text-muted small">{{ adj.warehouse.code }} &middot; {{ adj.get_reason_display }} &middot; {{ adj.get_status_display }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:adjustment_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if adj.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'inventory:adjustment_post' adj.pk %}" onsubmit="return confirm('Post this adjustment? Stock will be updated.');">{% csrf_token %}<button class="btn btn-primary"><i class="ri-checkbox-circle-line me-1"></i> Post</button></form>
+        <form method="post" action="{% url 'inventory:adjustment_delete' adj.pk %}" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <p class="small text-muted">{{ adj.reason_notes|linebreaksbr }}</p>
+    <h5>Lines</h5>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Bin</th><th>Product</th><th>Lot</th><th>System Qty</th><th>Actual Qty</th><th>Variance</th><th></th></tr></thead>
+        <tbody>
+        {% for l in lines %}
+            <tr><td class="small">{{ l.bin }}</td>
+            <td class="small">{{ l.product.sku }}</td>
+            <td class="small">{{ l.lot.lot_number|default:"-" }}</td>
+            <td class="small">{{ l.system_qty }}</td>
+            <td class="small">{{ l.actual_qty }}</td>
+            <td class="small {% if l.variance > 0 %}text-success{% elif l.variance < 0 %}text-danger{% endif %}">{{ l.variance }}</td>
+            <td class="text-end">{% if adj.status == 'draft' %}<form method="post" action="{% url 'inventory:adjustment_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% if adj.status == 'draft' %}
+    <h6 class="mt-3">Add line</h6>
+    <form method="post" action="{% url 'inventory:adjustment_line_create' adj.pk %}">{% csrf_token %}{{ line_form|crispy }}
+    <button class="btn btn-primary btn-sm"><i class="ri-add-line me-1"></i> Add Line</button></form>
+    {% endif %}
+</div></div>
+{% endblock %}
