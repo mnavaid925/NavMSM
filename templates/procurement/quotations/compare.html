@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Compare quotations - {{ rfq.rfq_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Quote comparison - {{ rfq.rfq_number }}</h4>
+        <div class="text-muted small">{{ rfq.title }}</div></div>
+    <a href="{% url 'procurement:rfq_detail' rfq.pk %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back to RFQ</a>
+</div>
+
+<div class="card"><div class="card-body">
+    {% if quotations %}
+    <div class="table-responsive"><table class="table table-bordered align-middle">
+        <thead>
+            <tr><th>Line / Product</th>
+            {% for q in quotations %}<th class="text-center">{{ q.supplier.code }}<br><span class="small text-muted">{{ q.quote_number }} - {{ q.get_status_display }}</span></th>{% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+            <tr>
+                <td class="small"><strong>L{{ row.line.line_number }}</strong>: {{ row.line.product.sku|default:row.line.description|default:"-" }} <span class="text-muted">x{{ row.line.quantity }} {{ row.line.unit_of_measure }}</span></td>
+                {% for cell in row.cells %}
+                    <td class="text-center small">{% if cell is not None %}{{ cell }}{% else %}-{% endif %}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+            <tr class="table-light"><td><strong>Grand total</strong></td>
+            {% for q in quotations %}<td class="text-center fw-bold">{{ q.currency }} {{ q.grand_total }}</td>{% endfor %}
+            </tr>
+        </tbody>
+    </table></div>
+    <p class="small text-muted mt-2">Lowest unit price per line should be evaluated alongside lead time, MOQ, and supplier risk before awarding.</p>
+    {% else %}
+    <p class="text-center text-muted py-4">No quotations submitted yet.</p>
+    {% endif %}
+</div></div>
+{% endblock %}
