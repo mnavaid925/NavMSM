@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Movement #{{ mv.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>Movement #{{ mv.pk }} &middot; {{ mv.get_movement_type_display }}</h4>
+    <a href="{% url 'inventory:movement_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-sm-3">Posted at</dt><dd class="col-sm-9">{{ mv.posted_at|date:"M j Y H:i" }}</dd>
+    <dt class="col-sm-3">Posted by</dt><dd class="col-sm-9">{{ mv.posted_by.username|default:"-" }}</dd>
+    <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ mv.get_movement_type_display }}</dd>
+    <dt class="col-sm-3">Product</dt><dd class="col-sm-9">{{ mv.product.sku }} - {{ mv.product.name }}</dd>
+    <dt class="col-sm-3">Qty</dt><dd class="col-sm-9">{{ mv.qty }} {{ mv.product.unit_of_measure }}</dd>
+    <dt class="col-sm-3">From bin</dt><dd class="col-sm-9">{{ mv.from_bin|default:"-" }}</dd>
+    <dt class="col-sm-3">To bin</dt><dd class="col-sm-9">{{ mv.to_bin|default:"-" }}</dd>
+    <dt class="col-sm-3">Lot</dt><dd class="col-sm-9">{{ mv.lot.lot_number|default:"-" }}</dd>
+    <dt class="col-sm-3">Serial</dt><dd class="col-sm-9">{{ mv.serial.serial_number|default:"-" }}</dd>
+    <dt class="col-sm-3">Reason</dt><dd class="col-sm-9">{{ mv.reason|default:"-" }}</dd>
+    <dt class="col-sm-3">Reference</dt><dd class="col-sm-9">{{ mv.reference|default:"-" }}</dd>
+    <dt class="col-sm-3">MES report</dt><dd class="col-sm-9">{% if mv.production_report %}#{{ mv.production_report_id }}{% else %}-{% endif %}</dd>
+    <dt class="col-sm-3">IQC inspection</dt><dd class="col-sm-9">{% if mv.incoming_inspection %}{{ mv.incoming_inspection }}{% else %}-{% endif %}</dd>
+    <dt class="col-sm-3">GRN line</dt><dd class="col-sm-9">{% if mv.grn_line %}{{ mv.grn_line.grn.grn_number }} :: {{ mv.grn_line.product.sku }}{% else %}-{% endif %}</dd>
+    <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ mv.notes|default:"-"|linebreaksbr }}</dd>
+</dl>
+</div></div>
+{% endblock %}
