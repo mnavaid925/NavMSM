@@ -96,6 +96,16 @@ def test_post_movement_transfer_requires_both(acme, fg_product, bin_a):
         )
 
 
+def test_post_movement_transfer_rejects_same_bin(acme, fg_product, bin_a):
+    """Regression for BUG-01 (TC-NEG-03): service-layer guard against same-bin transfer."""
+    with pytest.raises(ValueError, match='source and destination bin must differ'):
+        post_movement(
+            tenant=acme, movement_type='transfer',
+            product=fg_product, qty=Decimal('1'),
+            from_bin=bin_a, to_bin=bin_a,
+        )
+
+
 def test_post_movement_adjustment_requires_one(acme, fg_product, bin_a, bin_b):
     with pytest.raises(ValueError, match='exactly one'):
         post_movement(
