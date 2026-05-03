@@ -244,9 +244,18 @@ class GoodsReceiptNote(TenantAwareModel, TimeStampedModel):
     )
     supplier_name = models.CharField(
         max_length=255, blank=True,
-        help_text='Free-text supplier (Module 9 / Procurement will replace with FK).',
+        help_text='Free-text supplier (preserved for legacy GRNs - new GRNs should use the FK).',
     )
     po_reference = models.CharField(max_length=60, blank=True)
+    # Module 9 - Procurement bridge (additive, nullable; legacy text columns kept).
+    supplier = models.ForeignKey(
+        'procurement.Supplier', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='goods_receipts',
+    )
+    purchase_order = models.ForeignKey(
+        'procurement.PurchaseOrder', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='goods_receipts',
+    )
     incoming_inspection = models.ForeignKey(
         'qms.IncomingInspection', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='goods_receipts',
