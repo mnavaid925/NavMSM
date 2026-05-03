@@ -1,0 +1,28 @@
+{% extends 'procurement/portal/portal_base.html' %}
+{% block title %}My Purchase Orders{% endblock %}
+
+{% block portal_content %}
+<div class="card"><div class="card-body">
+    <h5 class="card-title">My Purchase Orders</h5>
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>PO#</th><th>Order</th><th>Required</th><th>Priority</th><th>Status</th><th class="text-end">Total</th></tr></thead>
+        <tbody>
+        {% for po in page_obj %}
+            <tr><td class="small fw-semibold">{{ po.po_number }}</td>
+            <td class="small">{{ po.order_date|date:"M j Y" }}</td>
+            <td class="small">{{ po.required_date|date:"M j Y"|default:"-" }}</td>
+            <td class="small">{{ po.get_priority_display }}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ po.get_status_display }}</span></td>
+            <td class="small text-end">{{ po.currency }} {{ po.grand_total }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No POs yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'procurement/_pagination.html' %}
+</div></div>
+{% endblock %}

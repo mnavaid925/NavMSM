@@ -1,0 +1,29 @@
+{% extends 'procurement/portal/portal_base.html' %}
+{% block title %}My Invoices{% endblock %}
+
+{% block portal_content %}
+<div class="card"><div class="card-body">
+    <h5 class="card-title d-flex justify-content-between">My Invoices <a class="btn btn-primary btn-sm" href="{% url 'procurement:invoice_create' %}"><i class="ri-add-line me-1"></i> Submit Invoice</a></h5>
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Invoice#</th><th>Vendor #</th><th>Date</th><th>Due</th><th>PO</th><th>Status</th><th class="text-end">Total</th></tr></thead>
+        <tbody>
+        {% for i in page_obj %}
+            <tr><td class="small fw-semibold">{{ i.invoice_number }}</td>
+            <td class="small">{{ i.vendor_invoice_number }}</td>
+            <td class="small">{{ i.invoice_date|date:"M j Y" }}</td>
+            <td class="small">{{ i.due_date|date:"M j Y"|default:"-" }}</td>
+            <td class="small">{% if i.purchase_order %}{{ i.purchase_order.po_number }}{% else %}-{% endif %}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ i.get_status_display }}</span></td>
+            <td class="small text-end">{{ i.currency }} {{ i.grand_total }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No invoices yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'procurement/_pagination.html' %}
+</div></div>
+{% endblock %}
