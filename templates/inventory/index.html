@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Inventory Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Inventory & Warehouse</h4>
+        <div class="text-muted small">Stock visibility, GRN, movements, cycle counts, lot/serial traceability.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:grn_create' %}" class="btn btn-primary"><i class="ri-download-cloud-line me-1"></i> New GRN</a>
+        <a href="{% url 'inventory:movement_create' %}" class="btn btn-outline-primary"><i class="ri-exchange-line me-1"></i> New Movement</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Active Warehouses</div><h3>{{ warehouse_count }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Storage Bins</div><h3>{{ bin_count }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Distinct SKUs On-Hand</div><h3>{{ sku_count }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Open GRNs</div><h3>{{ open_grn }}</h3></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Open Transfers</div><h3>{{ open_transfers }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Open Cycle Counts</div><h3>{{ open_cycle_counts }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card border-warning"><div class="card-body"><div class="text-muted small">Lots Expiring &le; 30d</div><h3 class="text-warning">{{ expiring_lots }}</h3></div></div></div>
+    <div class="col-md-3"><div class="card border-danger"><div class="card-body"><div class="text-muted small">Lots Expired</div><h3 class="text-danger">{{ expired_lots }}</h3></div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Movements</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>When</th><th>Type</th><th>Product</th><th>Qty</th><th>From</th><th>To</th></tr></thead>
+            <tbody>
+            {% for m in recent_movements %}
+                <tr><td class="small">{{ m.posted_at|date:"M j H:i" }}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary">{{ m.get_movement_type_display }}</span></td>
+                <td class="small">{{ m.product.sku }}</td>
+                <td class="small">{{ m.qty }}</td>
+                <td class="small">{{ m.from_bin|default:"-" }}</td>
+                <td class="small">{{ m.to_bin|default:"-" }}</td></tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No movements yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Lots Nearing Expiry</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Product</th><th>Lot</th><th>Expiry</th></tr></thead>
+            <tbody>
+            {% for l in expiring_lot_list %}
+                <tr><td class="small">{{ l.product.sku }}</td>
+                <td class="small">{{ l.lot_number }}</td>
+                <td class="small text-warning">{{ l.expiry_date|date:"M j Y" }}</td></tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No lots expiring soon.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
