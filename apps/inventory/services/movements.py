@@ -77,6 +77,8 @@ def post_movement(
         raise ValueError(f'post_movement: from_bin is required for {movement_type}')
     if require_both and (from_bin is None or to_bin is None):
         raise ValueError('post_movement: transfer requires both from_bin and to_bin')
+    if require_both and from_bin == to_bin:
+        raise ValueError('post_movement: transfer source and destination bin must differ')
     if require_one and bool(from_bin) == bool(to_bin):
         raise ValueError(
             f'post_movement: {movement_type} requires exactly one of from_bin / to_bin'
