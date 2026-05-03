@@ -18,6 +18,7 @@ class User(AbstractUser):
         ('procurement', 'Procurement'),
         ('accountant', 'Accountant'),
         ('viewer', 'Viewer'),
+        ('supplier', 'Supplier (External)'),
     ]
 
     tenant = models.ForeignKey(
@@ -32,6 +33,15 @@ class User(AbstractUser):
     phone = models.CharField(max_length=30, blank=True)
     job_title = models.CharField(max_length=120, blank=True)
     is_tenant_admin = models.BooleanField(default=False)
+    # Module 9 - Procurement: Supplier-portal users carry a FK to their supplier
+    # company so views can scope POs/ASNs/Invoices to their own org.
+    supplier_company = models.ForeignKey(
+        'procurement.Supplier',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='portal_users',
+        help_text="Set only when role='supplier'.",
+    )
 
     class Meta:
         ordering = ['first_name', 'last_name']
