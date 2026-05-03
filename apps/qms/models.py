@@ -190,9 +190,18 @@ class IncomingInspection(TenantAwareModel, TimeStampedModel):
         IncomingInspectionPlan, on_delete=models.PROTECT,
         related_name='inspections', null=True, blank=True,
     )
-    # Free-text procurement placeholders (Module 9 will add FKs).
+    # Free-text procurement placeholders (preserved for legacy IQCs).
     supplier_name = models.CharField(max_length=255, blank=True)
     po_reference = models.CharField(max_length=60, blank=True)
+    # Module 9 - Procurement bridge (additive, nullable; legacy text columns kept).
+    supplier = models.ForeignKey(
+        'procurement.Supplier', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='incoming_inspections',
+    )
+    purchase_order = models.ForeignKey(
+        'procurement.PurchaseOrder', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='incoming_inspections',
+    )
     lot_number = models.CharField(max_length=60, blank=True)
     received_qty = models.DecimalField(
         max_digits=14, decimal_places=2,
