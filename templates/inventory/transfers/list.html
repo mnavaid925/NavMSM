@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Stock Transfers{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Stock Transfers</h4><div class="text-muted small">Inter-warehouse moves &amp; in-transit tracking.</div></div>
+    <a href="{% url 'inventory:transfer_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Transfer</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Transfer #..."></div>
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Any status</option>{% for v, label in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Transfer#</th><th>Source</th><th>Dest</th><th>Requested</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for t in page_obj %}
+            <tr><td class="small fw-semibold"><a href="{% url 'inventory:transfer_detail' t.pk %}">{{ t.transfer_number }}</a></td>
+            <td class="small">{{ t.source_warehouse.code }}</td>
+            <td class="small">{{ t.destination_warehouse.code }}</td>
+            <td class="small">{{ t.requested_date|date:"M j Y" }}</td>
+            <td>
+                {% if t.status == 'draft' %}<span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                {% elif t.status == 'in_transit' %}<span class="badge bg-info-subtle text-info">In Transit</span>
+                {% elif t.status == 'received' %}<span class="badge bg-success-subtle text-success">Received</span>
+                {% else %}<span class="badge bg-danger-subtle text-danger">Cancelled</span>{% endif %}
+            </td>
+            <td class="text-end"><a href="{% url 'inventory:transfer_detail' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a></td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No transfers yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
