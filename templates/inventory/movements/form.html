@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Movement{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>Post Stock Movement</h4>
+    <a href="{% url 'inventory:movement_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+<div class="card"><div class="card-body">
+<div class="alert alert-info small mb-3">
+    Movement type determines which bin fields are required:
+    <strong>receipt / production_in</strong> need <em>to_bin</em>;
+    <strong>issue / production_out / scrap</strong> need <em>from_bin</em>;
+    <strong>transfer</strong> needs both;
+    <strong>adjustment / cycle_count</strong> needs exactly one.
+</div>
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex gap-2"><button class="btn btn-primary"><i class="ri-save-line me-1"></i> Post Movement</button>
+<a href="{% url 'inventory:movement_list' %}" class="btn btn-light">Cancel</a></div>
+</form></div></div>
+{% endblock %}
