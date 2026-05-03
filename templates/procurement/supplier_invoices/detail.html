@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ inv.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ inv.invoice_number }} <span class="badge bg-{% if inv.status == 'paid' %}success-subtle text-success{% elif inv.status == 'rejected' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ inv.get_status_display }}</span></h4>
+        <div class="text-muted small">Vendor #{{ inv.vendor_invoice_number }} | {{ inv.supplier.code }} - {{ inv.supplier.name }}</div></div>
+    <a href="{% url 'procurement:invoice_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9"><div class="card"><div class="card-body">
+        <h5 class="card-title">Invoice header</h5>
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Invoice Date</dt><dd class="col-sm-3">{{ inv.invoice_date|date:"M j Y" }}</dd>
+            <dt class="col-sm-3">Due Date</dt><dd class="col-sm-3">{{ inv.due_date|date:"M j Y"|default:"-" }}</dd>
+            <dt class="col-sm-3">PO</dt><dd class="col-sm-3">{% if inv.purchase_order %}<a href="{% url 'procurement:po_detail' inv.purchase_order.pk %}">{{ inv.purchase_order.po_number }}</a>{% else %}-{% endif %}</dd>
+            <dt class="col-sm-3">Currency</dt><dd class="col-sm-3">{{ inv.currency }}</dd>
+            <dt class="col-sm-3">Subtotal</dt><dd class="col-sm-3">{{ inv.subtotal }}</dd>
+            <dt class="col-sm-3">Tax</dt><dd class="col-sm-3">{{ inv.tax_total }}</dd>
+            <dt class="col-sm-3">Grand total</dt><dd class="col-sm-3 fw-bold">{{ inv.grand_total }}</dd>
+            {% if inv.payment_reference %}<dt class="col-sm-3">Payment Ref</dt><dd class="col-sm-3">{{ inv.payment_reference }}</dd>{% endif %}
+            {% if inv.attachment %}<dt class="col-sm-3">Attachment</dt><dd class="col-sm-9"><a href="{{ inv.attachment.url }}" target="_blank">{{ inv.attachment.name }}</a></dd>{% endif %}
+        </dl>
+        <h5 class="card-title">Lines</h5>
+        <table class="table table-sm">
+            <thead><tr><th>#</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Total</th></tr></thead>
+            <tbody>{% for l in lines %}<tr><td class="small">{{ l.line_number }}</td><td class="small">{{ l.description }}</td><td class="small text-end">{{ l.quantity }}</td><td class="small text-end">{{ l.unit_price }}</td><td class="small text-end">{{ l.line_total }}</td></tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}</tbody>
+        </table>
+    </div></div></div>
+
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <h6 class="card-title">Workflow</h6>
+        <div class="d-grid gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            {% if inv.status == 'submitted' %}<form method="post" action="{% url 'procurement:invoice_review' inv.pk %}">{% csrf_token %}<button class="btn btn-outline-primary btn-sm w-100"><i class="ri-eye-line me-1"></i> Move to Review</button></form>{% endif %}
+            {% if inv.status in 'submitted,under_review' %}
+                <form method="post" action="{% url 'procurement:invoice_approve' inv.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-check-line me-1"></i> Approve</button></form>
+                <form method="post" action="{% url 'procurement:invoice_reject' inv.pk %}" onsubmit="return confirm('Reject?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-close-line me-1"></i> Reject</button></form>
+            {% endif %}
+            {% if inv.status == 'under_review' or inv.status == 'approved' %}
+                <form method="post" action="{% url 'procurement:invoice_dispute' inv.pk %}" onsubmit="return confirm('Mark disputed?');">{% csrf_token %}<button class="btn btn-outline-warning btn-sm w-100"><i class="ri-alarm-warning-line me-1"></i> Dispute</button></form>
+            {% endif %}
+            {% if inv.status == 'approved' %}
+                <hr><h6>Mark Paid</h6>
+                <form method="post" action="{% url 'procurement:invoice_pay' inv.pk %}">{% csrf_token %}
+                    <input class="form-control form-control-sm mb-2" name="payment_reference" placeholder="Payment reference" required>
+                    <button class="btn btn-success btn-sm w-100"><i class="ri-bank-card-line me-1"></i> Mark Paid</button>
+                </form>
+            {% endif %}
+            {% if inv.status in 'submitted,rejected' %}
+                <form method="post" action="{% url 'procurement:invoice_delete' inv.pk %}" onsubmit="return confirm('Delete invoice?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}
+        {% endif %}
+        </div>
+    </div></div>
+
+    {% if inv.paid_at %}
+    <div class="card mt-3"><div class="card-body">
+        <h6 class="card-title">Payment</h6>
+        <p class="small mb-1">Reference: {{ inv.payment_reference }}</p>
+        <p class="small mb-0">Paid: {{ inv.paid_at|date:"M j Y H:i" }}</p>
+    </div></div>
+    {% endif %}
+    </div>
+</div>
+{% endblock %}
