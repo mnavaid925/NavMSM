@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ sc.supplier.code }} scorecard{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ sc.supplier.code }} - {{ sc.supplier.name }}</h4>
+        <div class="text-muted small">Period: {{ sc.period_start|date:"M j Y" }} to {{ sc.period_end|date:"M j Y" }}</div></div>
+    <a href="{% url 'procurement:scorecard_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">OTD %</div><h2 class="text-success">{{ sc.otd_pct }}</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Quality</div><h2 class="text-primary">{{ sc.quality_rating }}</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Defect %</div><h2 class="text-danger">{{ sc.defect_rate_pct }}</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Overall</div><h2>{{ sc.overall_score }} / 100</h2></div></div></div>
+</div>
+
+<div class="card"><div class="card-body">
+    <h5 class="card-title">Source events ({{ events|length }})</h5>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>When</th><th>Event</th><th class="text-end">Value</th><th>Reference</th><th>Notes</th></tr></thead>
+        <tbody>
+        {% for e in events %}
+            <tr><td class="small">{{ e.posted_at|date:"M j H:i" }}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ e.get_event_type_display }}</span></td>
+            <td class="small text-end">{{ e.value }}</td>
+            <td class="small">{{ e.reference_type }}#{{ e.reference_id }}</td>
+            <td class="small">{{ e.notes }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No events recorded for this period.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+{% endblock %}
