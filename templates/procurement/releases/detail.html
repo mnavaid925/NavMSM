@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ r.release_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ r.release_number }} <span class="badge bg-secondary-subtle text-secondary">{{ r.get_status_display }}</span></h4>
+        <div class="text-muted small">Blanket <a href="{% url 'procurement:blanket_detail' r.blanket_order.pk %}">{{ r.blanket_order.bpo_number }}</a> | Supplier {{ r.blanket_order.supplier.code }}</div></div>
+    <a href="{% url 'procurement:release_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9"><div class="card"><div class="card-body">
+        <h5 class="card-title">Release lines <span class="text-muted small">total {{ r.total_amount }}</span></h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Blanket Line</th><th>Product</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Total</th><th>Required</th><th></th></tr></thead>
+            <tbody>
+            {% for l in lines %}
+                <tr><td class="small">L{{ l.blanket_order_line.line_number }}</td>
+                <td class="small">{{ l.blanket_order_line.product.sku }}</td>
+                <td class="small text-end">{{ l.quantity }}</td>
+                <td class="small text-end">{{ l.blanket_order_line.unit_price }}</td>
+                <td class="small text-end">{{ l.line_total }}</td>
+                <td class="small">{{ l.required_date|date:"M j Y"|default:"-" }}</td>
+                <td class="text-end">{% if r.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:release_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        {% if r.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <hr><h6>Add line</h6>
+        <form method="post" action="{% url 'procurement:release_line_create' r.pk %}">{% csrf_token %}{{ line_form|crispy }}<button class="btn btn-primary btn-sm">Add Line</button></form>
+        {% endif %}
+    </div></div></div>
+
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <h6 class="card-title">Workflow</h6>
+        <div class="d-grid gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            {% if r.status == 'draft' %}<form method="post" action="{% url 'procurement:release_release' r.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-send-plane-line me-1"></i> Release</button></form>{% endif %}
+            {% if r.status == 'released' %}<form method="post" action="{% url 'procurement:release_receive' r.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-check-line me-1"></i> Mark Received</button></form>{% endif %}
+            {% if r.status in 'draft,released' %}<form method="post" action="{% url 'procurement:release_cancel' r.pk %}" onsubmit="return confirm('Cancel release?');">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-close-circle-line"></i> Cancel</button></form>{% endif %}
+        {% endif %}
+        </div>
+    </div></div></div>
+</div>
+{% endblock %}
