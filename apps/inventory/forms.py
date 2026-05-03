@@ -180,6 +180,8 @@ class StockMovementForm(TenantScopedFormMixin, forms.ModelForm):
             self.add_error('from_bin', 'Required for issues / production_out / scrap.')
         if movement_type == 'transfer' and (not from_bin or not to_bin):
             raise forms.ValidationError('Transfers require both from_bin and to_bin.')
+        if movement_type == 'transfer' and from_bin and to_bin and from_bin == to_bin:
+            raise forms.ValidationError('Transfer source and destination bin must differ.')
         if movement_type in ('adjustment', 'cycle_count') and bool(from_bin) == bool(to_bin):
             raise forms.ValidationError(
                 'Adjustment / cycle count requires exactly one of from_bin / to_bin.'
