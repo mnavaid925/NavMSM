@@ -178,6 +178,44 @@
                     </div>
                 </li>
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarProcurement" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-shopping-cart-2-line"></i> <span>Procurement</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarProcurement" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'procurement:index' %}" class="nav-link">Procurement Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:supplier_list' %}" class="nav-link">Suppliers</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:po_list' %}" class="nav-link">Purchase Orders</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:rfq_list' %}" class="nav-link">RFQs</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:quotation_list' %}" class="nav-link">Quotations</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:scorecard_list' %}" class="nav-link">Supplier Scorecards</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:asn_list' %}" class="nav-link">ASNs</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:invoice_list' %}" class="nav-link">Supplier Invoices</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:blanket_list' %}" class="nav-link">Blanket Orders</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:release_list' %}" class="nav-link">Schedule Releases</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                {% if request.user.role == 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
+                        <i class="ri-store-2-line"></i> <span>Supplier Portal</span>
+                    </a>
+                    <div class="collapse show menu-dropdown" id="sidebarSupplierPortal" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'procurement:portal_dashboard' %}" class="nav-link">Portal Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:portal_pos' %}" class="nav-link">My POs</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:portal_asns' %}" class="nav-link">My ASNs</a></li>
+                            <li class="nav-item"><a href="{% url 'procurement:portal_invoices' %}" class="nav-link">My Invoices</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUsers" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-team-line"></i> <span>User Management</span>
