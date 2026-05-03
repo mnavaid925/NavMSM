@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, and **Module 8 — Inventory & Warehouse Management**. The remaining 14 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, and **Module 9 — Procurement & Supplier Portal**. The remaining 13 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -27,7 +27,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 17. [Module 6 — Shop Floor Control (MES)](#module-6--shop-floor-control-mes)
 18. [Module 7 — Quality Management (QMS)](#module-7--quality-management-qms)
 19. [Module 8 — Inventory & Warehouse Management](#module-8--inventory--warehouse-management)
-20. [UI / Theme Customization](#ui--theme-customization)
+20. [Module 9 — Procurement & Supplier Portal](#module-9--procurement--supplier-portal)
+21. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
 20. [Security Notes](#security-notes)
@@ -49,6 +50,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 6 — Shop Floor Control (MES)** — one-click dispatch from a released `pps.ProductionOrder` into a `MESWorkOrder` (auto-numbered `WO-00001`) with per-routing-op fan-out; touchscreen operator terminal at `/mes/terminal/` with Start / Pause / Resume / Stop buttons backed by an append-only `OperatorTimeLog`; production reports (good / scrap / rework) that bump per-op denorms and roll up to the parent work order; andon alerts (quality / material / equipment / safety / other) with severity + acknowledge / resolve / cancel workflow; paperless work instructions with versioned content + 25 MB attachment + video URL, auth-gated downloads, automatic version supersession on release, and per-operator typed-signature acknowledgements.
 - **Module 7 — Quality Management (QMS)** — Incoming Quality Control with ANSI/ASQ Z1.4 single-sampling AQL plans, per-product characteristics, and accept / reject / accept-with-deviation workflow; In-Process Quality Control with checkpoint plans pinned to PPS routing operations, X-bar/R SPC chart math (A2/D3/D4 constants) + Western Electric runs rules 1–4, ApexCharts SPC visualisation; Final Quality Control with finished-good test protocols and HTML Certificate-of-Analysis generation (browser print-to-PDF); Non-Conformance Reports (auto-numbered `NCR-00001`) sourced from IQC / IPQC / FQC / customer with full root-cause analysis (5-Why, fishbone, FMEA), corrective &amp; preventive action tracking, attachment uploads, and `open → investigating → awaiting_capa → resolved → closed` workflow; Calibration Management with measurement-equipment registry, due-tracker (rows go red ≤7 days), append-only calibration records (pass / pass-with-adjustment / fail), tolerance verification, NIST-traceable reference standards, and signal-driven `next_due_at` propagation back onto the parent equipment.
 - **Module 8 — Inventory & Warehouse Management** — multi-warehouse tree (Warehouse → Zone → Bin) with `is_default` flag for auto-emit routing, ABC velocity classes on bins; goods receipt notes (auto-numbered `GRN-00001`) with line-level lot/serial capture, optional `qms.IncomingInspection` link, and four putaway strategies (`fixed_bin / nearest_empty / abc_zone / directed`); append-only `StockMovement` ledger covering eight movement types written exclusively through `services/movements.post_movement()` so `StockItem` denorms stay consistent; inter-warehouse transfers (auto `TRF-00001`) with `draft → in_transit → received` workflow that posts an issue + receipt pair, plus stock adjustments (auto `ADJ-00001`, admin-only) that emit one variance movement per line; cycle-count plans + sheets (auto `CC-00001`) with FIFO/FEFO allocation services and ABC Pareto classification, variance recount-trigger on >5%; lot/serial traceability with `Product.tracking_mode` enum (`none / lot / serial / lot_and_serial`), expiry tracking with red/yellow row tinting at 30 / 0 days, and per-lot stock + movement history; **automatic `production_in` movement emission** when `mes.ProductionReport` is filed (signal-based, idempotent, silently skipped when no default warehouse is configured) plus `pre_delete` reversal so the ledger never drifts.
+- **Module 9 — Procurement & Supplier Portal** — supplier master with code/risk/approval flags (8 seeded per tenant); purchase orders (auto `PUR-00001`) with full `draft → submitted → approved → acknowledged → in_progress → received → closed` workflow, line-level tax/discount/total denorms, race-safe conditional UPDATE on every transition, immutable `PurchaseOrderRevision` snapshots on every Revise action, and append-only approval log; multi-round RFQs (auto `RFQ-00001`) with invited-supplier matrix, side-by-side quote comparison view, and one-click Award action that optionally drafts a real PO from the winning quotation; supplier scorecards with weighted overall score (40% OTD + 40% Quality + 10% Responsiveness + 10% Price) computed by a pure-function service from append-only `SupplierMetricEvent` rows; **cross-module event hooks** that auto-emit OTD events when `inventory.GoodsReceiptNote` flips to completed and quality pass/fail events when `qms.IncomingInspection` is accepted/rejected; supplier self-service portal (role=`supplier` user with `supplier_company` FK) for ASN submission (auto `ASN-00001`), invoice upload (auto `SUPINV-00001`, 25 MB attachment cap), and own-PO visibility — every portal queryset is scoped to `request.user.supplier_company`; long-term blanket orders (auto `BPO-00001`) with periodic schedule releases (auto `REL-00001`) that consume the parent commitment via a race-safe conditional UPDATE so concurrent releases can never overdraw.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
@@ -239,6 +241,24 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/inventory/cycle-count/sheets/<pk>/start/` · `/reconcile/` | POST — `draft → counting → reconciled`; reconciliation emits `cycle_count` variance movements |
 | `/inventory/lots/` and CRUD | Lot/batch traceability with manufactured + expiry dates and stock-item / movement history per lot |
 | `/inventory/serials/` and CRUD | Per-unit serial number registry (admin-only CRUD) |
+| `/procurement/` | Procurement dashboard — KPI cards (suppliers, open POs, open RFQs, pending invoices, in-transit ASNs, active blankets), recent POs + invoices, top-ranked supplier scorecards |
+| `/procurement/suppliers/` and CRUD | Supplier master with risk-rating + approval filters; per-supplier contacts inline on detail |
+| `/procurement/po/` and CRUD | Purchase order list with status / priority / supplier filters; full workflow + revision snapshots |
+| `/procurement/po/<pk>/submit/` · `/approve/` · `/reject/` · `/acknowledge/` · `/close/` · `/cancel/` · `/revise/` | POST — PO lifecycle (each transition uses race-safe conditional UPDATE) |
+| `/procurement/po/<pk>/lines/new/` · `/lines/<pk>/delete/` | PO line CRUD inline on PO detail |
+| `/procurement/rfq/` and CRUD | RFQ list with status filter + multi-round support |
+| `/procurement/rfq/<pk>/issue/` · `/close/` · `/award/` · `/cancel/` | POST — RFQ lifecycle; Award optionally auto-creates a draft PO |
+| `/procurement/rfq/<pk>/invite/` · `/invited/<pk>/remove/` | Manage invited suppliers per RFQ |
+| `/procurement/rfq/<rfq_pk>/compare/` | Side-by-side quotation matrix (per-line unit price across all submitted quotes) |
+| `/procurement/quotations/` and CRUD | Supplier quotation list filterable by status |
+| `/procurement/scorecards/` and `<pk>/` | Supplier scorecard list (ranked) + per-supplier detail with KPI cards + source events |
+| `/procurement/scorecards/recompute/` | POST — recompute every active supplier's scorecard for the previous calendar month |
+| `/procurement/asn/` and CRUD | Advance Shipping Notice list filterable by status; submit / receive / cancel actions |
+| `/procurement/invoices/` and CRUD | Supplier invoice list filterable by status; review / approve / pay (requires payment ref) / reject / dispute |
+| `/procurement/blanket/` and CRUD | Blanket order list with consumption denorms; activate / close / cancel actions |
+| `/procurement/releases/` and CRUD | Schedule release list; release action consumes blanket commitment, cancel reverses |
+| `/procurement/portal/` | Supplier-portal dashboard (role=`supplier` user only) — KPIs scoped to `request.user.supplier_company` |
+| `/procurement/portal/pos/` · `/asns/` · `/invoices/` | Supplier-facing read views — only show records belonging to the user's supplier company |
 
 ---
 
@@ -424,6 +444,38 @@ NavMSM/
 │   │                             # (warehouses, zones, bins, lots, serials,
 │   │                             # initial movements, GRN, cycle-count sheet)
 │   │
+│   ├── procurement/              # MODULE 9 — Procurement & Supplier Portal
+│   │   ├── models.py             # Supplier, SupplierContact, PurchaseOrder,
+│   │   │                         # PurchaseOrderLine, PurchaseOrderRevision,
+│   │   │                         # PurchaseOrderApproval, RequestForQuotation,
+│   │   │                         # RFQLine, RFQSupplier, SupplierQuotation,
+│   │   │                         # QuotationLine, QuotationAward,
+│   │   │                         # SupplierMetricEvent, SupplierScorecard,
+│   │   │                         # SupplierASN, SupplierASNLine,
+│   │   │                         # SupplierInvoice, SupplierInvoiceLine,
+│   │   │                         # BlanketOrder, BlanketOrderLine,
+│   │   │                         # ScheduleRelease, ScheduleReleaseLine
+│   │   ├── services/
+│   │   │   ├── po_revision.py    # snapshot_po(po) + next_revision_number(po)
+│   │   │   ├── scorecard.py      # compute_scorecard(events) — pure, weighted
+│   │   │   ├── conversion.py     # convert_pr_to_po + convert_quotation_to_po
+│   │   │   └── blanket.py        # consume_release / reverse_release atomic UPDATE
+│   │   ├── signals.py            # Audit-log on PO/RFQ/Quotation/ASN/Invoice/
+│   │   │                         # Blanket/Release status; cross-module hooks
+│   │   │                         # on inventory.GRN completion -> SupplierMetricEvent
+│   │   │                         # and qms.IQC accept/reject -> SupplierMetricEvent
+│   │   ├── forms.py              # ModelForms with L-01 unique_together,
+│   │   │                         # L-02 decimal validators, L-14 per-workflow
+│   │   │                         # required (PO reject reason, invoice payment ref);
+│   │   │                         # blanket cumulative-consumption guard
+│   │   ├── views.py              # Full CRUD + workflow + supplier portal mixin
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_procurement.py # Idempotent demo (suppliers, RFQs, POs,
+│   │                                # ASNs, invoices, blanket + releases,
+│   │                                # scorecards) + 1 supplier-portal demo user
+│   │
 │   └── qms/                      # MODULE 7 — Quality Management (QMS)
 │       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
 │       │                         # IncomingInspection, InspectionMeasurement,
@@ -473,7 +525,8 @@ NavMSM/
 │   ├── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
 │   ├── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
 │   ├── qms/                      # index, iqc/{plans,inspections}, ipqc/{plans,inspections,charts}, fqc/{plans,inspections,coa}, ncr/, equipment/, calibrations/
-│   └── inventory/                # index, warehouses/, zones/, bins/, stock_items/, grn/, movements/, transfers/, adjustments/, cycle_count_plans/, cycle_count_sheets/, lots/, serials/
+│   ├── inventory/                # index, warehouses/, zones/, bins/, stock_items/, grn/, movements/, transfers/, adjustments/, cycle_count_plans/, cycle_count_sheets/, lots/, serials/
+│   └── procurement/              # index, suppliers/, po/, rfq/, quotations/, scorecards/, asn/, supplier_invoices/, blanket/, releases/, portal/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -616,6 +669,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 6 — MES)** — 5 `ShopFloorOperator` profiles (badges `B0001`–`B0005`) linked to seeded staff users, up to 6 `MESWorkOrder`s dispatched from released / in-progress production orders (with the parent's status preserved) — each with its own `MESWorkOrderOperation` chain — ~12 `OperatorTimeLog` rows across the in-progress and completed work orders, ~8 `ProductionReport` rows with mixed scrap reasons, 4 `AndonAlert`s spanning open / acknowledged / resolved / cancelled states, 3 `WorkInstruction`s with 1–2 `WorkInstructionVersion`s each (one released, one draft) attached to seeded routing operations (one carries a `video_url`), and 4 `WorkInstructionAcknowledgement` rows on the released versions.
 - **Per tenant (Module 5 — MRP)** — 2 `ForecastModel`s (moving_avg + naive_seasonal), 24 monthly `SeasonalityProfile` rows across 2 finished-goods, 1 completed `ForecastRun` with 16 `ForecastResult` rows, 8 `InventorySnapshot` rows covering finished-goods + components with mixed lot-sizing rules (L4L / FOQ / POQ / Min-Max), 5 `ScheduledReceipt`s (open POs / planned production / transfers), 1 completed `MRPCalculation` (linked to the seeded MPS) with **19 planned orders**, **10 PR suggestions**, and **35 exceptions**, plus 1 completed `MRPRun` + `MRPRunResult` capturing coverage / planned-orders / late-orders KPIs.
 - **Per tenant (Module 8 — Inventory)** — 2 `Warehouse` rows (`MAIN` flagged default + `SEC`) × 3 zones × 4 bins = 24 bins, 4 `Lot` rows (one expiring in 15 days, one already expired), 6 `SerialNumber` rows on the first finished good, 9 initial `StockMovement` rows that seed `StockItem` denorms across 4 bins (6 receipts + 1 issue + 1 transfer + 1 positive adjustment), 1 completed `GoodsReceiptNote` with 3 lines and matching completed `PutawayTask` rows, and 1 draft `CycleCountSheet` with 4 lines (one carrying a 2-unit variance and `recount_required=True`).
+- **Per tenant (Module 9 — Procurement)** — 8 `Supplier` rows (mix of approved/unapproved, mix of low/medium/high risk) each with 1 contact; 1 supplier-portal user (`supplier_<slug>_demo` / `Welcome@123`) attached to the first supplier; 4 `RequestForQuotation` rows (statuses: draft / issued / closed / awarded), the awarded one carries 3 `SupplierQuotation` rows + a `QuotationAward` pointing at the lowest bidder; 6 `PurchaseOrder` rows spanning every workflow status (draft / submitted / approved / acknowledged / in_progress / received), one of them carries 2 immutable `PurchaseOrderRevision` snapshots; 2 `SupplierASN` rows (1 in_transit, 1 received); 2 `SupplierInvoice` rows (1 under_review, 1 approved with payment ref); 1 `BlanketOrder` (active, 3 lines, 12-month horizon) with 2 `ScheduleRelease` rows (1 received with the per-line consumption denorm bumped, 1 currently released); ~80 `SupplierMetricEvent` rows back-filled across the previous calendar month (mix of OTD pass/fail + quality pass/fail); 1 `SupplierScorecard` per active supplier for the previous month with computed weighted overall score and rank.
 - **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
@@ -626,8 +680,11 @@ Running `python manage.py seed_data` creates:
 | `admin_acme` | Tenant Admin | Acme Manufacturing |
 | `admin_globex` | Tenant Admin | Globex Industries |
 | `admin_stark` | Tenant Admin | Stark Production Co. |
+| `supplier_acme_demo` | Supplier Portal | Acme Manufacturing (vendor SUP001) |
+| `supplier_globex_demo` | Supplier Portal | Globex Industries (vendor SUP001) |
+| `supplier_stark_demo` | Supplier Portal | Stark Production Co. (vendor SUP001) |
 
-Staff accounts follow the pattern `<slug>_<role>_<n>`, e.g. `acme_production_manager_1`, `globex_supervisor_2`, etc.
+Staff accounts follow the pattern `<slug>_<role>_<n>`, e.g. `acme_production_manager_1`, `globex_supervisor_2`, etc. Supplier-portal users see only the stripped-down `/procurement/portal/` surface — they cannot access internal Procurement screens or other modules.
 
 The seeder is **idempotent** — running it again will skip existing tenants/plans. Use `--flush` to reset the 3 demo tenants:
 
@@ -1279,6 +1336,119 @@ Run the inventory test suite with `pytest apps/inventory/tests/` — uses [`conf
 
 ---
 
+## Module 9 — Procurement & Supplier Portal
+
+Module 9 is implemented in [`apps/procurement/`](apps/procurement/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (PO snapshots, scorecard math, blanket consumption, conversion bridges) lives behind small pure-function services in [`apps/procurement/services/`](apps/procurement/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 9.1 — Purchase Order Management
+
+- **`Supplier`** — vendor master. Fields: `code` (unique per tenant), `name`, `legal_name`, contact info, `tax_id`, `currency`, `payment_terms`, `delivery_terms`, `is_active`, `is_approved`, `risk_rating` (low / medium / high). Referenced by every other resource in the module.
+- **`SupplierContact`** — per-supplier contact people; `is_primary` flag for the default reply-to.
+- **`PurchaseOrder`** — auto-numbered **`PUR-00001`** per tenant. Workflow `draft → submitted → approved → acknowledged → in_progress → received → closed`, plus `rejected` and `cancelled` terminals. Carries denorm `subtotal` / `tax_total` / `discount_total` / `grand_total` (recomputed on every line save). Optional FKs: `source_quotation` (auto-created via RFQ Award), `blanket_order` (when issued under a long-term agreement).
+- **`PurchaseOrderLine`** — `quantity ≥ 0.0001`, `tax_pct` / `discount_pct` 0–100, computed `line_subtotal / line_tax / line_discount / line_total` denorms.
+- **`PurchaseOrderRevision`** — immutable JSON snapshot captured on every Revise action via [`services/po_revision.snapshot_po()`](apps/procurement/services/po_revision.py). PROTECT FK per Lesson L-17 — audit-trail child must outlive its parent.
+- **`PurchaseOrderApproval`** — append-only log of every approve / reject decision with comments and timestamp.
+
+Workflow buttons on the PO detail page: **Submit for Approval** (draft → submitted), **Approve** / **Reject** (submitted → approved / rejected; rejection requires comments per Lesson L-14), **Acknowledge** (approved → acknowledged; supplier user OR tenant admin), **Close** (received → closed), **Cancel** (any non-terminal → cancelled), **Revise** (snapshots the current PO + lines into `PurchaseOrderRevision` and reverts status to draft for further edits). Every transition uses the conditional `UPDATE … WHERE status IN (…)` race-safe pattern.
+
+### Sub-module 9.2 — Supplier Quotation & RFQ
+
+- **`RequestForQuotation`** — auto-numbered **`RFQ-00001`**. Workflow `draft → issued → closed → awarded`, plus `cancelled`. Multi-round bidding via the self-FK `parent_rfq` field; create a new RFQ that points back to the prior round.
+- **`RFQLine`** — per-product line with `quantity`, `target_price` (internal-only, hidden from suppliers), `required_date`.
+- **`RFQSupplier`** — invited-supplier matrix; `participation_status` tracks `invited / quoted / declined / no_response`.
+- **`SupplierQuotation`** — auto-numbered **`QUO-00001`**; one per `(rfq, supplier)`. Carries `quote_date`, `valid_until`, `status` (`submitted → under_review → accepted / rejected`), and computed `subtotal / tax_total / grand_total` from its lines.
+- **`QuotationLine`** — supplier's bid against a specific RFQ line: `unit_price`, `lead_time_days` (0–365), `min_order_qty`, `comments`. Computed `quoted_subtotal = unit_price × rfq_line.quantity`.
+- **`QuotationAward`** — one-to-one with the RFQ. Records winning quotation + actor + timestamp + free-text rationale + `auto_create_po` flag.
+
+The RFQ detail page exposes Issue → Close → Award workflow buttons. Award optionally invokes [`services/conversion.convert_quotation_to_po()`](apps/procurement/services/conversion.py) which materialises the winning quote into a draft `PurchaseOrder` with one PO line per quoted line. A side-by-side comparison matrix at `/procurement/rfq/<pk>/compare/` shows every line × every quotation in a single table for evaluation.
+
+### Sub-module 9.3 — Supplier Performance Scorecard
+
+- **`SupplierMetricEvent`** — append-only event log feeding scorecard math. Event types: `po_received_on_time / po_received_late / quality_pass / quality_fail / price_variance / response_received / response_missed`. Indexed on `(tenant, supplier, -posted_at)`.
+- **`SupplierScorecard`** — periodic snapshot, unique per `(tenant, supplier, period_start, period_end)`. Stores `otd_pct`, `quality_rating`, `defect_rate_pct`, `price_variance_pct`, `responsiveness_rating`, `overall_score`, and `rank`.
+
+**Weighted overall-score formula** (in [`services/scorecard.py`](apps/procurement/services/scorecard.py)):
+
+```
+overall = 0.40 × OTD_pct
+        + 0.40 × quality_rating
+        + 0.10 × responsiveness_rating
+        + 0.10 × price_score   (price_score = 100 - |price_variance_pct|, only when there's data)
+```
+
+The pure-function `compute_scorecard(events)` is fully ORM-independent and accepts any iterable of objects exposing `event_type` and `value` — making it trivial to unit-test with stub events.
+
+The Recompute action at `/procurement/scorecards/recompute/` walks every active supplier, sums the previous calendar month's events, computes scores, and updates / creates a `SupplierScorecard` row. Suppliers are then re-ranked by `overall_score` (descending) so the dashboard's "Top Suppliers" panel always reflects the current period.
+
+### Sub-module 9.4 — Supplier Self-Service Portal
+
+- **No parallel auth model** — Module 9 extends `accounts.User` with a new role `supplier` and a nullable FK `User.supplier_company → procurement.Supplier`. Internal staff are still scoped by `request.tenant`; supplier-portal users are *additionally* scoped by `request.user.supplier_company` so a supplier sees only its own POs / ASNs / invoices.
+- **`SupplierPortalRequiredMixin`** — class-based view guard that enforces `role='supplier'` AND `supplier_company_id IS NOT NULL`. Internal admins hitting `/procurement/portal/` are redirected to the dashboard with a friendly toast.
+- **`SupplierASN`** — auto-numbered **`ASN-00001`**. Workflow `draft → submitted → in_transit → received`, plus `cancelled`. Carries carrier, tracking number, total package count, expected arrival date.
+- **`SupplierASNLine`** — per-PO-line shipped quantity with optional `lot_number` and free-text `serial_numbers`.
+- **`SupplierInvoice`** — auto-numbered **`SUPINV-00001`** internally, plus `vendor_invoice_number` for the supplier's own number (unique per supplier). Workflow `submitted → under_review → approved → paid`, plus `rejected` and `disputed`. Optional `attachment` FileField (allowlist `.pdf .png .jpg .jpeg`, 25 MB cap). Marking an invoice paid requires a non-empty `payment_reference` per Lesson L-14.
+- **`SupplierInvoiceLine`** — line-by-line breakdown with optional `po_line` cross-reference.
+
+The portal layout uses a dedicated stripped-down [`templates/procurement/portal/portal_base.html`](templates/procurement/portal/portal_base.html) which hides the internal sidebar and shows only Dashboard / My POs / My ASNs / My Invoices / Profile. The internal Procurement sidebar group is conditionally hidden for `role='supplier'` users via `{% if request.user.role != 'supplier' %}`.
+
+### Sub-module 9.5 — Blanket Orders & Scheduling Agreements
+
+- **`BlanketOrder`** — auto-numbered **`BPO-00001`** long-term contract per supplier. Workflow `draft → active → closed → expired`, plus `cancelled`. Carries `total_committed_value` and `consumed_value` (denorm bumped by released schedule releases) so `remaining_value` is always one query away.
+- **`BlanketOrderLine`** — per-product commitment with `total_quantity`, `consumed_quantity` (denorm), `unit_price`. Computed `remaining_quantity` property.
+- **`ScheduleRelease`** — auto-numbered **`REL-00001`** call-off against a blanket. Workflow `draft → released → received`, plus `cancelled`. Computed `total_amount` from lines.
+- **`ScheduleReleaseLine`** — per-blanket-line quantity with explicit form-level guard: `cumulative_consumption + new_qty ≤ blanket_line.total_quantity`. The service-layer [`consume_release()`](apps/procurement/services/blanket.py) uses a conditional `UPDATE … WHERE consumed_quantity ≤ total_quantity - new_qty` so two concurrent releases can never overdraw the commitment — the second one fails closed with a `ValueError`.
+
+### Cross-module integration
+
+| Touched | Bridge | Migration |
+|---|---|---|
+| `apps.accounts.User` | Added role `supplier` + nullable FK `supplier_company → procurement.Supplier`. Internal-staff queries can additionally exclude `role='supplier'` to keep portal users out of staff lists. | [`apps/accounts/migrations/0002_user_supplier_company_alter_user_role_and_more.py`](apps/accounts/migrations/) |
+| `apps.inventory.GoodsReceiptNote` | Added nullable FKs `supplier → procurement.Supplier` and `purchase_order → procurement.PurchaseOrder` (legacy free-text columns kept for back-compat). | [`apps/inventory/migrations/0002_goodsreceiptnote_purchase_order_and_more.py`](apps/inventory/migrations/) |
+| `apps.qms.IncomingInspection` | Added nullable FKs `supplier` and `purchase_order` (legacy free-text columns kept). | [`apps/qms/migrations/0003_incominginspection_purchase_order_and_more.py`](apps/qms/migrations/) |
+| `apps.mrp.MRPPurchaseRequisition` | Added nullable FK `converted_po → procurement.PurchaseOrder` so MRP can navigate directly to its converted PO; the existing `converted_reference` text column stays as a back-compat fallback. The conversion service [`services/conversion.convert_pr_to_po()`](apps/procurement/services/conversion.py) is idempotent (returns the existing PO if `converted_po` is already set). | [`apps/mrp/migrations/0003_mrppurchaserequisition_converted_po_and_more.py`](apps/mrp/migrations/) |
+| Cross-module signal: `inventory.GoodsReceiptNote.post_save` | When status flips to `completed` AND a `purchase_order` link exists, [`apps/procurement/signals.py`](apps/procurement/signals.py) emits a `SupplierMetricEvent(po_received_on_time)` or `(po_received_late)` keyed off `purchase_order.required_date` vs `received_date`. Skipped silently for legacy free-text GRNs. | (signal only) |
+| Cross-module signal: `qms.IncomingInspection.post_save` | When status transitions to `accepted` / `accepted_with_deviation` / `rejected` AND a `supplier` link exists, emit `SupplierMetricEvent(quality_pass)` or `(quality_fail)`. Silently skipped for legacy free-text IQCs. | (signal only) |
+
+Both cross-module hooks live inside `apps/procurement/signals.py` (not in inventory/qms) so removing the procurement app cleanly disables the events without leaving orphan code in other modules. Each hook stashes the previous status in its own `_proc_x_prev_status` attribute via a dedicated `pre_save` handler — that way the procurement code does not depend on the inventory/QMS modules' own naming conventions for stashed prev-status flags.
+
+### Audit signals
+
+[`apps/procurement/signals.py`](apps/procurement/signals.py) wires the standard `pre_save` + `post_save` audit pattern for every status-tracked model: `PurchaseOrder`, `RequestForQuotation`, `SupplierQuotation`, `SupplierASN`, `SupplierInvoice`, `BlanketOrder`, `ScheduleRelease`. Audit actions follow the convention `procurement.<resource>.<status>` (e.g. `procurement.po.approved`, `procurement.invoice.paid`) with `meta={'from': old, 'to': new}`. The factory `_mk_status_signals()` is invoked once per model and connects with `weak=False` (the inner closure handlers would otherwise be garbage-collected and the signals would silently never fire).
+
+### Validation guards (apply Lessons L-01, L-02, L-14)
+
+- Every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, …)` `unique_together` check (Lesson L-01).
+- Every Decimal field carries explicit `MinValueValidator` + (where natural) `MaxValueValidator`: quantities ≥ 0.0001, percentages 0–100, money ≥ 0, lead-time 0–365 (Lesson L-02).
+- Per-workflow forms enforce per-transition required fields (Lesson L-14): `PurchaseOrderApprovalForm.clean()` requires comments when decision is `rejected`; `QuotationAwardForm.clean_award_notes()` requires non-empty notes; `SupplierInvoiceWorkflowForm` requires `payment_reference` when `action='paid'`. `ScheduleReleaseLineForm.clean()` enforces blanket cumulative-consumption cap so the form fails closed before reaching the service layer.
+
+### Operator vs Admin matrix
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages, scorecards | Authenticated tenant user | `TenantRequiredMixin` |
+| File a new ASN, complete a putaway task (post-receipt), submit a supplier invoice (any tenant user) | Authenticated tenant user | `TenantRequiredMixin` |
+| Acknowledge a PO (supplier user OR tenant admin) | Either | `TenantRequiredMixin` + manual `is_tenant_admin` / `role==supplier` check |
+| View own POs / ASNs / Invoices via `/procurement/portal/...` | Supplier user (`role='supplier'`) | `SupplierPortalRequiredMixin` (additionally scoped to `request.user.supplier_company_id`) |
+| Supplier CRUD; PO create / edit / delete / approve / reject / close / cancel / revise; RFQ CRUD + workflow + Award; Quotation CRUD + accept/reject; ASN cancel + receive (internal); Invoice review / approve / pay / reject / dispute / delete; Blanket CRUD + activate / close / cancel; Release create / release / receive / cancel; scorecard recompute | Tenant admin | `TenantAdminRequiredMixin` |
+
+A regression test file ([`apps/procurement/tests/test_security.py`](apps/procurement/tests/test_security.py) — `TestRBACMatrix`) asserts redirect + state-not-changed for every admin-gated POST, plus `TestMultiTenantIDOR` confirms cross-tenant reads/writes 404, plus `TestSupplierPortalIDOR` confirms a supplier-portal user only sees their own supplier's data.
+
+### Test suite
+
+Run the procurement test suite with `pytest apps/procurement/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory). The suite covers model invariants + decimal validators, form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required fields, blanket cumulative-consumption cap, file-extension allowlist, `subtotal+tax==grand_total` soft-check), pure-function services (`snapshot_po` round-trip, weighted `compute_scorecard` math across multiple event mixes, `consume_release` denorm updates with overdraw protection, `reverse_release` symmetry), audit signal emission across creation + transitions, **cross-module hooks** (GRN→`SupplierMetricEvent`, IQC→`SupplierMetricEvent`, plus the no-supplier-link skip path), full CRUD smoke + workflow happy paths, RBAC matrix (operator vs admin), multi-tenant IDOR (Globex blocked from Acme records), supplier-portal IDOR (portal user blocked from other suppliers' POs and from internal admin pages), and anonymous-redirect on every URL. **70 tests, ~27 s runtime.**
+
+### Out of scope (deferred)
+
+- **Real EDI / X.12 850 / 856 / 810** — UI-driven workflow only in v1.
+- **Real e-signature on blanket contracts** — typed signature + timestamp only.
+- **Multi-currency FX rate engine** — POs in non-tenant currency stored at face value; no auto-conversion.
+- **ML-based supplier risk scoring** — `risk_rating` is a manual choice in v1.
+- **Sourcing event auctions / reverse-bidding** — only static-price quotes in v1.
+- **Supplier portal SSO (SAML / OAuth)** — deferred to Module 22 (System Admin & Security).
+- **Email notification on RFQ Issue / PO Approve** — placeholder hook only; the actual `send_mail` call lives behind a TODO until the SMTP backend is wired in production.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -1313,7 +1483,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_mes [--flush]` | Seed MES demo data (operators, MES work orders fanned out from PPS production orders, time logs, production reports, andon alerts, work instructions with versions + acks) per tenant |
 | `python manage.py seed_qms [--flush]` | Seed QMS demo data (IQC plans + inspections, IPQC plans + SPC chart with 25 points, FQC plans + inspections + CoAs, NCRs with RCA + CA + PA, equipment + calibration standards + records) per tenant |
 | `python manage.py seed_inventory [--flush]` | Seed Inventory demo data (warehouses + zones + bins, lots + serials, initial stock via real movements, completed GRN with putaway, draft cycle-count sheet) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` |
+| `python manage.py seed_procurement [--flush]` | Seed Procurement demo data (8 suppliers + 1 supplier-portal user, 4 RFQs incl. 1 awarded with 3 quotations, 6 POs across all statuses + 2 revisions, 2 ASNs, 2 invoices, 1 active blanket + 2 releases, ~80 metric events, 1 scorecard per supplier) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -1323,6 +1494,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest --cov=apps/pps` | Run PPS coverage report (services + signals + forms + models ≥ 84% each) |
 | `pytest apps/qms/tests/` | Run the QMS test suite (85 tests, ~19 s; covers AQL table, SPC math + Western Electric rules, model invariants, form validation, IQC/FQC/NCR/Calibration workflow, RBAC matrix, multi-tenant IDOR, audit-log emission) |
 | `pytest apps/inventory/tests/` | Run the Inventory test suite (101 tests, ~23 s; covers model invariants, services (post_movement, allocation, cycle_count math, putaway), audit + MES auto-emit signals, form validation, full CRUD + workflow smoke, RBAC matrix, multi-tenant IDOR) |
+| `pytest apps/procurement/tests/` | Run the Procurement test suite (70 tests, ~27 s; covers model invariants + decimal validators, form validation (L-01 unique_together, L-02 bounds, L-14 per-workflow required, blanket cumulative-consumption cap), pure-function services (snapshot_po, weighted compute_scorecard, consume_release with overdraw protection), audit + cross-module signals (GRN→SupplierMetricEvent, IQC→SupplierMetricEvent), CRUD smoke + workflow happy paths, RBAC matrix, multi-tenant IDOR, supplier-portal IDOR, anonymous-redirect) |
 
 ---
 
@@ -1367,7 +1539,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), and **Module 8** (Inventory & Warehouse Management). The 14 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), **Module 8** (Inventory & Warehouse Management), and **Module 9** (Procurement & Supplier Portal). The 13 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -1376,7 +1548,7 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 6. ~~Shop Floor Control (MES)~~ ✅ shipped
 7. ~~Quality Management (QMS)~~ ✅ shipped
 8. ~~Inventory & Warehouse~~ ✅ shipped
-9. Procurement & Supplier Portal
+9. ~~Procurement & Supplier Portal~~ ✅ shipped
 10. Equipment & Asset Management (EAM)
 11. Labor & Workforce Management
 12. Cost Management & Accounting
