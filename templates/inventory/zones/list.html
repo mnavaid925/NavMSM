@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Zones{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Warehouse Zones</h4><div class="text-muted small">Receiving / storage / picking / shipping / quarantine.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'inventory:zone_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Zone</a>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Code or name..."></div>
+        <div class="col-md-3"><select name="zone_type" class="form-select"><option value="">Any type</option>{% for v, label in zone_type_choices %}<option value="{{ v }}" {% if zone_type_filter == v %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><select name="warehouse" class="form-select"><option value="">Any warehouse</option>{% for w in warehouses %}<option value="{{ w.pk }}" {% if warehouse_filter == w.pk|stringformat:"d" %}selected{% endif %}>{{ w.code }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Warehouse</th><th>Code</th><th>Name</th><th>Type</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for z in page_obj %}
+            <tr><td class="small">{{ z.warehouse.code }}</td>
+            <td class="small fw-semibold">{{ z.code }}</td>
+            <td class="small">{{ z.name }}</td>
+            <td class="small">{{ z.get_zone_type_display }}</td>
+            <td>{% if z.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'inventory:zone_edit' z.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'inventory:zone_delete' z.pk %}" style="display:inline" onsubmit="return confirm('Delete zone {{ z.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No zones yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
