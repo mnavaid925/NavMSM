@@ -93,6 +93,23 @@ def test_movement_form_transfer_requires_both(acme, fg_product, bin_a):
     assert not f.is_valid()
 
 
+def test_movement_form_transfer_rejects_same_bin(acme, fg_product, bin_a):
+    """Regression for BUG-01 (TC-NEG-03): transfer with from_bin == to_bin must be rejected."""
+    f = forms.StockMovementForm(
+        data={
+            'movement_type': 'transfer',
+            'product': fg_product.pk,
+            'qty': '5',
+            'from_bin': bin_a.pk,
+            'to_bin': bin_a.pk,
+        },
+        tenant=acme,
+    )
+    assert not f.is_valid()
+    errors = str(f.errors)
+    assert 'must differ' in errors.lower()
+
+
 def test_movement_form_adjustment_rejects_both(acme, fg_product, bin_a, bin_b):
     f = forms.StockMovementForm(
         data={
