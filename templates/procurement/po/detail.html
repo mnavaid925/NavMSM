@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ po.po_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ po.po_number }} <span class="badge bg-secondary-subtle text-secondary">{{ po.get_status_display }}</span></h4>
+        <div class="text-muted small">{{ po.supplier.code }} - {{ po.supplier.name }} | Order: {{ po.order_date|date:"M j Y" }} | Required: {{ po.required_date|date:"M j Y"|default:"-" }}</div>
+    </div>
+    <a href="{% url 'procurement:po_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9">
+        <div class="card"><div class="card-body">
+            <h5 class="card-title d-flex justify-content-between">Lines
+                <span class="text-muted small">Subtotal {{ po.currency }} {{ po.subtotal }} | Tax {{ po.tax_total }} | Total <strong>{{ po.grand_total }}</strong></span>
+            </h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>#</th><th>Product</th><th>Description</th><th class="text-end">Qty</th><th>UoM</th><th class="text-end">Price</th><th class="text-end">Tax%</th><th class="text-end">Total</th><th></th></tr></thead>
+                <tbody>
+                {% for line in lines %}
+                    <tr><td class="small">{{ line.line_number }}</td>
+                    <td class="small">{{ line.product.sku|default:"-" }}</td>
+                    <td class="small">{{ line.description|default:line.product.name|default:"-" }}</td>
+                    <td class="small text-end">{{ line.quantity }}</td>
+                    <td class="small">{{ line.unit_of_measure }}</td>
+                    <td class="small text-end">{{ line.unit_price }}</td>
+                    <td class="small text-end">{{ line.tax_pct }}</td>
+                    <td class="small text-end">{{ po.currency }} {{ line.line_total }}</td>
+                    <td class="text-end">{% if po.is_editable and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:po_line_delete' line.pk %}" style="display:inline" onsubmit="return confirm('Delete line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="9" class="text-center text-muted py-3">No lines yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+            {% if po.is_editable and request.user.is_tenant_admin or request.user.is_superuser %}
+            <hr><h6>Add line</h6>
+            <form method="post" action="{% url 'procurement:po_line_create' po.pk %}" class="row g-2">{% csrf_token %}
+                <div class="col-12">{{ line_form|crispy }}</div>
+                <div class="col-12"><button class="btn btn-primary btn-sm"><i class="ri-add-line"></i> Add Line</button></div>
+            </form>
+            {% endif %}
+        </div></div>
+
+        {% if revisions %}
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Revision History</h5>
+            <table class="table table-sm">
+                <thead><tr><th>Rev #</th><th>Date</th><th>By</th><th>Summary</th></tr></thead>
+                <tbody>{% for r in revisions %}<tr><td class="small">{{ r.revision_number }}</td><td class="small">{{ r.created_at|date:"M j Y H:i" }}</td><td class="small">{{ r.changed_by|default:"-" }}</td><td class="small">{{ r.change_summary }}</td></tr>{% endfor %}</tbody>
+            </table>
+        </div></div>
+        {% endif %}
+
+        {% if approvals %}
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Approvals</h5>
+            <table class="table table-sm">
+                <thead><tr><th>When</th><th>Approver</th><th>Decision</th><th>Comments</th></tr></thead>
+                <tbody>{% for a in approvals %}<tr><td class="small">{{ a.decided_at|date:"M j Y H:i" }}</td><td class="small">{{ a.approver.get_full_name|default:a.approver.username }}</td><td>{% if a.decision == 'approved' %}<span class="badge bg-success-subtle text-success">Approved</span>{% else %}<span class="badge bg-danger-subtle text-danger">Rejected</span>{% endif %}</td><td class="small">{{ a.comments|truncatechars:60 }}</td></tr>{% endfor %}</tbody>
+            </table>
+        </div></div>
+        {% endif %}
+
+        {% if asns %}
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Linked ASNs</h5>
+            <table class="table table-sm">
+                <thead><tr><th>ASN#</th><th>Ship Date</th><th>Carrier</th><th>Status</th></tr></thead>
+                <tbody>{% for asn in asns %}<tr><td><a href="{% url 'procurement:asn_detail' asn.pk %}" class="small">{{ asn.asn_number }}</a></td><td class="small">{{ asn.ship_date|date:"M j" }}</td><td class="small">{{ asn.carrier|default:"-" }}</td><td class="small">{{ asn.get_status_display }}</td></tr>{% endfor %}</tbody>
+            </table>
+        </div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            <div class="d-grid gap-2">
+                {% if po.status == 'draft' %}
+                    <form method="post" action="{% url 'procurement:po_submit' po.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-send-plane-line me-1"></i> Submit for Approval</button></form>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'procurement:po_edit' po.pk %}" class="btn btn-outline-primary btn-sm"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+                {% endif %}
+                {% if po.status == 'submitted' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:po_approve' po.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-check-line me-1"></i> Approve</button></form>
+                    <form method="post" action="{% url 'procurement:po_reject' po.pk %}">{% csrf_token %}<input class="form-control form-control-sm mb-1" name="comments" placeholder="Reject reason" required><button class="btn btn-danger btn-sm w-100"><i class="ri-close-line me-1"></i> Reject</button></form>
+                {% endif %}
+                {% if po.status == 'approved' %}
+                    <form method="post" action="{% url 'procurement:po_acknowledge' po.pk %}">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-check-double-line me-1"></i> Acknowledge</button></form>
+                {% endif %}
+                {% if po.status == 'received' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:po_close' po.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-archive-line me-1"></i> Close</button></form>
+                {% endif %}
+                {% if po.status not in 'received,closed,cancelled' and request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'procurement:po_revise' po.pk %}">{% csrf_token %}<input class="form-control form-control-sm mb-1" name="change_summary" placeholder="Change summary"><button class="btn btn-outline-warning btn-sm w-100"><i class="ri-history-line me-1"></i> Revise</button></form>
+                    <form method="post" action="{% url 'procurement:po_cancel' po.pk %}" onsubmit="return confirm('Cancel PO?');">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm w-100"><i class="ri-close-circle-line me-1"></i> Cancel</button></form>
+                {% endif %}
+            </div>
+        </div></div>
+
+        <div class="card mt-3"><div class="card-body">
+            <h6 class="card-title">Source</h6>
+            <dl class="small mb-0">
+                <dt>Created by</dt><dd>{{ po.created_by|default:"-" }}</dd>
+                {% if po.approved_by %}<dt>Approved by</dt><dd>{{ po.approved_by }} <span class="text-muted">({{ po.approved_at|date:"M j" }})</span></dd>{% endif %}
+                {% if po.acknowledged_by %}<dt>Acknowledged</dt><dd>{{ po.acknowledged_by }} <span class="text-muted">({{ po.acknowledged_at|date:"M j" }})</span></dd>{% endif %}
+                {% if po.source_quotation %}<dt>From quotation</dt><dd>{{ po.source_quotation.quote_number }}</dd>{% endif %}
+                {% if po.blanket_order %}<dt>Blanket</dt><dd>{{ po.blanket_order.bpo_number }}</dd>{% endif %}
+            </dl>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
