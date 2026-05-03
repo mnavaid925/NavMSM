@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Stock On-Hand{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Stock On-Hand</h4><div class="text-muted small">Read-only view auto-maintained by movements.</div></div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="SKU or product name..."></div>
+        <div class="col-md-3"><select name="warehouse" class="form-select"><option value="">Any warehouse</option>{% for w in warehouses %}<option value="{{ w.pk }}" {% if warehouse_filter == w.pk|stringformat:"d" %}selected{% endif %}>{{ w.code }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><select name="in_stock" class="form-select"><option value="">All</option><option value="yes" {% if in_stock_filter == 'yes' %}selected{% endif %}>In stock only</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Product</th><th>Bin</th><th>Lot</th><th>Serial</th><th>On Hand</th><th>Reserved</th><th>Available</th></tr></thead>
+        <tbody>
+        {% for s in page_obj %}
+            <tr><td class="small fw-semibold">{{ s.product.sku }}</td>
+            <td class="small">{{ s.bin }}</td>
+            <td class="small">{{ s.lot.lot_number|default:"-" }}</td>
+            <td class="small">{{ s.serial.serial_number|default:"-" }}</td>
+            <td class="small">{{ s.qty_on_hand }}</td>
+            <td class="small">{{ s.qty_reserved }}</td>
+            <td class="small fw-semibold">{{ s.qty_available }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No stock recorded.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
