@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}{{ wh.code }} - Warehouse{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ wh.code }} - {{ wh.name }}</h4>
+        <div class="text-muted small">{% if wh.is_default %}<span class="badge bg-primary me-1">Default</span>{% endif %}{% if wh.is_active %}Active{% else %}Inactive{% endif %}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:warehouse_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'inventory:warehouse_edit' wh.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        <form method="post" action="{% url 'inventory:warehouse_delete' wh.pk %}" onsubmit="return confirm('Delete warehouse {{ wh.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8"><div class="card"><div class="card-body">
+        <h5>Zones</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Name</th><th>Type</th><th># Bins</th><th>Active</th></tr></thead>
+            <tbody>
+            {% for z in zones %}
+                <tr><td class="small fw-semibold">{{ z.code }}</td>
+                <td class="small">{{ z.name }}</td>
+                <td class="small">{{ z.get_zone_type_display }}</td>
+                <td class="small">{{ z.bins.count }}</td>
+                <td>{% if z.is_active %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No zones yet. <a href="{% url 'inventory:zone_create' %}">Add one.</a></td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6 class="text-muted">Manager</h6><p>{% if wh.manager %}{{ wh.manager.get_full_name|default:wh.manager.username }}{% else %}-{% endif %}</p>
+        <h6 class="text-muted">Address</h6><p class="small">{{ wh.address|default:"-"|linebreaksbr }}</p>
+        <h6 class="text-muted">Created</h6><p class="small">{{ wh.created_at|date:"M j Y H:i" }}</p>
+    </div></div></div>
+</div>
+{% endblock %}
