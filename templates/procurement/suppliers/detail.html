@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ sup.code }} - {{ sup.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ sup.code }} - {{ sup.name }}</h4>
+        <div class="text-muted small">{{ sup.legal_name|default:"" }} {{ sup.country }}</div></div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'procurement:supplier_edit' sup.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        <form method="post" action="{% url 'procurement:supplier_delete' sup.pk %}" style="display:inline" onsubmit="return confirm('Delete supplier?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+        <a href="{% url 'procurement:supplier_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8"><div class="card"><div class="card-body">
+        <h5 class="card-title">Profile</h5>
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Email</dt><dd class="col-sm-9">{{ sup.email|default:"-" }}</dd>
+            <dt class="col-sm-3">Phone</dt><dd class="col-sm-9">{{ sup.phone|default:"-" }}</dd>
+            <dt class="col-sm-3">Website</dt><dd class="col-sm-9">{{ sup.website|default:"-" }}</dd>
+            <dt class="col-sm-3">Tax ID</dt><dd class="col-sm-9">{{ sup.tax_id|default:"-" }}</dd>
+            <dt class="col-sm-3">Address</dt><dd class="col-sm-9">{{ sup.address|linebreaksbr|default:"-" }}</dd>
+            <dt class="col-sm-3">Currency</dt><dd class="col-sm-9">{{ sup.currency }}</dd>
+            <dt class="col-sm-3">Payment Terms</dt><dd class="col-sm-9">{{ sup.payment_terms|default:"-" }}</dd>
+            <dt class="col-sm-3">Delivery Terms</dt><dd class="col-sm-9">{{ sup.delivery_terms|default:"-" }}</dd>
+            <dt class="col-sm-3">Risk Rating</dt><dd class="col-sm-9"><span class="badge bg-{% if sup.risk_rating == 'high' %}danger-subtle text-danger{% elif sup.risk_rating == 'medium' %}warning-subtle text-warning{% else %}success-subtle text-success{% endif %}">{{ sup.get_risk_rating_display }}</span></dd>
+            <dt class="col-sm-3">Status</dt><dd class="col-sm-9">{% if sup.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %} {% if sup.is_approved %}<span class="badge bg-success-subtle text-success">Approved</span>{% endif %}</dd>
+            <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ sup.notes|linebreaksbr|default:"-" }}</dd>
+        </dl>
+    </div></div>
+
+    <div class="card mt-3"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Contacts
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}<a class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" href="#addContact"><i class="ri-add-line"></i> Add</a>{% endif %}
+        </h5>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <div class="collapse" id="addContact"><form method="post" action="{% url 'procurement:supplier_contact_create' sup.pk %}" class="mb-3">{% csrf_token %}{{ contact_form|crispy }}<button class="btn btn-primary btn-sm">Add Contact</button></form></div>
+        {% endif %}
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Primary</th><th></th></tr></thead>
+            <tbody>
+            {% for c in contacts %}
+                <tr><td class="small">{{ c.name }}</td><td class="small">{{ c.role }}</td>
+                <td class="small">{{ c.email }}</td><td class="small">{{ c.phone }}</td>
+                <td>{% if c.is_primary %}<span class="badge bg-primary">Primary</span>{% endif %}</td>
+                <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:supplier_contact_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Remove contact?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No contacts.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Latest Scorecard</h5>
+            {% if latest_scorecard %}
+            <div class="text-muted small mb-2">{{ latest_scorecard.period_start }} to {{ latest_scorecard.period_end }}</div>
+            <table class="table table-sm">
+                <tr><td>Overall</td><td class="text-end fw-bold">{{ latest_scorecard.overall_score }} / 100</td></tr>
+                <tr><td>OTD %</td><td class="text-end">{{ latest_scorecard.otd_pct }}</td></tr>
+                <tr><td>Quality</td><td class="text-end">{{ latest_scorecard.quality_rating }}</td></tr>
+                <tr><td>Defect %</td><td class="text-end">{{ latest_scorecard.defect_rate_pct }}</td></tr>
+                <tr><td>Rank</td><td class="text-end">#{{ latest_scorecard.rank }}</td></tr>
+            </table>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'procurement:scorecard_detail' latest_scorecard.pk %}">View Detail</a>
+            {% else %}<div class="text-muted small">No scorecard yet.</div>{% endif %}
+        </div></div>
+
+        <div class="card mt-3"><div class="card-body">
+            <h5 class="card-title">Recent POs</h5>
+            <table class="table table-sm">
+                {% for po in recent_pos %}
+                <tr><td><a href="{% url 'procurement:po_detail' po.pk %}" class="small">{{ po.po_number }}</a></td>
+                <td class="small text-end">{{ po.get_status_display }}</td></tr>
+                {% empty %}<tr><td class="text-muted small">No POs.</td></tr>{% endfor %}
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
