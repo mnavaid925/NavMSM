@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{# Stripped-down layout for external supplier-portal users.
+   Does NOT include the main internal sidebar - shows only supplier-portal nav. #}
+
+{% block content %}
+<div class="card mb-3 border-primary">
+    <div class="card-body py-2 d-flex justify-content-between align-items-center">
+        <div>
+            <span class="badge bg-primary">SUPPLIER PORTAL</span>
+            <span class="ms-2 small text-muted">{{ request.user.supplier_company.name }}</span>
+        </div>
+        <ul class="nav nav-pills small">
+            <li class="nav-item"><a href="{% url 'procurement:portal_dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'portal_dashboard' %}active{% endif %}">Dashboard</a></li>
+            <li class="nav-item"><a href="{% url 'procurement:portal_pos' %}" class="nav-link {% if request.resolver_match.url_name == 'portal_pos' %}active{% endif %}">My POs</a></li>
+            <li class="nav-item"><a href="{% url 'procurement:portal_asns' %}" class="nav-link {% if request.resolver_match.url_name == 'portal_asns' %}active{% endif %}">My ASNs</a></li>
+            <li class="nav-item"><a href="{% url 'procurement:portal_invoices' %}" class="nav-link {% if request.resolver_match.url_name == 'portal_invoices' %}active{% endif %}">My Invoices</a></li>
+            <li class="nav-item"><a href="{% url 'accounts:profile' %}" class="nav-link">Profile</a></li>
+        </ul>
+    </div>
+</div>
+
+{% block portal_content %}{% endblock %}
+{% endblock %}
