@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Advance Shipping Notices{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Advance Shipping Notices (ASNs)</h4><div class="text-muted small">Supplier-submitted ship notices linked to open POs.</div></div>
+    <a href="{% url 'procurement:asn_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New ASN</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-5"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="ASN#, tracking#, PO#..."></div>
+        <div class="col-md-3"><select name="status" class="form-select"><option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>ASN#</th><th>PO</th><th>Supplier</th><th>Ship Date</th><th>Carrier</th><th>Tracking</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for a in page_obj %}
+            <tr>
+                <td class="small fw-semibold"><a href="{% url 'procurement:asn_detail' a.pk %}">{{ a.asn_number }}</a></td>
+                <td class="small">{{ a.purchase_order.po_number }}</td>
+                <td class="small">{{ a.purchase_order.supplier.code }}</td>
+                <td class="small">{{ a.ship_date|date:"M j Y" }}</td>
+                <td class="small">{{ a.carrier|default:"-" }}</td>
+                <td class="small">{{ a.tracking_number|default:"-" }}</td>
+                <td><span class="badge bg-secondary-subtle text-secondary">{{ a.get_status_display }}</span></td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No ASNs yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'procurement/_pagination.html' %}
+</div></div>
+{% endblock %}
