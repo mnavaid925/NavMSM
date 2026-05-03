@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, and **Module 7 — Quality Management (QMS)**. The remaining 15 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, and **Module 8 — Inventory & Warehouse Management**. The remaining 14 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -26,7 +26,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 16. [Module 5 — Material Requirements Planning (MRP)](#module-5--material-requirements-planning-mrp)
 17. [Module 6 — Shop Floor Control (MES)](#module-6--shop-floor-control-mes)
 18. [Module 7 — Quality Management (QMS)](#module-7--quality-management-qms)
-18. [UI / Theme Customization](#ui--theme-customization)
+19. [Module 8 — Inventory & Warehouse Management](#module-8--inventory--warehouse-management)
+20. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
 20. [Security Notes](#security-notes)
@@ -47,6 +48,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 4 — Production Planning & Scheduling** — Master Production Schedule with horizon + time-bucket planning and draft → released workflow; demand forecasts (manual / sales-order / historical); work centers, working calendars, and recomputable capacity load with bottleneck flagging; routings with sequenced operations; production orders with forward / backward / infinite scheduling laid down on the calendar by a pure-function scheduler service; ApexCharts Gantt of scheduled operations; what-if scenario simulator that never mutates the base MPS; deterministic greedy optimizer with weighted objectives (changeovers / idle / lateness / priority) and before/after KPI deltas.
 - **Module 6 — Shop Floor Control (MES)** — one-click dispatch from a released `pps.ProductionOrder` into a `MESWorkOrder` (auto-numbered `WO-00001`) with per-routing-op fan-out; touchscreen operator terminal at `/mes/terminal/` with Start / Pause / Resume / Stop buttons backed by an append-only `OperatorTimeLog`; production reports (good / scrap / rework) that bump per-op denorms and roll up to the parent work order; andon alerts (quality / material / equipment / safety / other) with severity + acknowledge / resolve / cancel workflow; paperless work instructions with versioned content + 25 MB attachment + video URL, auth-gated downloads, automatic version supersession on release, and per-operator typed-signature acknowledgements.
 - **Module 7 — Quality Management (QMS)** — Incoming Quality Control with ANSI/ASQ Z1.4 single-sampling AQL plans, per-product characteristics, and accept / reject / accept-with-deviation workflow; In-Process Quality Control with checkpoint plans pinned to PPS routing operations, X-bar/R SPC chart math (A2/D3/D4 constants) + Western Electric runs rules 1–4, ApexCharts SPC visualisation; Final Quality Control with finished-good test protocols and HTML Certificate-of-Analysis generation (browser print-to-PDF); Non-Conformance Reports (auto-numbered `NCR-00001`) sourced from IQC / IPQC / FQC / customer with full root-cause analysis (5-Why, fishbone, FMEA), corrective &amp; preventive action tracking, attachment uploads, and `open → investigating → awaiting_capa → resolved → closed` workflow; Calibration Management with measurement-equipment registry, due-tracker (rows go red ≤7 days), append-only calibration records (pass / pass-with-adjustment / fail), tolerance verification, NIST-traceable reference standards, and signal-driven `next_due_at` propagation back onto the parent equipment.
+- **Module 8 — Inventory & Warehouse Management** — multi-warehouse tree (Warehouse → Zone → Bin) with `is_default` flag for auto-emit routing, ABC velocity classes on bins; goods receipt notes (auto-numbered `GRN-00001`) with line-level lot/serial capture, optional `qms.IncomingInspection` link, and four putaway strategies (`fixed_bin / nearest_empty / abc_zone / directed`); append-only `StockMovement` ledger covering eight movement types written exclusively through `services/movements.post_movement()` so `StockItem` denorms stay consistent; inter-warehouse transfers (auto `TRF-00001`) with `draft → in_transit → received` workflow that posts an issue + receipt pair, plus stock adjustments (auto `ADJ-00001`, admin-only) that emit one variance movement per line; cycle-count plans + sheets (auto `CC-00001`) with FIFO/FEFO allocation services and ABC Pareto classification, variance recount-trigger on >5%; lot/serial traceability with `Product.tracking_mode` enum (`none / lot / serial / lot_and_serial`), expiry tracking with red/yellow row tinting at 30 / 0 days, and per-lot stock + movement history; **automatic `production_in` movement emission** when `mes.ProductionReport` is filed (signal-based, idempotent, silently skipped when no default warehouse is configured) plus `pre_delete` reversal so the ledger never drifts.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
@@ -218,6 +220,25 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/qms/calibrations/` and CRUD | Calibration record list filterable by equipment / result |
 | `/qms/calibrations/<pk>/certificate/` | Auth-gated certificate download |
 | `/qms/calibration-standards/` and CRUD | Reference-standard catalog (NIST-traceable gauges, etc.) |
+| `/inventory/` | Inventory dashboard — KPI cards (warehouses, bins, distinct SKUs, open GRNs, open transfers, open cycle counts, lots expiring ≤30d / expired), recent movements, expiring-lot list |
+| `/inventory/stock/` | Read-only `StockItem` list — filter by SKU / warehouse / in-stock-only |
+| `/inventory/warehouses/` and CRUD | Warehouse master (code unique per tenant, default flag drives MES auto-emit) |
+| `/inventory/zones/` and CRUD | Zone master (receiving / storage / picking / shipping / quarantine) |
+| `/inventory/bins/` and CRUD | Storage bin master with ABC class + blocked flag + capacity |
+| `/inventory/grn/` and CRUD | Goods Receipt Notes with line-level lot/serial; receive action generates `PutawayTask` rows from the chosen strategy |
+| `/inventory/grn/<pk>/receive/` | POST — `draft → putaway_pending`; runs `services/grn.generate_putaway_tasks` |
+| `/inventory/grn/<pk>/cancel/` | POST — admin-only cancellation of a non-completed GRN |
+| `/inventory/grn/putaway/<pk>/complete/` | POST — picks the actual bin and posts the `receipt` movement |
+| `/inventory/movements/` and CRUD | Append-only `StockMovement` ledger with type filter; create posts via `services/movements.post_movement()` |
+| `/inventory/transfers/` and CRUD | Inter-warehouse transfer headers with line CRUD inline + Ship / Receive / Cancel |
+| `/inventory/transfers/<pk>/ship/` · `/receive/` · `/cancel/` | POST — transfer workflow (atomic per-line movement posting) |
+| `/inventory/adjustments/` and CRUD | Admin-only stock adjustments with reason-codes and per-line system-vs-actual comparison |
+| `/inventory/adjustments/<pk>/post/` | POST — emits one `adjustment` `StockMovement` per non-zero variance line |
+| `/inventory/cycle-count/plans/` and CRUD | Recurring count plan catalog (frequency + ABC filter) |
+| `/inventory/cycle-count/sheets/` and CRUD | Cycle count sheets with line CRUD inline + Start / Reconcile workflow |
+| `/inventory/cycle-count/sheets/<pk>/start/` · `/reconcile/` | POST — `draft → counting → reconciled`; reconciliation emits `cycle_count` variance movements |
+| `/inventory/lots/` and CRUD | Lot/batch traceability with manufactured + expiry dates and stock-item / movement history per lot |
+| `/inventory/serials/` and CRUD | Per-unit serial number registry (admin-only CRUD) |
 
 ---
 
@@ -376,6 +397,33 @@ NavMSM/
 │   │       └── seed_mes.py       # Idempotent demo data (operators, work orders,
 │   │                             # time logs, reports, andon, instructions, acks)
 │   │
+│   ├── inventory/                # MODULE 8 — Inventory & Warehouse Management
+│   │   ├── models.py             # Warehouse, WarehouseZone, StorageBin, StockItem,
+│   │   │                         # GoodsReceiptNote, GRNLine, PutawayTask,
+│   │   │                         # StockMovement, StockTransfer, StockTransferLine,
+│   │   │                         # StockAdjustment, StockAdjustmentLine,
+│   │   │                         # CycleCountPlan, CycleCountSheet, CycleCountLine,
+│   │   │                         # Lot, SerialNumber
+│   │   ├── services/
+│   │   │   ├── movements.py      # post_movement() — atomic ledger + StockItem updater
+│   │   │   ├── allocation.py     # FIFO / FEFO lot picking — pure functions
+│   │   │   ├── grn.py            # putaway-strategy bin suggestions + task generator
+│   │   │   └── cycle_count.py    # ABC Pareto classification + variance math (pure)
+│   │   ├── signals.py            # Audit-log receivers (Warehouse / GRN / Transfer /
+│   │   │                         # Adjustment / CycleCountSheet);
+│   │   │                         # mes.ProductionReport.post_save -> auto
+│   │   │                         # production_in StockMovement;
+│   │   │                         # mes.ProductionReport.pre_delete -> reverse
+│   │   ├── forms.py              # ModelForms with manual (tenant, …) uniqueness
+│   │   │                         # checks and movement-type cross-field validation
+│   │   ├── views.py              # Full CRUD + workflow + dashboard
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_inventory.py # Idempotent demo data per tenant
+│   │                             # (warehouses, zones, bins, lots, serials,
+│   │                             # initial movements, GRN, cycle-count sheet)
+│   │
 │   └── qms/                      # MODULE 7 — Quality Management (QMS)
 │       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
 │       │                         # IncomingInspection, InspectionMeasurement,
@@ -424,7 +472,8 @@ NavMSM/
 │   ├── pps/                      # index, forecasts/, mps/, mps_lines/, work_centers/, calendars/, capacity/, routings/, routing_operations/, orders/, scenarios/, scenario_changes/, optimizer/
 │   ├── mrp/                      # index, forecast_models/, seasonality/, forecast_runs/, inventory/, receipts/, calculations/, runs/, requisitions/, exceptions/
 │   ├── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
-│   └── qms/                      # index, iqc/{plans,inspections}, ipqc/{plans,inspections,charts}, fqc/{plans,inspections,coa}, ncr/, equipment/, calibrations/
+│   ├── qms/                      # index, iqc/{plans,inspections}, ipqc/{plans,inspections,charts}, fqc/{plans,inspections,coa}, ncr/, equipment/, calibrations/
+│   └── inventory/                # index, warehouses/, zones/, bins/, stock_items/, grn/, movements/, transfers/, adjustments/, cycle_count_plans/, cycle_count_sheets/, lots/, serials/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -566,6 +615,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 4 — PPS)** — 4 work centers (machine / labor / cell / assembly_line) each with Mon–Fri 08:00–17:00 calendars, 5 routings (one per seeded finished-good) with 2–4 sequenced operations, 8 demand forecasts spanning 2 weeks across 4 products, 1 released `MasterProductionSchedule` covering 4 weeks with 8 lines, 6 production orders in mixed statuses (planned / released / in_progress / completed) — released and in-progress orders carry full `ScheduledOperation` chains laid down by the forward scheduler — 56 daily `CapacityLoad` snapshots, 1 completed What-If scenario with 2 changes + KPI result, 1 default `OptimizationObjective`, and 1 completed `OptimizationRun` with before/after result.
 - **Per tenant (Module 6 — MES)** — 5 `ShopFloorOperator` profiles (badges `B0001`–`B0005`) linked to seeded staff users, up to 6 `MESWorkOrder`s dispatched from released / in-progress production orders (with the parent's status preserved) — each with its own `MESWorkOrderOperation` chain — ~12 `OperatorTimeLog` rows across the in-progress and completed work orders, ~8 `ProductionReport` rows with mixed scrap reasons, 4 `AndonAlert`s spanning open / acknowledged / resolved / cancelled states, 3 `WorkInstruction`s with 1–2 `WorkInstructionVersion`s each (one released, one draft) attached to seeded routing operations (one carries a `video_url`), and 4 `WorkInstructionAcknowledgement` rows on the released versions.
 - **Per tenant (Module 5 — MRP)** — 2 `ForecastModel`s (moving_avg + naive_seasonal), 24 monthly `SeasonalityProfile` rows across 2 finished-goods, 1 completed `ForecastRun` with 16 `ForecastResult` rows, 8 `InventorySnapshot` rows covering finished-goods + components with mixed lot-sizing rules (L4L / FOQ / POQ / Min-Max), 5 `ScheduledReceipt`s (open POs / planned production / transfers), 1 completed `MRPCalculation` (linked to the seeded MPS) with **19 planned orders**, **10 PR suggestions**, and **35 exceptions**, plus 1 completed `MRPRun` + `MRPRunResult` capturing coverage / planned-orders / late-orders KPIs.
+- **Per tenant (Module 8 — Inventory)** — 2 `Warehouse` rows (`MAIN` flagged default + `SEC`) × 3 zones × 4 bins = 24 bins, 4 `Lot` rows (one expiring in 15 days, one already expired), 6 `SerialNumber` rows on the first finished good, 9 initial `StockMovement` rows that seed `StockItem` denorms across 4 bins (6 receipts + 1 issue + 1 transfer + 1 positive adjustment), 1 completed `GoodsReceiptNote` with 3 lines and matching completed `PutawayTask` rows, and 1 draft `CycleCountSheet` with 4 lines (one carrying a 2-unit variance and `recount_required=True`).
 - **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
@@ -1128,6 +1178,107 @@ Run the QMS test suite with `pytest apps/qms/tests/` — uses [`config/settings_
 
 ---
 
+## Module 8 — Inventory & Warehouse Management
+
+Module 8 is implemented in [`apps/inventory/`](apps/inventory/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (ledger writes, FIFO/FEFO allocation, ABC classification) lives behind small pure-function services in [`apps/inventory/services/`](apps/inventory/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 8.1 — Multi-Warehouse Inventory
+
+- **`Warehouse`** — `code` unique per tenant, optional `manager` FK, `is_default` flag (drives the MES auto-emit signal — exactly one default per tenant), `is_active` toggle.
+- **`WarehouseZone`** — FK to warehouse, `zone_type` (`receiving / storage / picking / shipping / quarantine`); unique per `(warehouse, code)`.
+- **`StorageBin`** — FK to zone; `bin_type` (`shelf / pallet / rack / floor / bulk`), `capacity` (0 = unlimited), `abc_class` (set by cycle-count service), `is_blocked` flag. Unique per `(zone, code)`. The `warehouse` property hops through `zone`.
+- **`StockItem`** — denorm row keyed by `(tenant, product, bin, lot, serial)`; auto-maintained by `services/movements.post_movement()`. Computed `qty_available` = `qty_on_hand - qty_reserved`. **Direct mutation is forbidden** — every write goes through `post_movement()`.
+
+### Sub-module 8.2 — Goods Receipt & Putaway
+
+- **`GoodsReceiptNote`** — auto-numbered `GRN-00001` per tenant; free-text `supplier_name` / `po_reference` (Module 9 will replace with FKs); optional FK to `qms.IncomingInspection` for "accept → receive" flow; status workflow `draft → received → putaway_pending → completed / cancelled`.
+- **`GRNLine`** — FK to GRN + product; carries `expected_qty` / `received_qty`, `lot_number`, comma-separated `serial_numbers`, FK to receiving zone.
+- **`PutawayTask`** — generated automatically by the **Receive** action (one per GRN line); `strategy` (`fixed_bin / nearest_empty / abc_zone / directed`), `suggested_bin` (computed by `services/grn.suggest_bin`), `actual_bin` (filled when the operator confirms). Completing a task posts a `receipt` `StockMovement` and, if every task on the GRN is done, flips the GRN to `completed`.
+
+### Sub-module 8.3 — Inventory Movements & Transfers
+
+- **`StockMovement`** — append-only ledger; eight `movement_type`s (`receipt / issue / transfer / adjustment / production_in / production_out / scrap / cycle_count`); optional FKs to `mes.ProductionReport`, `qms.IncomingInspection`, and `GRNLine` for full upstream traceability. Indexed on `(tenant, product, -posted_at)` and `(tenant, movement_type, -posted_at)`.
+- **`StockTransfer`** — inter-warehouse header (auto `TRF-00001`); status `draft → in_transit → received / cancelled`; rejects same-warehouse source/dest in form clean.
+- **`StockTransferLine`** — per-product line with `source_bin` / `destination_bin` / `lot` / `serial`. **Ship** posts an `issue` movement per line; **Receive** posts a matching `receipt` at the destination.
+- **`StockAdjustment`** — header (auto `ADJ-00001`, admin-only), `reason` choice (`damage / loss / found / count_correction / expiry / quality_hold / other`), free-text `reason_notes` (required). Per-line system_qty vs actual_qty drives one `adjustment` movement per non-zero variance.
+- **`StockAdjustmentLine`** — `system_qty`, `actual_qty`, computed `variance` property.
+
+### Sub-module 8.4 — Cycle Counting & Physical Audit
+
+- **`CycleCountPlan`** — recurring count schedule (`daily / weekly / monthly / quarterly`) with optional ABC-class filter.
+- **`CycleCountSheet`** — auto `CC-00001`; status `draft → counting → reconciled / cancelled`; reconciliation posts one `cycle_count` `StockMovement` per non-zero variance line.
+- **`CycleCountLine`** — `system_qty`, `counted_qty` (nullable while drafting), computed `variance`, `recount_required` flag set automatically when variance exceeds 5% (configurable in [`services/cycle_count.compute_variance`](apps/inventory/services/cycle_count.py)).
+- **ABC classification** — pure function `classify_abc(consumption_by_product)` returns `{product_id: 'A' | 'B' | 'C'}` using a Pareto split (top 20% → A, next 30% → B, rest → C, deterministic on ties).
+
+### Sub-module 8.5 — Lot / Serial / Batch Tracking
+
+- **`Lot`** — `(tenant, product, lot_number)` unique; `manufactured_date`, `expiry_date`, `supplier_name`, `coa_reference`, status (`active / quarantine / expired / consumed`); `is_expiring_soon` property flips True at ≤30 days.
+- **`SerialNumber`** — `(tenant, product, serial_number)` unique; status (`available / reserved / shipped / scrapped`); FK to its parent `Lot` (nullable).
+- **FIFO / FEFO allocation** — pure functions in [`services/allocation.py`](apps/inventory/services/allocation.py). `allocate_fifo(rows, qty)` consumes oldest-first; `allocate_fefo(rows, qty)` consumes earliest-expiry-first (callers pre-sort the queryset). Raises `InsufficientStockError` with `requested` / `available` decimals attached when the pool can't cover.
+
+### Cross-module integration
+
+- **PLM** — added `Product.tracking_mode` enum (`none / lot / serial / lot_and_serial`) so other modules can enforce traceability rules; default `none`.
+- **MES** — `apps/inventory/signals.py` listens on `mes.ProductionReport`. On `post_save` (created only) it auto-emits `StockMovement(production_in)` to the tenant's default warehouse for `good_qty > 0`. On `pre_delete` it issues a compensating reversal so the ledger never drifts. Both side-effects are silently skipped when no default warehouse / suitable storage bin is configured — the floor never gets blocked by inventory state.
+- **QMS** — `GoodsReceiptNote.incoming_inspection` is an optional FK; the receipt flow can branch from a passing IQC inspection without touching QMS code.
+- **MRP** — Module 5's `InventorySnapshot` is preserved as-is. Future tickets can add a sync that aggregates `StockItem.qty_on_hand` per product into the MRP snapshot — the data model is forward-compatible.
+
+### Audit signals
+
+[`apps/inventory/signals.py`](apps/inventory/signals.py) wires:
+- `pre_save` + `post_save` on `Warehouse` → audit on creation and every `is_active` toggle.
+- `pre_save` + `post_save` on `GoodsReceiptNote`, `StockTransfer`, `CycleCountSheet` → audit on creation and every status change (`inventory.<resource>.<status>` with `meta={'from': old, 'to': new}`).
+- `post_save` on `StockAdjustment` → audit on creation only (status transitions go through admin-only views and are logged via the conditional UPDATE).
+- `post_save` on `mes.ProductionReport` → auto `StockMovement(production_in)`.
+- `pre_delete` on `mes.ProductionReport` → reverse the auto-emitted movement.
+
+### Validation guards
+
+- `WarehouseForm.clean()`, `WarehouseZoneForm.clean()`, `StorageBinForm.clean()`, `LotForm.clean()`, `SerialNumberForm.clean()`, `CycleCountPlanForm.clean()` enforce `(tenant, …)` `unique_together` (Lesson L-01) and reject duplicates with friendly field errors.
+- `LotForm.clean()` rejects `expiry_date < manufactured_date`.
+- `StockMovementForm.clean()` enforces movement-type semantics (which of `from_bin` / `to_bin` are required) so the form fails closed before reaching the service.
+- `StockTransferForm.clean()` rejects same-warehouse source/dest.
+- `StockAdjustmentForm.clean_reason_notes()` requires non-empty text.
+- `services/movements.post_movement()` does the same checks at the service layer as a defence-in-depth guard, plus rejects negative qty and refuses to drive a bin balance below zero for operational types (`adjustment` / `cycle_count` are exempt — they exist to correct).
+
+### Operator vs Admin matrix
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages | Authenticated tenant user | `TenantRequiredMixin` |
+| File a GRN, complete a putaway task, post a movement, count a cycle-count line, ship/receive a transfer | Authenticated tenant user (operator) | `TenantRequiredMixin` |
+| Warehouse / zone / bin CRUD, stock adjustment posting, cycle-count plan CRUD, manual lot creation, transfer cancel, GRN cancel, sheet reconcile, sheet delete | Tenant admin | `TenantAdminRequiredMixin` |
+
+### Workflow buttons
+
+| Resource | From | Action | To |
+|---|---|---|---|
+| GRN | `draft` | Receive (with strategy) | `putaway_pending` (PutawayTasks generated) |
+| GRN | `draft` / `received` / `putaway_pending` | Cancel (admin) | `cancelled` |
+| Putaway task | `pending` | Complete (with `actual_bin`) | `completed` (posts `receipt` movement; flips GRN → `completed` when last task done) |
+| Transfer | `draft` | Ship | `in_transit` (one `issue` movement per line) |
+| Transfer | `in_transit` | Receive | `received` (one `receipt` movement per line) |
+| Transfer | `draft` | Cancel (admin) | `cancelled` |
+| Adjustment | `draft` | Post (admin) | `posted` (one `adjustment` movement per non-zero variance line) |
+| Cycle count sheet | `draft` | Start | `counting` |
+| Cycle count sheet | `counting` | Reconcile (admin) | `reconciled` (variance movements posted) |
+
+Every transition uses the conditional `UPDATE … WHERE status IN (…)` race-safe pattern so two operators racing on the floor cannot double-action.
+
+### Test suite
+
+Run the inventory test suite with `pytest apps/inventory/tests/` — uses [`config/settings_test.py`](config/settings_test.py). The suite covers model invariants + validators, pure-function services (`post_movement` atomicity, FIFO/FEFO allocation, ABC Pareto, variance math, putaway strategy), audit-log emission for every workflow, MES `ProductionReport` → auto `StockMovement` round-trip including `pre_delete` reversal, full CRUD smoke + workflow transitions across all sub-modules, RBAC matrix (operator vs admin), and multi-tenant IDOR guards. **101 tests, ~23 s runtime.**
+
+### Out of scope (deferred)
+
+- **Procurement integration** — `GRN.supplier_name` / `po_reference` are free-text strings until Module 9 ships and provides the FK.
+- **Real-time barcode / RFID** — UI-driven workflow only in v1; REST endpoints for hardware are a follow-up.
+- **WMS slot optimization** — directed putaway is rule-based (no genetic / ILP solver).
+- **Wave / batch picking** — release picking is single-line v1; multi-order wave is a Module 17 (Sales) concern.
+- **Negative stock** — operational moves (`receipt` / `issue` / `transfer`) reject. Adjustments + cycle counts can drive a bin to zero but never below; full back-orders / consigned stock is a follow-up.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -1161,7 +1312,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_mrp [--flush]` | Seed MRP demo data (forecast models + seasonality + completed forecast run, inventory snapshots, scheduled receipts, completed MRP run with planned orders / PRs / exceptions) per tenant |
 | `python manage.py seed_mes [--flush]` | Seed MES demo data (operators, MES work orders fanned out from PPS production orders, time logs, production reports, andon alerts, work instructions with versions + acks) per tenant |
 | `python manage.py seed_qms [--flush]` | Seed QMS demo data (IQC plans + inspections, IPQC plans + SPC chart with 25 points, FQC plans + inspections + CoAs, NCRs with RCA + CA + PA, equipment + calibration standards + records) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` |
+| `python manage.py seed_inventory [--flush]` | Seed Inventory demo data (warehouses + zones + bins, lots + serials, initial stock via real movements, completed GRN with putaway, draft cycle-count sheet) per tenant |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -1170,6 +1322,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest --cov=apps/plm` | Run with coverage report |
 | `pytest --cov=apps/pps` | Run PPS coverage report (services + signals + forms + models ≥ 84% each) |
 | `pytest apps/qms/tests/` | Run the QMS test suite (85 tests, ~19 s; covers AQL table, SPC math + Western Electric rules, model invariants, form validation, IQC/FQC/NCR/Calibration workflow, RBAC matrix, multi-tenant IDOR, audit-log emission) |
+| `pytest apps/inventory/tests/` | Run the Inventory test suite (101 tests, ~23 s; covers model invariants, services (post_movement, allocation, cycle_count math, putaway), audit + MES auto-emit signals, form validation, full CRUD + workflow smoke, RBAC matrix, multi-tenant IDOR) |
 
 ---
 
@@ -1214,7 +1367,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), and **Module 7** (Quality Management / QMS). The 15 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), and **Module 8** (Inventory & Warehouse Management). The 14 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -1222,7 +1375,7 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 5. ~~Material Requirements Planning (MRP)~~ ✅ shipped
 6. ~~Shop Floor Control (MES)~~ ✅ shipped
 7. ~~Quality Management (QMS)~~ ✅ shipped
-8. Inventory & Warehouse
+8. ~~Inventory & Warehouse~~ ✅ shipped
 9. Procurement & Supplier Portal
 10. Equipment & Asset Management (EAM)
 11. Labor & Workforce Management
