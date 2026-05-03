@@ -30,7 +30,7 @@ from apps.plm.models import Product
 from apps.inventory.models import (
     CycleCountLine, CycleCountSheet, GoodsReceiptNote, GRNLine, Lot, PutawayTask,
     SerialNumber, StockAdjustment, StockItem, StockMovement, StorageBin,
-    Warehouse, WarehouseZone,
+    StockTransfer, StockTransferLine, Warehouse, WarehouseZone,
 )
 from apps.inventory.services.movements import post_movement
 
@@ -283,6 +283,41 @@ def _seed_cycle_count(tenant, warehouses, stdout):
     stdout.write('  cycle count: created 1 sheet with 4 lines (1 with variance)')
 
 
+def _seed_transfer(tenant, warehouses, stdout):
+    """Seed one draft StockTransfer per tenant so cross-tenant tests have data."""
+    if StockTransfer.all_objects.filter(tenant=tenant).exists():
+        stdout.write('  transfer: skipped (already seeded)')
+        return
+    if len(warehouses) < 2:
+        stdout.write('  transfer: need 2 warehouses; skipping')
+        return
+    main, sec = warehouses[0], warehouses[1]
+    src_bin = StorageBin.all_objects.filter(
+        zone__warehouse=main, zone__zone_type='storage', is_blocked=False,
+    ).first()
+    dst_bin = StorageBin.all_objects.filter(
+        zone__warehouse=sec, zone__zone_type='storage', is_blocked=False,
+    ).first()
+    product = Product.all_objects.filter(tenant=tenant).first()
+    if not (src_bin and dst_bin and product):
+        stdout.write('  transfer: missing bins or product; skipping')
+        return
+
+    user = User.objects.filter(tenant=tenant, is_tenant_admin=True).first()
+    transfer = StockTransfer.all_objects.create(
+        tenant=tenant,
+        source_warehouse=main, destination_warehouse=sec,
+        requested_by=user, requested_date=timezone.now().date(),
+        expected_arrival=timezone.now().date() + timedelta(days=2),
+        status='draft',
+    )
+    StockTransferLine.all_objects.create(
+        tenant=tenant, transfer=transfer, product=product,
+        qty=Decimal('5'), source_bin=src_bin, destination_bin=dst_bin,
+    )
+    stdout.write('  transfer: created 1 draft transfer with 1 line')
+
+
 class Command(BaseCommand):
     help = 'Seed Module 8 (Inventory & Warehouse) demo data per tenant. Idempotent.'
 
@@ -294,6 +329,7 @@ class Command(BaseCommand):
             self.stdout.write('flushing all inventory data...')
             for model in (
                 StockMovement, StockItem, PutawayTask, GRNLine, GoodsReceiptNote,
+                StockTransferLine, StockTransfer,
                 CycleCountLine, CycleCountSheet, StockAdjustment,
                 SerialNumber, Lot,
                 StorageBin, WarehouseZone, Warehouse,
@@ -312,6 +348,7 @@ class Command(BaseCommand):
             _seed_initial_stock(tenant, warehouses, lots, self.stdout)
             _seed_grn(tenant, warehouses, self.stdout)
             _seed_cycle_count(tenant, warehouses, self.stdout)
+            _seed_transfer(tenant, warehouses, self.stdout)
 
         self.stdout.write(self.style.SUCCESS('seed_inventory: done.'))
         self.stdout.write(
