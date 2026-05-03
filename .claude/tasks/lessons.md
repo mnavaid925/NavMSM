@@ -226,3 +226,19 @@ grep -rn "on_delete=models.CASCADE" apps/
 followed by reading each child model name aloud — if the name has "Record", "Log", "Approval", "Certificate", "Audit", "Payment", "Acknowledgement", or similar, double-check that CASCADE is intentional.
 
 **Concrete example in repo:** [apps/qms/models.py — `CalibrationRecord.equipment`](../../apps/qms/models.py) — fixed 2026-05-01 in [apps/qms/migrations/0002_alter_calibrationrecord_equipment.py](../../apps/qms/migrations/0002_alter_calibrationrecord_equipment.py) (Module 7 manual-test walkthrough, BUG-02). Regression test in [apps/qms/tests/test_views_workflow.py — `test_equipment_with_calibration_history_protected_from_delete`](../../apps/qms/tests/test_views_workflow.py).
+
+---
+
+## L-18 — Signal handlers defined inside a factory function need `weak=False` or they get garbage-collected
+
+**Rule:** When you connect signal handlers inside a factory / loop / closure, the inner functions live only in the factory's local scope. By default `signal.connect()` (and `@receiver`) hold the receiver as a **weak reference**, so once the factory returns the inner functions are garbage-collected and the signal **silently never fires**. Pass `weak=False` (or hoist the function to module scope and reference it explicitly) to keep the receiver alive.
+
+**Why:** I built a `_mk_status_signals(model, action_prefix)` factory in `apps/procurement/signals.py` to register `pre_save` + `post_save` audit handlers for 7 status-tracked models in one DRY pattern. The handlers were defined inside the factory and decorated with `@receiver(...)`. The decorator connected them with the default `weak=True`. After each call the inner closures went out of scope, the weak-refs dropped, and **none** of the audit signals fired. Detection cost: 1 failed test (`test_creation_audited`) that asserted the audit row existed; debugging trail was straightforward once I dumped `post_save.receivers` and saw only the explicit module-level handlers were live (`procurement_grn_metric`, `procurement_iqc_metric`) — the 14 factory-registered handlers were missing. Module-level `@receiver(...)` works because the function name itself is a strong reference held by the module's `__dict__`.
+
+**How to apply:** any `signal.connect(handler, sender=..., dispatch_uid=...)` call where `handler` is NOT a module-level name (factory-defined, closure-captured, decorator-stacked) MUST pass `weak=False`. Equivalent rule for `@receiver`: only safe at module scope. If you must register inside a function, either:
+1. Connect with `weak=False`: `pre_save.connect(_pre, sender=model, weak=False, dispatch_uid='...')`.
+2. Or hoist the handler to module scope and connect explicitly.
+
+A drop-in unit-test guard: assert `dispatch_uid` is present in `post_save.receivers` after `apps.ready()`. Catches both this regression and any future "I deleted the handler but forgot to remove the connect call" drift.
+
+**Concrete example in repo:** [apps/procurement/signals.py — `_mk_status_signals`](../../apps/procurement/signals.py) — fixed 2026-05-04 during initial Module 9 test-suite run. The fix replaced `@receiver(...)` decorators inside the factory with explicit `pre_save.connect(_pre, ..., weak=False, dispatch_uid=...)` + `post_save.connect(_post, ..., weak=False, dispatch_uid=...)` calls. Regression evidence: 70 procurement tests passed once `weak=False` was applied; before the fix, every test that asserted an audit row existed was failing.
