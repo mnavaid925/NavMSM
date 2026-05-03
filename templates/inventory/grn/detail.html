@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ grn.grn_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ grn.grn_number }}</h4>
+        <div class="text-muted small">{{ grn.warehouse.code }} &middot; {{ grn.supplier_name|default:"(no supplier)" }} &middot; {{ grn.received_date|date:"M j Y" }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'inventory:grn_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if grn.status == 'draft' %}
+        <a href="{% url 'inventory:grn_edit' grn.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        <form method="post" action="{% url 'inventory:grn_receive' grn.pk %}">{% csrf_token %}<input type="hidden" name="strategy" value="nearest_empty"><button class="btn btn-primary"><i class="ri-truck-line me-1"></i> Receive &amp; Generate Putaway</button></form>
+        {% endif %}
+        {% if grn.status not in 'completed cancelled'|cut:" " %}{% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'inventory:grn_cancel' grn.pk %}" onsubmit="return confirm('Cancel this GRN?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-close-circle-line me-1"></i> Cancel</button></form>
+        {% endif %}{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9">
+        <div class="card mb-3"><div class="card-body">
+            <h5>Lines</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Product</th><th>Expected</th><th>Received</th><th>Lot#</th><th>Zone</th><th></th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr><td class="small">{{ l.product.sku }}</td>
+                    <td class="small">{{ l.expected_qty }}</td>
+                    <td class="small">{{ l.received_qty }}</td>
+                    <td class="small">{{ l.lot_number|default:"-" }}</td>
+                    <td class="small">{{ l.receiving_zone }}</td>
+                    <td class="text-end">{% if grn.status == 'draft' %}<form method="post" action="{% url 'inventory:grn_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+            {% if grn.status == 'draft' %}
+            <h6 class="mt-3">Add line</h6>
+            <form method="post" action="{% url 'inventory:grn_line_create' grn.pk %}">{% csrf_token %}{{ line_form|crispy }}
+            <button class="btn btn-primary btn-sm"><i class="ri-add-line me-1"></i> Add Line</button></form>
+            {% endif %}
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5>Putaway Tasks</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Product</th><th>Qty</th><th>Suggested</th><th>Actual</th><th>Strategy</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                {% for p in putaway_tasks %}
+                    <tr><td class="small">{{ p.grn_line.product.sku }}</td>
+                    <td class="small">{{ p.qty }}</td>
+                    <td class="small">{{ p.suggested_bin|default:"-" }}</td>
+                    <td class="small">{{ p.actual_bin|default:"-" }}</td>
+                    <td class="small">{{ p.get_strategy_display }}</td>
+                    <td>
+                        {% if p.status == 'pending' %}<span class="badge bg-secondary-subtle text-secondary">Pending</span>
+                        {% elif p.status == 'in_progress' %}<span class="badge bg-info-subtle text-info">In Progress</span>
+                        {% elif p.status == 'completed' %}<span class="badge bg-success-subtle text-success">Done</span>
+                        {% else %}<span class="badge bg-danger-subtle text-danger">{{ p.get_status_display }}</span>{% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if p.status != 'completed' and p.status != 'cancelled' %}
+                        <form method="post" action="{% url 'inventory:putaway_complete' p.pk %}" class="d-inline-flex gap-1 align-items-center">{% csrf_token %}
+                            <select name="actual_bin" class="form-select form-select-sm">
+                                <option value="{{ p.suggested_bin.pk|default_if_none:'' }}">{{ p.suggested_bin|default:'-- pick bin --' }}</option>
+                            </select>
+                            <button class="btn btn-sm btn-success"><i class="ri-check-line"></i></button>
+                        </form>
+                        {% endif %}
+                    </td></tr>
+                {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Tasks generate after Receive.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <h6 class="text-muted">Status</h6><p>{{ grn.get_status_display }}</p>
+        <h6 class="text-muted">Received By</h6><p class="small">{{ grn.received_by.username|default:"-" }}</p>
+        <h6 class="text-muted">PO Ref</h6><p class="small">{{ grn.po_reference|default:"-" }}</p>
+        <h6 class="text-muted">IQC Inspection</h6><p class="small">{% if grn.incoming_inspection %}{{ grn.incoming_inspection }}{% else %}-{% endif %}</p>
+        <h6 class="text-muted">Notes</h6><p class="small">{{ grn.notes|default:"-"|linebreaksbr }}</p>
+    </div></div></div>
+</div>
+{% endblock %}
