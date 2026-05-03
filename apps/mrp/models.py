@@ -426,7 +426,13 @@ class MRPPurchaseRequisition(TenantAwareModel, TimeStampedModel):
     converted_at = models.DateTimeField(null=True, blank=True)
     converted_reference = models.CharField(
         max_length=120, blank=True,
-        help_text='Will be set by Module 9 (Procurement) when the PR is promoted to a PO.',
+        help_text='Free-text reference to the converted PO (legacy / kept for back-compat).',
+    )
+    # Module 9 - Procurement bridge: direct FK to the converted PO when the
+    # convert_pr_to_po service is invoked. additive + nullable.
+    converted_po = models.ForeignKey(
+        'procurement.PurchaseOrder', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='source_requisitions',
     )
 
     class Meta:
