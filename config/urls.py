@@ -16,6 +16,7 @@ urlpatterns = [
     path('mes/', include('apps.mes.urls')),
     path('qms/', include('apps.qms.urls')),
     path('inventory/', include('apps.inventory.urls')),
+    path('procurement/', include('apps.procurement.urls')),
 ]
 
 if settings.DEBUG:
