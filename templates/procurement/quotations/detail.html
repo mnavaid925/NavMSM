@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ q.quote_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ q.quote_number }} <span class="badge bg-secondary-subtle text-secondary">{{ q.get_status_display }}</span></h4>
+        <div class="text-muted small">RFQ <a href="{% url 'procurement:rfq_detail' q.rfq.pk %}">{{ q.rfq.rfq_number }}</a> | Supplier {{ q.supplier.code }} - {{ q.supplier.name }}</div></div>
+    <a href="{% url 'procurement:quotation_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-9"><div class="card"><div class="card-body">
+        <h5 class="card-title">Quoted lines</h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>RFQ Line</th><th>Product</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Lead (d)</th><th class="text-end">MOQ</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+            <tbody>
+            {% for ql in lines %}
+                <tr><td class="small">L{{ ql.rfq_line.line_number }}</td>
+                <td class="small">{{ ql.rfq_line.product.sku|default:"-" }}</td>
+                <td class="small text-end">{{ ql.rfq_line.quantity }}</td>
+                <td class="small text-end">{{ ql.unit_price }}</td>
+                <td class="small text-end">{{ ql.lead_time_days }}</td>
+                <td class="small text-end">{{ ql.min_order_qty }}</td>
+                <td class="small text-end">{{ q.currency }} {{ ql.quoted_subtotal }}</td>
+                <td class="text-end">{% if q.status in 'submitted,under_review' and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'procurement:quotation_line_delete' ql.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+            </tbody>
+            <tfoot><tr><td colspan="6" class="text-end fw-semibold">Total</td><td class="text-end fw-bold">{{ q.currency }} {{ q.grand_total }}</td><td></td></tr></tfoot>
+        </table>
+        {% if q.status in 'submitted,under_review' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <hr><h6>Add Line</h6>
+        <form method="post" action="{% url 'procurement:quotation_line_create' q.pk %}">{% csrf_token %}{{ line_form|crispy }}<button class="btn btn-primary btn-sm">Add Line</button></form>
+        {% endif %}
+    </div></div></div>
+
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <h6 class="card-title">Header</h6>
+        <dl class="small mb-0">
+            <dt>Quote Date</dt><dd>{{ q.quote_date|date:"M j Y" }}</dd>
+            <dt>Valid Until</dt><dd>{{ q.valid_until|date:"M j Y"|default:"-" }}</dd>
+            <dt>Currency</dt><dd>{{ q.currency }}</dd>
+            <dt>Payment Terms</dt><dd>{{ q.payment_terms|default:"-" }}</dd>
+            <dt>Delivery Terms</dt><dd>{{ q.delivery_terms|default:"-" }}</dd>
+            <dt>Notes</dt><dd>{{ q.notes|linebreaksbr|default:"-" }}</dd>
+        </dl>
+        {% if q.status != 'accepted' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <hr><form method="post" action="{% url 'procurement:quotation_delete' q.pk %}" onsubmit="return confirm('Delete quotation?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete Quote</button></form>
+        {% endif %}
+    </div></div></div>
+</div>
+{% endblock %}
