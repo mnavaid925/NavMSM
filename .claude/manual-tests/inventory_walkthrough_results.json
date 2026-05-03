@@ -1,0 +1,837 @@
+[
+  {
+    "id": "TC-AUTH-01",
+    "status": "PASS",
+    "note": "302 -> /accounts/login/?next=/inventory/"
+  },
+  {
+    "id": "TC-AUTH-02",
+    "status": "PASS",
+    "note": "302"
+  },
+  {
+    "id": "TC-AUTH-03",
+    "status": "PASS",
+    "note": "302"
+  },
+  {
+    "id": "TC-AUTH-04",
+    "status": "PASS",
+    "note": "superuser 302 -> / (TenantRequiredMixin redirect; correct behavior)"
+  },
+  {
+    "id": "TC-AUTH-05",
+    "status": "PASS",
+    "note": "all 13 OK"
+  },
+  {
+    "id": "TC-AUTH-06",
+    "status": "PASS",
+    "note": "staff -> 302 (expected 302)"
+  },
+  {
+    "id": "TC-AUTH-07",
+    "status": "PASS",
+    "note": "staff GRN form -> 200"
+  },
+  {
+    "id": "TC-AUTH-08",
+    "status": "PASS",
+    "note": "staff movement form -> 200"
+  },
+  {
+    "id": "TC-AUTH-09",
+    "status": "PASS",
+    "note": "staff adjustment -> 302"
+  },
+  {
+    "id": "TC-AUTH-10",
+    "status": "PASS",
+    "note": "staff reconcile blocked, status remained draft"
+  },
+  {
+    "id": "TC-TENANT-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-TENANT-02",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-TENANT-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-TENANT-04",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-TENANT-05",
+    "status": "PASS",
+    "note": "warehouses list shows only Acme records"
+  },
+  {
+    "id": "TC-TENANT-06",
+    "status": "PASS",
+    "note": "r=404, exists pre=True post=True"
+  },
+  {
+    "id": "TC-TENANT-07",
+    "status": "PASS",
+    "note": "r=404 status draft->draft"
+  },
+  {
+    "id": "TC-CREATE-01",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-02",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-03",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-04",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-05",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-06",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-07",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-08",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-09",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-10",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-11",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-12",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-13",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-14",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-15",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-16",
+    "status": "PASS",
+    "note": "recount_required auto-set on 10% variance"
+  },
+  {
+    "id": "TC-CREATE-17",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-18",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-19",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-CREATE-20",
+    "status": "PASS",
+    "note": "r=302"
+  },
+  {
+    "id": "TC-CREATE-21",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-LIST-01",
+    "status": "PASS",
+    "note": "/inventory/warehouses/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-02",
+    "status": "PASS",
+    "note": "/inventory/zones/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-03",
+    "status": "PASS",
+    "note": "/inventory/bins/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-04",
+    "status": "PASS",
+    "note": "/inventory/stock/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-05",
+    "status": "PASS",
+    "note": "/inventory/grn/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-06",
+    "status": "PASS",
+    "note": "/inventory/movements/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-07",
+    "status": "PASS",
+    "note": "/inventory/lots/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-08",
+    "status": "PASS",
+    "note": "/inventory/serials/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-09",
+    "status": "PASS",
+    "note": "/inventory/adjustments/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-10",
+    "status": "PASS",
+    "note": "/inventory/cycle-count/sheets/ 200, missing=[]"
+  },
+  {
+    "id": "TC-LIST-11",
+    "status": "PASS",
+    "note": "pagination_visible=False"
+  },
+  {
+    "id": "TC-LIST-12",
+    "status": "PASS",
+    "note": "view=True edit=True delete=True"
+  },
+  {
+    "id": "TC-LIST-13",
+    "status": "PASS",
+    "note": "movement row only View"
+  },
+  {
+    "id": "TC-DETAIL-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-02",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-04",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-05",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-07",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DETAIL-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-02",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-04",
+    "status": "PASS",
+    "note": "302"
+  },
+  {
+    "id": "TC-EDIT-05",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-07",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-08",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-EDIT-09",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DELETE-04",
+    "status": "PASS",
+    "note": "still=True"
+  },
+  {
+    "id": "TC-DELETE-05",
+    "status": "PASS",
+    "note": "still=True"
+  },
+  {
+    "id": "TC-DELETE-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DELETE-02",
+    "status": "BLOCKED",
+    "note": "browser cancellation cannot be tested via test client"
+  },
+  {
+    "id": "TC-DELETE-03",
+    "status": "PASS",
+    "note": "gone=True"
+  },
+  {
+    "id": "TC-DELETE-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DELETE-07",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DELETE-08",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-DELETE-09",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-02",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-04",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-05",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-07",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-08",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-SEARCH-09",
+    "status": "PASS",
+    "note": "XSS escaped"
+  },
+  {
+    "id": "TC-SEARCH-10",
+    "status": "BLOCKED",
+    "note": "requires synthetic data >25 rows"
+  },
+  {
+    "id": "TC-PAGE-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-PAGE-04",
+    "status": "PASS",
+    "note": "200"
+  },
+  {
+    "id": "TC-PAGE-05",
+    "status": "PASS",
+    "note": "200"
+  },
+  {
+    "id": "TC-PAGE-02",
+    "status": "BLOCKED",
+    "note": "requires >25 rows"
+  },
+  {
+    "id": "TC-PAGE-03",
+    "status": "BLOCKED",
+    "note": "requires >25 rows"
+  },
+  {
+    "id": "TC-PAGE-06",
+    "status": "BLOCKED",
+    "note": "requires >25 rows"
+  },
+  {
+    "id": "TC-FILTER-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-02",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-04",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-05",
+    "status": "PASS",
+    "note": "2 A-class bins"
+  },
+  {
+    "id": "TC-FILTER-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-07",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-08",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-09",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-10",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-11",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-12",
+    "status": "PASS",
+    "note": "active filter excludes expired-status lot"
+  },
+  {
+    "id": "TC-FILTER-13",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-14",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-15",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-FILTER-16",
+    "status": "BLOCKED",
+    "note": "requires >25 rows + URL preservation visual check"
+  },
+  {
+    "id": "TC-FILTER-17",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-ACTION-01",
+    "status": "PASS",
+    "note": "status=putaway_pending tasks=2"
+  },
+  {
+    "id": "TC-ACTION-02",
+    "status": "PASS",
+    "note": "status=draft"
+  },
+  {
+    "id": "TC-ACTION-03",
+    "status": "PASS",
+    "note": "task status=completed"
+  },
+  {
+    "id": "TC-ACTION-04",
+    "status": "PASS",
+    "note": "GRN status=completed"
+  },
+  {
+    "id": "TC-ACTION-05",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-ACTION-06",
+    "status": "PASS",
+    "note": "state=in_transit"
+  },
+  {
+    "id": "TC-ACTION-07",
+    "status": "PASS",
+    "note": "state=draft"
+  },
+  {
+    "id": "TC-ACTION-08",
+    "status": "PASS",
+    "note": "state=draft"
+  },
+  {
+    "id": "TC-ACTION-09",
+    "status": "PASS",
+    "note": "state=received"
+  },
+  {
+    "id": "TC-ACTION-10",
+    "status": "PASS",
+    "note": "state=in_transit"
+  },
+  {
+    "id": "TC-ACTION-11",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-ACTION-12",
+    "status": "PASS",
+    "note": "1 variance movement (zero-variance line skipped)"
+  },
+  {
+    "id": "TC-ACTION-13",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-ACTION-14",
+    "status": "PASS",
+    "note": "state=counting"
+  },
+  {
+    "id": "TC-ACTION-15",
+    "status": "PASS",
+    "note": "reconciled with 1 cycle_count movements"
+  },
+  {
+    "id": "TC-ACTION-16",
+    "status": "PASS",
+    "note": "NULL counted_qty line silently skipped"
+  },
+  {
+    "id": "TC-ACTION-17",
+    "status": "PASS",
+    "note": "state=in_transit issues=1"
+  },
+  {
+    "id": "TC-UI-01",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-03",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-04",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-12",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-13",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-15",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-UI-02",
+    "status": "BLOCKED",
+    "note": "sidebar active highlight needs browser"
+  },
+  {
+    "id": "TC-UI-05",
+    "status": "BLOCKED",
+    "note": "badge color visual check needs browser"
+  },
+  {
+    "id": "TC-UI-06",
+    "status": "BLOCKED",
+    "note": "browser confirm dialog"
+  },
+  {
+    "id": "TC-UI-07",
+    "status": "BLOCKED",
+    "note": "browser toast timing"
+  },
+  {
+    "id": "TC-UI-08",
+    "status": "BLOCKED",
+    "note": "covered partially via CREATE failure cases"
+  },
+  {
+    "id": "TC-UI-09",
+    "status": "BLOCKED",
+    "note": "asterisk visual check"
+  },
+  {
+    "id": "TC-UI-10",
+    "status": "BLOCKED",
+    "note": "mobile viewport (DevTools)"
+  },
+  {
+    "id": "TC-UI-11",
+    "status": "BLOCKED",
+    "note": "tablet viewport (DevTools)"
+  },
+  {
+    "id": "TC-UI-14",
+    "status": "BLOCKED",
+    "note": "console errors (DevTools)"
+  },
+  {
+    "id": "TC-UI-16",
+    "status": "BLOCKED",
+    "note": "keyboard nav"
+  },
+  {
+    "id": "TC-UI-17",
+    "status": "BLOCKED",
+    "note": "visual long-text wrap"
+  },
+  {
+    "id": "TC-NEG-01",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-NEG-02",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-NEG-03",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-NEG-04",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-NEG-05",
+    "status": "PASS",
+    "note": "r=200"
+  },
+  {
+    "id": "TC-NEG-06",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-NEG-07",
+    "status": "PASS",
+    "note": "XSS escaped"
+  },
+  {
+    "id": "TC-NEG-08",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-NEG-12",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-NEG-13",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-NEG-14",
+    "status": "PASS",
+    "note": "AdjustmentLineDeleteView guard: line.adjustment.status != draft -> blocks (verified by view code path)"
+  },
+  {
+    "id": "TC-NEG-15",
+    "status": "PASS",
+    "note": "CycleCountLineDeleteView guard: sheet.status not in (draft, counting) -> blocks"
+  },
+  {
+    "id": "TC-NEG-16",
+    "status": "PASS",
+    "note": "duplicate of TC-DELETE-09 \u2014 passes"
+  },
+  {
+    "id": "TC-NEG-17",
+    "status": "PASS",
+    "note": "PutawayCompleteView only creates Lot when grn_line.lot_number is non-empty (verified by code path)"
+  },
+  {
+    "id": "TC-NEG-09",
+    "status": "BLOCKED",
+    "note": "requires browser double-click"
+  },
+  {
+    "id": "TC-NEG-10",
+    "status": "BLOCKED",
+    "note": "requires real browser back"
+  },
+  {
+    "id": "TC-NEG-11",
+    "status": "BLOCKED",
+    "note": "requires real browser refresh"
+  },
+  {
+    "id": "TC-INT-01",
+    "status": "PASS",
+    "note": "movement=1"
+  },
+  {
+    "id": "TC-INT-02",
+    "status": "PASS",
+    "note": "rev_count 0->1"
+  },
+  {
+    "id": "TC-INT-03",
+    "status": "PASS",
+    "note": "movements=0"
+  },
+  {
+    "id": "TC-INT-04",
+    "status": "PASS",
+    "note": "movements=0"
+  },
+  {
+    "id": "TC-INT-05",
+    "status": "PASS",
+    "note": ""
+  },
+  {
+    "id": "TC-INT-06",
+    "status": "PASS",
+    "note": "tracking_mode=none"
+  },
+  {
+    "id": "TC-INT-07",
+    "status": "PASS",
+    "note": ""
+  }
+]
