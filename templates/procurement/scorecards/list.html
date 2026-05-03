@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Scorecards{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Supplier Scorecards</h4><div class="text-muted small">OTD, quality, defect rate, price variance, vendor ranking.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <form method="post" action="{% url 'procurement:scorecard_recompute' %}" onsubmit="return confirm('Recompute scorecards for previous month?');">{% csrf_token %}<button class="btn btn-primary"><i class="ri-refresh-line me-1"></i> Recompute (prev month)</button></form>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Rank</th><th>Supplier</th><th>Period</th><th>OTD %</th><th>Quality</th><th>Defect %</th><th>Resp.</th><th>Overall</th><th>POs</th></tr></thead>
+        <tbody>
+        {% for sc in page_obj %}
+            <tr>
+                <td class="small">#{{ sc.rank }}</td>
+                <td class="small fw-semibold"><a href="{% url 'procurement:scorecard_detail' sc.pk %}">{{ sc.supplier.code }}</a> {{ sc.supplier.name }}</td>
+                <td class="small">{{ sc.period_start|date:"M Y" }}</td>
+                <td class="small">{{ sc.otd_pct }}</td>
+                <td class="small">{{ sc.quality_rating }}</td>
+                <td class="small">{{ sc.defect_rate_pct }}</td>
+                <td class="small">{{ sc.responsiveness_rating }}</td>
+                <td class="small fw-bold"><span class="badge bg-{% if sc.overall_score >= 80 %}success{% elif sc.overall_score >= 60 %}warning{% else %}danger{% endif %}">{{ sc.overall_score }}</span></td>
+                <td class="small">{{ sc.total_pos }}</td>
+            </tr>
+        {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No scorecards yet. Click Recompute to seed from metric events.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'procurement/_pagination.html' %}
+</div></div>
+{% endblock %}
