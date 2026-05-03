@@ -68,6 +68,12 @@ class Product(TenantAwareModel, TimeStampedModel):
         ('box', 'Box'),
         ('set', 'Set'),
     ]
+    TRACKING_MODE_CHOICES = [
+        ('none', 'None'),
+        ('lot', 'Lot Tracked'),
+        ('serial', 'Serial Tracked'),
+        ('lot_and_serial', 'Lot + Serial'),
+    ]
 
     sku = models.CharField(max_length=50)
     name = models.CharField(max_length=255)
@@ -77,6 +83,10 @@ class Product(TenantAwareModel, TimeStampedModel):
     )
     product_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='component')
     unit_of_measure = models.CharField(max_length=10, choices=UOM_CHOICES, default='ea')
+    tracking_mode = models.CharField(
+        max_length=20, choices=TRACKING_MODE_CHOICES, default='none',
+        help_text='Inventory traceability mode (Module 8): none / lot / serial / lot_and_serial',
+    )
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     current_revision = models.ForeignKey(
