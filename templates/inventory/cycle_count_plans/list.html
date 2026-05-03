@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Cycle Count Plans{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Cycle Count Plans</h4><div class="text-muted small">Recurring count schedules.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'inventory:cc_plan_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Plan</a>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Plan name..."></div>
+        <div class="col-md-3"><select name="active" class="form-select"><option value="">All</option><option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option><option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option></select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Name</th><th>Warehouse</th><th>Frequency</th><th>ABC Filter</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for p in page_obj %}
+            <tr><td class="small fw-semibold">{{ p.name }}</td>
+            <td class="small">{{ p.warehouse.code }}</td>
+            <td class="small">{{ p.get_frequency_display }}</td>
+            <td class="small">{{ p.abc_class_filter|default:"All" }}</td>
+            <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'inventory:cc_plan_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'inventory:cc_plan_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td></tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No plans yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'inventory/_pagination.html' %}
+</div></div>
+{% endblock %}
