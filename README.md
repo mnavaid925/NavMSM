@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, and **Module 9 — Procurement & Supplier Portal**. The remaining 13 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, and **Module 10 — Equipment & Asset Management (EAM)**. The remaining 12 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -28,7 +28,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 18. [Module 7 — Quality Management (QMS)](#module-7--quality-management-qms)
 19. [Module 8 — Inventory & Warehouse Management](#module-8--inventory--warehouse-management)
 20. [Module 9 — Procurement & Supplier Portal](#module-9--procurement--supplier-portal)
-21. [UI / Theme Customization](#ui--theme-customization)
+21. [Module 10 — Equipment & Asset Management (EAM)](#module-10--equipment--asset-management-eam)
+22. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
 20. [Security Notes](#security-notes)
@@ -50,6 +51,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 6 — Shop Floor Control (MES)** — one-click dispatch from a released `pps.ProductionOrder` into a `MESWorkOrder` (auto-numbered `WO-00001`) with per-routing-op fan-out; touchscreen operator terminal at `/mes/terminal/` with Start / Pause / Resume / Stop buttons backed by an append-only `OperatorTimeLog`; production reports (good / scrap / rework) that bump per-op denorms and roll up to the parent work order; andon alerts (quality / material / equipment / safety / other) with severity + acknowledge / resolve / cancel workflow; paperless work instructions with versioned content + 25 MB attachment + video URL, auth-gated downloads, automatic version supersession on release, and per-operator typed-signature acknowledgements.
 - **Module 7 — Quality Management (QMS)** — Incoming Quality Control with ANSI/ASQ Z1.4 single-sampling AQL plans, per-product characteristics, and accept / reject / accept-with-deviation workflow; In-Process Quality Control with checkpoint plans pinned to PPS routing operations, X-bar/R SPC chart math (A2/D3/D4 constants) + Western Electric runs rules 1–4, ApexCharts SPC visualisation; Final Quality Control with finished-good test protocols and HTML Certificate-of-Analysis generation (browser print-to-PDF); Non-Conformance Reports (auto-numbered `NCR-00001`) sourced from IQC / IPQC / FQC / customer with full root-cause analysis (5-Why, fishbone, FMEA), corrective &amp; preventive action tracking, attachment uploads, and `open → investigating → awaiting_capa → resolved → closed` workflow; Calibration Management with measurement-equipment registry, due-tracker (rows go red ≤7 days), append-only calibration records (pass / pass-with-adjustment / fail), tolerance verification, NIST-traceable reference standards, and signal-driven `next_due_at` propagation back onto the parent equipment.
 - **Module 8 — Inventory & Warehouse Management** — multi-warehouse tree (Warehouse → Zone → Bin) with `is_default` flag for auto-emit routing, ABC velocity classes on bins; goods receipt notes (auto-numbered `GRN-00001`) with line-level lot/serial capture, optional `qms.IncomingInspection` link, and four putaway strategies (`fixed_bin / nearest_empty / abc_zone / directed`); append-only `StockMovement` ledger covering eight movement types written exclusively through `services/movements.post_movement()` so `StockItem` denorms stay consistent; inter-warehouse transfers (auto `TRF-00001`) with `draft → in_transit → received` workflow that posts an issue + receipt pair, plus stock adjustments (auto `ADJ-00001`, admin-only) that emit one variance movement per line; cycle-count plans + sheets (auto `CC-00001`) with FIFO/FEFO allocation services and ABC Pareto classification, variance recount-trigger on >5%; lot/serial traceability with `Product.tracking_mode` enum (`none / lot / serial / lot_and_serial`), expiry tracking with red/yellow row tinting at 30 / 0 days, and per-lot stock + movement history; **automatic `production_in` movement emission** when `mes.ProductionReport` is filed (signal-based, idempotent, silently skipped when no default warehouse is configured) plus `pre_delete` reversal so the ledger never drifts.
+- **Module 10 — Equipment & Asset Management (EAM)** — asset master (auto `ASSET-00001`) with parent-child hierarchy (`CNC-LATHE-01 → SPINDLE-01`), 6-level taxonomy of `AssetCategory` rows, optional `inventory.Warehouse` location FK, criticality / status enums, append-only `AssetMeterReading` ledger (hours / cycles / mileage / kWh) and per-asset `AssetSparePart` linkage to `plm.Product`; preventive maintenance plans with calendar / meter / both triggers, ordered checklist `MaintenanceTask` rows, idempotent `generate_pm_schedules` management command + on-demand `Generate Upcoming` button that materialises future `PMSchedule` rows (auto `PMS-00001`) via the pure `services/pm_scheduler.py`; predictive maintenance with sensor-style `ConditionMonitoringPoint` (vibration / temperature / pressure / current / oil-quality) and append-only `ConditionReading` rows auto-classified `normal / warning / critical` by the heuristic `services/prediction.py`, and a post-save signal that auto-spawns `FailurePrediction` rows on critical readings (with idempotency against existing open predictions); `MaintenanceWorkOrder` (auto `MWO-00001`) with `breakdown / preventive / corrective / predictive / inspection` types, `draft → scheduled → in_progress → on_hold → completed → cancelled` workflow guarded by L-03 view/template parity, race-safe conditional `UPDATE`, append-only `MWOLaborLog` (auto-computed minutes + total cost) + `MWOMaterialLog` (with optional `inventory.StockMovement` FK), and per-asset `DowntimeEvent` ledger that auto-refreshes the parent MWO's `downtime_minutes` denorm; tool & die management with `Tool` (auto `TOOL-00001`, types `mold / die / jig / fixture / cutting_tool / gauge`), append-only `ToolUsageLog` + atomic denorm bump via `services/tool_life.py`, `ToolMaintenanceRecord` for sharpening / cleaning / repair / calibration / inspection (with 25 MB attachment cap, allowlist `.pdf .png .jpg .jpeg`), and per-cavity `MoldCavityHistory` for mold-type tools; cross-module hooks: an `mes.AndonAlert(type='equipment', asset=<asset>)` post-save auto-creates a draft breakdown MWO (idempotent via `source_andon`), and a `mes.ProductionReport` post-save against an op whose work order has `tool=<tool>` set auto-emits a `ToolUsageLog` plus atomic `Tool.current_cycles` bump.
 - **Module 9 — Procurement & Supplier Portal** — supplier master with code/risk/approval flags (8 seeded per tenant); purchase orders (auto `PUR-00001`) with full `draft → submitted → approved → acknowledged → in_progress → received → closed` workflow, line-level tax/discount/total denorms, race-safe conditional UPDATE on every transition, immutable `PurchaseOrderRevision` snapshots on every Revise action, and append-only approval log; multi-round RFQs (auto `RFQ-00001`) with invited-supplier matrix, side-by-side quote comparison view, and one-click Award action that optionally drafts a real PO from the winning quotation; supplier scorecards with weighted overall score (40% OTD + 40% Quality + 10% Responsiveness + 10% Price) computed by a pure-function service from append-only `SupplierMetricEvent` rows; **cross-module event hooks** that auto-emit OTD events when `inventory.GoodsReceiptNote` flips to completed and quality pass/fail events when `qms.IncomingInspection` is accepted/rejected; supplier self-service portal (role=`supplier` user with `supplier_company` FK) for ASN submission (auto `ASN-00001`), invoice upload (auto `SUPINV-00001`, 25 MB attachment cap), and own-PO visibility — every portal queryset is scoped to `request.user.supplier_company`; long-term blanket orders (auto `BPO-00001`) with periodic schedule releases (auto `REL-00001`) that consume the parent commitment via a race-safe conditional UPDATE so concurrent releases can never overdraw.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
@@ -259,6 +261,20 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/procurement/releases/` and CRUD | Schedule release list; release action consumes blanket commitment, cancel reverses |
 | `/procurement/portal/` | Supplier-portal dashboard (role=`supplier` user only) — KPIs scoped to `request.user.supplier_company` |
 | `/procurement/portal/pos/` · `/asns/` · `/invoices/` | Supplier-facing read views — only show records belonging to the user's supplier company |
+| `/eam/` | EAM dashboard — KPI cards (active assets, critical assets, down assets, open MWOs, overdue PM, open predictions), recent MWOs, upcoming PM, open predictions |
+| `/eam/assets/` | Asset list with status / criticality / category / active filters; create, edit, delete, retire, reactivate |
+| `/eam/assets/<pk>/` | Asset detail with tabs for Spare Parts, Meter Readings, Documents, Open Work Orders, Sub-assets |
+| `/eam/categories/` | Asset category list with self-FK parent; create, edit, delete |
+| `/eam/meter-readings/` | Append-only meter reading ledger filterable by asset / meter type |
+| `/eam/pm-plans/` and `<pk>/` | PM plan list + detail with tasks inline + Generate Upcoming button |
+| `/eam/pm-schedules/` and `<pk>/` | PM schedule list + detail with task-completion checklist + Start / Complete / Skip workflow |
+| `/eam/monitoring-points/` and `<pk>/` | Condition monitoring point list + detail with recent readings + record-reading form |
+| `/eam/readings/` | Condition reading list filterable by point / status |
+| `/eam/predictions/` and `<pk>/` | Failure prediction list + detail with Investigate / Resolve workflow (resolution notes required per L-14) |
+| `/eam/mwo/` and `<pk>/` | Maintenance work order list + detail with Labor / Material / Downtime tabs and Schedule / Start / Hold / Resume / Complete / Cancel workflow |
+| `/eam/downtime/` | Downtime event list filterable by asset / type |
+| `/eam/tools/` and `<pk>/` | Tool list + detail with Usage Logs / Maintenance / Cavities tabs (cavities for mold-type tools only) |
+| `/eam/tool-maintenance/` | Tool maintenance record list filterable by tool / record type |
 
 ---
 
@@ -444,6 +460,43 @@ NavMSM/
 │   │                             # (warehouses, zones, bins, lots, serials,
 │   │                             # initial movements, GRN, cycle-count sheet)
 │   │
+│   ├── eam/                      # MODULE 10 — Equipment & Asset Management
+│   │   ├── models.py             # AssetCategory, Asset, AssetSparePart,
+│   │   │                         # AssetMeterReading, AssetDocument,
+│   │   │                         # MaintenancePlan, MaintenanceTask, PMSchedule,
+│   │   │                         # PMTaskCompletion, ConditionMonitoringPoint,
+│   │   │                         # ConditionReading, FailurePrediction,
+│   │   │                         # MaintenanceWorkOrder, MWOLaborLog,
+│   │   │                         # MWOMaterialLog, DowntimeEvent, Tool,
+│   │   │                         # ToolUsageLog, ToolMaintenanceRecord,
+│   │   │                         # MoldCavityHistory
+│   │   ├── services/
+│   │   │   ├── pm_scheduler.py   # generate_upcoming_pm() — pure
+│   │   │   ├── prediction.py     # classify_reading() — heuristic alarm-band
+│   │   │   ├── downtime.py       # compute_downtime() + refresh_mwo_downtime()
+│   │   │   └── tool_life.py      # bump_tool_life() + consume_usage_log()
+│   │   ├── signals.py            # Audit pre/post_save factory (L-18 weak=False)
+│   │   │                         # for Asset / PMSchedule / FailurePrediction /
+│   │   │                         # MWO / Tool; ConditionReading post_save spawns
+│   │   │                         # FailurePrediction on critical; DowntimeEvent
+│   │   │                         # post_save refreshes MWO.downtime_minutes;
+│   │   │                         # cross-module hook mes.AndonAlert post_save ->
+│   │   │                         # auto-create breakdown MWO; cross-module hook
+│   │   │                         # mes.ProductionReport post_save -> auto
+│   │   │                         # ToolUsageLog + Tool denorm bump
+│   │   ├── forms.py              # ModelForms with L-01 unique_together (asset
+│   │   │                         # category, asset, plan name, monitoring
+│   │   │                         # point, mold cavity), L-02 decimal validators,
+│   │   │                         # L-14 per-workflow forms (PM completion needs
+│   │   │                         # task results, prediction resolve needs
+│   │   │                         # notes, MWO complete needs resolution notes)
+│   │   ├── views.py              # Full CRUD + workflow + RBAC mixins
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       ├── seed_eam.py            # Idempotent demo data per tenant
+│   │       └── generate_pm_schedules.py # Idempotent next-due PM generator
+│   │
 │   ├── procurement/              # MODULE 9 — Procurement & Supplier Portal
 │   │   ├── models.py             # Supplier, SupplierContact, PurchaseOrder,
 │   │   │                         # PurchaseOrderLine, PurchaseOrderRevision,
@@ -526,7 +579,8 @@ NavMSM/
 │   ├── mes/                      # index, terminal/, work_orders/, operators/, time_logs/, reports/, andon/, instructions/
 │   ├── qms/                      # index, iqc/{plans,inspections}, ipqc/{plans,inspections,charts}, fqc/{plans,inspections,coa}, ncr/, equipment/, calibrations/
 │   ├── inventory/                # index, warehouses/, zones/, bins/, stock_items/, grn/, movements/, transfers/, adjustments/, cycle_count_plans/, cycle_count_sheets/, lots/, serials/
-│   └── procurement/              # index, suppliers/, po/, rfq/, quotations/, scorecards/, asn/, supplier_invoices/, blanket/, releases/, portal/
+│   ├── procurement/              # index, suppliers/, po/, rfq/, quotations/, scorecards/, asn/, supplier_invoices/, blanket/, releases/, portal/
+│   └── eam/                      # index, categories/, assets/, meter_readings/, pm_plans/, pm_schedules/, condition_points/, condition_readings/, failure_predictions/, mwo/, downtime/, tools/, tool_maintenance/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -671,6 +725,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 8 — Inventory)** — 2 `Warehouse` rows (`MAIN` flagged default + `SEC`) × 3 zones × 4 bins = 24 bins, 4 `Lot` rows (one expiring in 15 days, one already expired), 6 `SerialNumber` rows on the first finished good, 9 initial `StockMovement` rows that seed `StockItem` denorms across 4 bins (6 receipts + 1 issue + 1 transfer + 1 positive adjustment), 1 completed `GoodsReceiptNote` with 3 lines and matching completed `PutawayTask` rows, and 1 draft `CycleCountSheet` with 4 lines (one carrying a 2-unit variance and `recount_required=True`).
 - **Per tenant (Module 9 — Procurement)** — 8 `Supplier` rows (mix of approved/unapproved, mix of low/medium/high risk) each with 1 contact; 1 supplier-portal user (`supplier_<slug>_demo` / `Welcome@123`) attached to the first supplier; 4 `RequestForQuotation` rows (statuses: draft / issued / closed / awarded), the awarded one carries 3 `SupplierQuotation` rows + a `QuotationAward` pointing at the lowest bidder; 6 `PurchaseOrder` rows spanning every workflow status (draft / submitted / approved / acknowledged / in_progress / received), one of them carries 2 immutable `PurchaseOrderRevision` snapshots; 2 `SupplierASN` rows (1 in_transit, 1 received); 2 `SupplierInvoice` rows (1 under_review, 1 approved with payment ref); 1 `BlanketOrder` (active, 3 lines, 12-month horizon) with 2 `ScheduleRelease` rows (1 received with the per-line consumption denorm bumped, 1 currently released); ~80 `SupplierMetricEvent` rows back-filled across the previous calendar month (mix of OTD pass/fail + quality pass/fail); 1 `SupplierScorecard` per active supplier for the previous month with computed weighted overall score and rank.
 - **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
+- **Per tenant (Module 10 — EAM)** — 6 `AssetCategory` rows (Pumps, Motors, CNC Machines, Conveyor Systems, HVAC Equipment, Tooling); 10 `Asset` rows (auto `ASSET-00001`+) across 5 categories with mixed criticality (`PUMP-01`, `PUMP-02`, `MOTOR-01`, `MOTOR-02`, `CNC-LATHE-01` with `SPINDLE-01` as a sub-asset, `CNC-MILL-01`, `CONV-01`, `HVAC-01`, `COMP-01`); ~12 `AssetSparePart` rows linking critical/high assets to seeded `plm.Product` rows; 180 `AssetMeterReading` rows (30 days × 6 metered assets); 4 `MaintenancePlan`s (calendar / meter / both triggers) with 13 total `MaintenanceTask` rows + 3 future `PMSchedule` rows per plan via `generate_upcoming_pm`; 6 `ConditionMonitoringPoint`s on critical assets with 25 normal `ConditionReading` rows each, plus 1 deliberately critical reading on the first point so the post-save signal **auto-spawns a `FailurePrediction(status='open')`** (1 prediction per tenant); 3 `MaintenanceWorkOrder`s — 1 completed breakdown on a pump with full `MWOLaborLog` + `MWOMaterialLog` + `DowntimeEvent` (240 min unplanned downtime), 1 scheduled corrective on a motor, 1 in-progress preventive on a CNC; 2 `Tool` rows — 1 cutting tool (`TOOL-00001`) with 1 sharpening `ToolMaintenanceRecord` + 1 `ToolUsageLog`, plus 1 mold (`TOOL-00002`) with 4 `MoldCavityHistory` rows (one repaired, three active) + 1 cleaning `ToolMaintenanceRecord`.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -1449,6 +1504,95 @@ Run the procurement test suite with `pytest apps/procurement/tests/` — uses [`
 
 ---
 
+## Module 10 — Equipment & Asset Management (EAM)
+
+Module 10 is implemented in [`apps/eam/`](apps/eam/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel`, every query is scoped by `request.tenant`, and the heavy work (PM scheduling, condition classification, downtime aggregation, atomic tool-life bumps) lives behind small pure-function services in [`apps/eam/services/`](apps/eam/services/) so the algorithms stay unit-testable and pluggable.
+
+### Sub-module 10.1 — Asset Registry & Hierarchy
+
+- **`AssetCategory`** — hierarchical taxonomy (e.g. `Pumps → Centrifugal → Process`). `unique_together=(tenant, name, parent)`. The form-level `clean()` covers the NULL-parent case the SQL constraint can't enforce.
+- **`Asset`** — equipment master, auto-numbered **`ASSET-00001`**. `parent` self-FK enables hierarchies (e.g. `CNC-LATHE-01` carrying a `SPINDLE-01` sub-asset). Optional `inventory.Warehouse` FK for location, `criticality` (low / medium / high / critical), `status` (operational / down / maintenance / retired), `purchase_cost` / `current_value` / `warranty_expiry` for asset accounting. Per L-17, child audit-trail records (`AssetMeterReading`, `MaintenanceWorkOrder`) PROTECT this row from deletion if any audit data exists.
+- **`AssetSparePart`** — through-table linking an asset to a `plm.Product` spare. `unique_together=(asset, product)` plus a form-level L-01 dedup check.
+- **`AssetMeterReading`** — append-only ledger of meter readings across `hours / cycles / mileage / kwh / other`. PROTECT FK to `Asset` per L-17. Indexed on `(tenant, asset, meter_type, -recorded_at)` for the dashboard sparkline.
+- **`AssetDocument`** — manuals / drawings / certificates / warranties / procedures with file uploads. Allowlist `.pdf .png .jpg .jpeg .dwg .dxf`, 25 MB cap.
+
+### Sub-module 10.2 — Preventive Maintenance (PM)
+
+- **`MaintenancePlan`** — recurring PM template. `trigger_type` ∈ `calendar / meter / both`. Calendar triggers use `frequency_days` (1–3650); meter triggers use `frequency_meter` + a free-text `meter_type` matching `AssetMeterReading.meter_type`. Form-level `clean()` enforces the right field-set per trigger.
+- **`MaintenanceTask`** — ordered checklist row per plan with `expected_minutes` and `is_critical` flag. `unique_together=(plan, sequence)`.
+- **`PMSchedule`** — auto-numbered **`PMS-00001`** specific upcoming PM event materialised from a plan. Status workflow `scheduled → in_progress → completed` (plus `skipped` and `overdue`). The `generate_pm_schedules` management command + the on-detail-page **Generate Upcoming** button both call the pure [`services/pm_scheduler.generate_upcoming_pm()`](apps/eam/services/pm_scheduler.py) which fans out future dates by `frequency_days` until either the horizon is exhausted or `max_count` is reached. The scheduler also pulls past anchor dates forward to today.
+- **`PMTaskCompletion`** — operator-recorded result row, `pass / fail / na`, `unique_together=(pm_schedule, task)`. Per L-14, `PMScheduleCompleteForm` requires at least one task completion when the plan defines tasks.
+
+### Sub-module 10.3 — Predictive Maintenance
+
+- **`ConditionMonitoringPoint`** — per-asset measurement location for `vibration / temperature / pressure / current / oil_quality / noise / other`, with optional `low_alarm` and `high_alarm` thresholds. `unique_together=(tenant, asset, name)`.
+- **`ConditionReading`** — append-only ledger. Auto-classified `normal / warning / critical` by [`services/prediction.classify_reading()`](apps/eam/services/prediction.py): inside the alarm band → `normal`; up to 20% beyond the band → `warning`; further → `critical`. Indexed on `(tenant, point, -recorded_at)` and `(tenant, status, -recorded_at)` for fast dashboard queries.
+- **`FailurePrediction`** — heuristic prediction. `signals.condition_reading_post` auto-spawns a row (`status='open'`, default `confidence_pct=70`) when a reading lands as `critical` AND no open prediction already exists for the asset (idempotent). Workflow `open → investigating → resolved / false_positive`. Per L-14, `FailurePredictionResolveForm` requires non-empty `resolution_notes` to leave the open state.
+
+### Sub-module 10.4 — Maintenance Work Orders
+
+- **`MaintenanceWorkOrder`** — auto-numbered **`MWO-00001`**. Types: `breakdown / preventive / corrective / predictive / inspection`. Workflow `draft → scheduled → in_progress → on_hold → completed` (plus `cancelled`). Race-safe conditional `UPDATE … WHERE status IN (…)` on every transition (per L-03). Three optional source FKs: `source_pm_schedule`, `source_failure_prediction`, `source_andon` — enabling traceability from the originating event. Per L-14, `MWOCompleteForm` requires `resolution_notes` to complete.
+- **`MWOLaborLog`** — append-only labor record with auto-computed `minutes` (from start/end timestamps) and `total_cost` (= `minutes × hourly_rate / 60`). PROTECT FK per L-17.
+- **`MWOMaterialLog`** — append-only material consumption row with auto-computed `total_cost = quantity × unit_cost`. Optional `inventory.StockMovement` FK to cross-link the actual stock movement that backed the consumption.
+- **`DowntimeEvent`** — append-only downtime ledger per asset, `planned / unplanned`, with auto-computed `minutes` from the start/end pair. The post-save signal calls [`services/downtime.refresh_mwo_downtime()`](apps/eam/services/downtime.py) to refresh the parent MWO's `downtime_minutes` denorm so the dashboard KPI stays in sync.
+
+### Sub-module 10.5 — Tool & Die Management
+
+- **`Tool`** — auto-numbered **`TOOL-00001`**. Types: `mold / die / jig / fixture / cutting_tool / gauge / other`. Tracks `expected_life_cycles` + `current_cycles` and `expected_life_hours` + `current_hours` denorms with helper methods `cycles_remaining()` / `hours_remaining()`. `cavity_count` is meaningful for mold-type tools only (form-level guard rejects the mismatch).
+- **`ToolUsageLog`** — append-only usage record. The atomic [`services/tool_life.consume_usage_log()`](apps/eam/services/tool_life.py) writes the log and bumps the parent tool's denorms in a single transaction via a conditional `UPDATE` so two concurrent calls cannot stomp one another.
+- **`ToolMaintenanceRecord`** — sharpening / cleaning / repair / calibration / inspection log with optional file attachment (allowlist `.pdf .png .jpg .jpeg`, 25 MB cap).
+- **`MoldCavityHistory`** — per-cavity history for mold-type tools only (form-level guard). Tracks `cycles`, `defect_count`, and a `status` of `active / blocked / repaired`. `unique_together=(tool, cavity_number)`.
+
+### Cross-module integration
+
+| Touched | Bridge | Migration |
+|---|---|---|
+| `apps.mes.AndonAlert` | Added nullable FK `asset → eam.Asset`. Existing `equipment_id`-style free-text fields preserved (none today). | [`apps/mes/migrations/0002_andonalert_asset_mesworkorder_tool.py`](apps/mes/migrations/) |
+| `apps.mes.MESWorkOrder` | Added nullable FK `tool → eam.Tool`. Enables tool-aware production reports. | (same migration) |
+| `apps.qms.MeasurementEquipment` | Added nullable FK `asset → eam.Asset` so a calibrated instrument can be associated with the asset it lives on / serves. | [`apps/qms/migrations/0004_measurementequipment_asset.py`](apps/qms/migrations/) |
+| Cross-module signal: `mes.AndonAlert.post_save` | When a new alert has `alert_type='equipment'` AND a non-NULL `asset` link AND no MWO already references it via `source_andon`, [`apps/eam/signals.py`](apps/eam/signals.py) auto-creates a draft `MaintenanceWorkOrder(wo_type='breakdown', source_andon=alert, priority=high/medium based on severity)`. Idempotent — re-firing on the same alert is a no-op. | (signal only) |
+| Cross-module signal: `mes.ProductionReport.post_save` | When the parent `MESWorkOrder.tool` is set AND the report has positive `good_qty + scrap_qty`, the EAM signal emits a `ToolUsageLog(cycles_added=good+scrap)` and atomically bumps `Tool.current_cycles` via `services/tool_life.consume_usage_log()`. Idempotent via `(tool, mes_work_order, used_at)` natural key. | (signal only) |
+
+Both EAM-side cross-module hooks live inside `apps/eam/signals.py` (not in mes/qms) so removing the EAM app cleanly disables the events without orphan code in other apps.
+
+### Audit signals
+
+[`apps/eam/signals.py`](apps/eam/signals.py) wires `pre_save` + `post_save` audit pattern for every status-tracked model (`Asset`, `PMSchedule`, `FailurePrediction`, `MaintenanceWorkOrder`, `Tool`) via the same `_mk_status_signals(model, action_prefix)` factory used by procurement. **All factory-registered handlers connect with `weak=False`** (Lesson L-18) so the inner closures are not garbage-collected after the factory returns; a regression-guard test in [`apps/eam/tests/test_signals.py — TestL18DispatchUIDPresence`](apps/eam/tests/test_signals.py) asserts every required `dispatch_uid` remains attached to `pre_save.receivers` / `post_save.receivers` after `apps.ready()`. Audit actions follow the convention `eam.<resource>.<status>` (e.g. `eam.mwo.in_progress`, `eam.tool.retired`, `eam.asset.down`).
+
+`MaintenancePlan` carries its own dedicated handler that audits `eam.plan.activated` / `eam.plan.deactivated` on `is_active` flips (no factory needed — the trigger is binary, not a status enum).
+
+### Validation guards (apply Lessons L-01, L-02, L-14)
+
+- Every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, …)` `unique_together` check — `AssetCategoryForm` (parent + name), `AssetSparePartForm` (asset + product), `MaintenancePlanForm` (asset + name), `ConditionMonitoringPointForm` (asset + name), `MoldCavityHistoryForm` (tool + cavity number) (Lesson L-01).
+- Every Decimal field carries explicit `MinValueValidator` + (where natural) `MaxValueValidator`: quantities ≥ 0.0001, percentages 0–100, money ≥ 0, `frequency_days` 1–3650, `confidence_pct` 0–100 (Lesson L-02).
+- Per-workflow forms enforce per-transition required fields (Lesson L-14): `MWOCompleteForm.clean_resolution_notes()` requires non-empty notes; `FailurePredictionResolveForm.clean_resolution_notes()` requires non-empty notes; `PMScheduleCompleteForm.clean()` requires at least one `PMTaskCompletion` row when the plan defines tasks; `ToolMaintenanceRecordForm.clean_attachment()` enforces extension allowlist + 25 MB cap.
+
+### Operator vs Admin matrix
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages | Authenticated tenant user | `TenantRequiredMixin` |
+| Record a meter reading, record a condition reading, file labor / material logs against an MWO, create a downtime event, log tool usage, start / hold / resume / complete an MWO, start / complete a PM schedule, record a PM task completion | Authenticated tenant user | `TenantRequiredMixin` |
+| Asset CRUD + retire / reactivate; PM plan + task CRUD + Generate Upcoming; PM schedule create + skip; Condition monitoring point CRUD + delete; Failure prediction Investigate / Resolve; MWO create / edit / delete / schedule / cancel; Tool CRUD + retire / reactivate; Tool maintenance record create; Mold cavity create; Downtime event delete | Tenant admin | `TenantAdminRequiredMixin` |
+
+A regression test file ([`apps/eam/tests/test_security.py`](apps/eam/tests/test_security.py) — `TestRBACMatrix`) asserts redirect + state-not-changed for every admin-gated POST, plus `TestMultiTenantIDOR` confirms cross-tenant reads/writes 404, plus `TestAnonymousRedirect` confirms unauthenticated requests redirect to login.
+
+### Test suite
+
+Run the EAM test suite with `pytest apps/eam/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory). The suite covers model invariants + auto-numbering + decimal validators, form validation (L-01 + L-02 + L-14), pure-function services (`generate_upcoming_pm` calendar / meter / horizon caps; `classify_reading` across the alarm bands; `compute_downtime` planned/unplanned split; `bump_tool_life` atomic increment), audit + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, **cross-module hooks** (`mes.AndonAlert(equipment, asset)` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, and anonymous-redirect on every URL. **119 tests, ~58 s runtime.**
+
+### Out of scope (deferred)
+
+- **ML-driven failure prediction** — only heuristic alarm-band rules in v1; trend / anomaly / regression models deferred.
+- **Real IoT / SCADA ingestion** — `ConditionReading` is created via UI form / management seed in v1; live MQTT / OPC-UA ingestion is **Module 15** scope.
+- **Mobile-friendly technician app** — work order completion is desktop-only in v1; touch-optimized terminal akin to `mes/terminal/` deferred.
+- **Spare-parts auto-reorder when asset triggers MWO** — the `MWOMaterialLog → inventory.StockMovement` link is manual in v1 (auto-create deferred).
+- **Calibration consolidation** — `qms.MeasurementEquipment` and `eam.Asset` stay parallel concepts in v1 (linked by an optional FK, not unified).
+- **Tool grinding / re-sharpening BOM cost roll-up** — tracked in `ToolMaintenanceRecord.cost` only; no rollup into `bom.CostElement`.
+- **Warranty alerts** — `Asset.warranty_expiry` is stored but no proactive notification; deferred until Module 20 (Workflow & Process Automation).
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -1484,7 +1628,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_qms [--flush]` | Seed QMS demo data (IQC plans + inspections, IPQC plans + SPC chart with 25 points, FQC plans + inspections + CoAs, NCRs with RCA + CA + PA, equipment + calibration standards + records) per tenant |
 | `python manage.py seed_inventory [--flush]` | Seed Inventory demo data (warehouses + zones + bins, lots + serials, initial stock via real movements, completed GRN with putaway, draft cycle-count sheet) per tenant |
 | `python manage.py seed_procurement [--flush]` | Seed Procurement demo data (8 suppliers + 1 supplier-portal user, 4 RFQs incl. 1 awarded with 3 quotations, 6 POs across all statuses + 2 revisions, 2 ASNs, 2 invoices, 1 active blanket + 2 releases, ~80 metric events, 1 scorecard per supplier) per tenant |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` |
+| `python manage.py seed_eam [--flush]` | Seed EAM demo data (6 asset categories, 10 assets incl. 1 parent-child pair, spare parts linked to plm.Product, 30 days of meter readings per metered asset, 4 PM plans with 13 tasks + 3 schedules each, 6 monitoring points with 25 readings + 1 deliberately critical that auto-spawns a FailurePrediction, 3 MWOs incl. 1 completed breakdown with labor + material + downtime, 2 tools incl. 1 mold with 4 cavities) per tenant |
+| `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -1495,6 +1641,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/qms/tests/` | Run the QMS test suite (85 tests, ~19 s; covers AQL table, SPC math + Western Electric rules, model invariants, form validation, IQC/FQC/NCR/Calibration workflow, RBAC matrix, multi-tenant IDOR, audit-log emission) |
 | `pytest apps/inventory/tests/` | Run the Inventory test suite (101 tests, ~23 s; covers model invariants, services (post_movement, allocation, cycle_count math, putaway), audit + MES auto-emit signals, form validation, full CRUD + workflow smoke, RBAC matrix, multi-tenant IDOR) |
 | `pytest apps/procurement/tests/` | Run the Procurement test suite (70 tests, ~27 s; covers model invariants + decimal validators, form validation (L-01 unique_together, L-02 bounds, L-14 per-workflow required, blanket cumulative-consumption cap), pure-function services (snapshot_po, weighted compute_scorecard, consume_release with overdraw protection), audit + cross-module signals (GRN→SupplierMetricEvent, IQC→SupplierMetricEvent), CRUD smoke + workflow happy paths, RBAC matrix, multi-tenant IDOR, supplier-portal IDOR, anonymous-redirect) |
+| `pytest apps/eam/tests/` | Run the EAM test suite (119 tests, ~58 s; covers model invariants + auto-numbering + decimal validators, form validation (L-01 unique_together for category / spare part / plan / point / cavity, L-02 decimal bounds, L-14 per-workflow required for MWO complete + prediction resolve + PM completion), pure-function services (`generate_upcoming_pm`, `classify_reading`, `compute_downtime`, `bump_tool_life`), audit signals + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, cross-module hooks (`mes.AndonAlert` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, anonymous-redirect) |
 
 ---
 
@@ -1549,7 +1696,7 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 7. ~~Quality Management (QMS)~~ ✅ shipped
 8. ~~Inventory & Warehouse~~ ✅ shipped
 9. ~~Procurement & Supplier Portal~~ ✅ shipped
-10. Equipment & Asset Management (EAM)
+10. ~~Equipment & Asset Management (EAM)~~ ✅ shipped
 11. Labor & Workforce Management
 12. Cost Management & Accounting
 13. Compliance & Regulatory
