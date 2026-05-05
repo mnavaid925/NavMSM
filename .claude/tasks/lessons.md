@@ -242,3 +242,29 @@ followed by reading each child model name aloud — if the name has "Record", "L
 A drop-in unit-test guard: assert `dispatch_uid` is present in `post_save.receivers` after `apps.ready()`. Catches both this regression and any future "I deleted the handler but forgot to remove the connect call" drift.
 
 **Concrete example in repo:** [apps/procurement/signals.py — `_mk_status_signals`](../../apps/procurement/signals.py) — fixed 2026-05-04 during initial Module 9 test-suite run. The fix replaced `@receiver(...)` decorators inside the factory with explicit `pre_save.connect(_pre, ..., weak=False, dispatch_uid=...)` + `post_save.connect(_post, ..., weak=False, dispatch_uid=...)` calls. Regression evidence: 70 procurement tests passed once `weak=False` was applied; before the fix, every test that asserted an audit row existed was failing.
+
+---
+
+## L-19 — Chained `|default:` filter on a nullable FK raises `VariableDoesNotExist` at render time
+
+**Rule:** The template idiom `{{ obj.fk.get_full_name|default:obj.fk.username|default:"-" }}` looks ergonomic but is **broken when `obj.fk` is None**. Django's template engine evaluates *every* operand of `|default:` before deciding which one to use, and the second operand `obj.fk.username` triggers `getattr(None, 'username')` which raises and is not always silenced. Use `{% if obj.fk %}{{ obj.fk.get_full_name|default:obj.fk.username }}{% else %}-{% endif %}` (or just `{{ obj.fk|default:"-" }}` if `__str__` is acceptable).
+
+**Why:** I shipped 9 occurrences of `{{ obj.user_fk.get_full_name|default:obj.user_fk.username|default:"-" }}` across 7 EAM templates. The first list page that hit the seeded MySQL DB with a row whose FK was `None` crashed with `VariableDoesNotExist: Failed lookup for key [username] in None` — which the test client surfaces as a 500. The *unit* tests didn't catch it because every fixture I wrote set the FK to a real user (e.g. `recorded_by=acme_admin`); the real production data path (auto-generated `PMSchedule` rows from `generate_pm_schedules` have `assignee=None` until someone assigns) hits the bug instantly. Pure unit tests are weak against this class of bug — only a manual walkthrough or a fixture that explicitly leaves FKs null catches it.
+
+**How to apply:** every nullable FK render in a template gets the `{% if %}` wrap, not chained `|default:`. The two safe forms are:
+1. **With name fallback (preferred for User FKs)**:
+   ```django
+   {% if obj.user_fk %}{{ obj.user_fk.get_full_name|default:obj.user_fk.username }}{% else %}-{% endif %}
+   ```
+2. **String fallback (when `__str__` is fine)**:
+   ```django
+   {{ obj.fk|default:"-" }}
+   ```
+
+When auditing existing templates, grep:
+```
+grep -rn "\.get_full_name|default:.*\.username" templates/
+```
+Every match needs to be wrapped. Also add a regression test that creates the parent row with the FK explicitly set to `None` and asserts the relevant page renders 200 — see [apps/eam/tests/test_views.py — TestNullableFKRendersGracefully](../../apps/eam/tests/test_views.py).
+
+**Concrete example in repo:** Fixed 2026-05-06 in [.claude/manual-tests/eam-manual-test.md — BUG-01](../manual-tests/eam-manual-test.md) walkthrough. 9 EAM templates updated (`pm_schedules/list.html`, `pm_schedules/detail.html`, `mwo/detail.html`, `assets/detail.html`, `condition_points/detail.html`, `tools/detail.html`, `failure_predictions/detail.html`). Regression coverage in `TestNullableFKRendersGracefully` (4 tests). The same anti-pattern exists in `templates/mes/operators/detail.html:7` and `templates/mes/terminal/index.html:8` but is safe there because `operator.user` is a non-nullable FK — the Operator profile cannot exist without a user. Anywhere the FK is *nullable*, the chained-default pattern is unsafe.
