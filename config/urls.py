@@ -17,6 +17,7 @@ urlpatterns = [
     path('qms/', include('apps.qms.urls')),
     path('inventory/', include('apps.inventory.urls')),
     path('procurement/', include('apps.procurement.urls')),
+    path('eam/', include('apps.eam.urls')),
 ]
 
 if settings.DEBUG:
