@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}PM Plan - {{ plan.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ plan.name }}</h4>
+    <div class="text-muted small">Asset: <a href="{% url 'eam:asset_detail' plan.asset_id %}">{{ plan.asset.tag }}</a> &middot; Trigger: {{ plan.get_trigger_type_display }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'eam:pmplan_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'eam:pmplan_edit' plan.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% if plan.is_active %}
+        <form method="post" action="{% url 'eam:pmplan_generate' plan.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-primary"><i class="ri-calendar-check-line me-1"></i> Generate Upcoming</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'eam:pmplan_delete' plan.pk %}" style="display:inline" onsubmit="return confirm('Delete plan?');">{% csrf_token %}<button class="btn btn-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Profile</h5>
+            <div class="row g-2 small">
+                <div class="col-md-3"><div class="text-muted">Trigger</div>{{ plan.get_trigger_type_display }}</div>
+                <div class="col-md-3"><div class="text-muted">Frequency (days)</div>{{ plan.frequency_days|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Frequency (meter)</div>{{ plan.frequency_meter|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Meter Type</div>{{ plan.meter_type|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Last Done</div>{{ plan.last_done_at|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Next Due</div>{{ plan.next_due_at|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Active</div>{{ plan.is_active|yesno:"Yes,No" }}</div>
+            </div>
+            {% if plan.description %}<hr><div class="text-muted small">Description</div><div class="small">{{ plan.description|linebreaksbr }}</div>{% endif %}
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title d-flex justify-content-between align-items-center">Tasks ({{ tasks.count }})</h5>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <form method="post" action="{% url 'eam:pmtask_create' plan.pk %}" class="row g-2 mb-3">{% csrf_token %}
+                <div class="col-md-2"><input type="number" name="sequence" value="10" class="form-control" placeholder="Seq"></div>
+                <div class="col-md-5"><input type="text" name="description" class="form-control" placeholder="Task description"></div>
+                <div class="col-md-2"><input type="number" step="0.01" name="expected_minutes" value="0" class="form-control" placeholder="Min"></div>
+                <div class="col-md-2"><label class="form-check"><input type="checkbox" name="is_critical" class="form-check-input"> Critical</label></div>
+                <div class="col-md-1"><button class="btn btn-primary w-100"><i class="ri-add-line"></i></button></div>
+            </form>
+            {% endif %}
+            <table class="table table-sm align-middle"><thead><tr><th>Seq</th><th>Description</th><th>Expected (min)</th><th>Critical</th><th class="text-end"></th></tr></thead><tbody>
+            {% for t in tasks %}
+                <tr><td class="small">{{ t.sequence }}</td>
+                <td class="small">{{ t.description }}</td>
+                <td class="small">{{ t.expected_minutes }}</td>
+                <td>{% if t.is_critical %}<span class="badge bg-danger-subtle text-danger">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+                <td class="text-end">
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'eam:pmtask_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Remove task?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td></tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No tasks yet.</td></tr>{% endfor %}
+            </tbody></table>
+        </div></div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Upcoming PM Schedules</h5>
+            <table class="table table-sm align-middle">
+                <thead><tr><th>Number</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for s in upcoming %}
+                    <tr><td class="small fw-semibold"><a href="{% url 'eam:pmschedule_detail' s.pk %}">{{ s.schedule_number }}</a></td>
+                    <td class="small">{{ s.scheduled_date|date:"Y-m-d" }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ s.get_status_display }}</span></td></tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">None yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
