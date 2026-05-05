@@ -936,6 +936,13 @@ class MeasurementEquipment(TenantAwareModel, TimeStampedModel):
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
 
+    # Optional cross-module link to an EAM asset (so a calibrated instrument
+    # can be associated with the equipment it lives on / serves).
+    asset = models.ForeignKey(
+        'eam.Asset', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='measurement_equipment',
+    )
+
     class Meta:
         ordering = ['equipment_number']
         unique_together = (
