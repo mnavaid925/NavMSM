@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ point.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ point.name }}</h4>
+    <div class="text-muted small">Asset: <a href="{% url 'eam:asset_detail' point.asset_id %}">{{ point.asset.tag }}</a> &middot; {{ point.get_parameter_display }}{% if point.unit %} ({{ point.unit }}){% endif %}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'eam:condition_point_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'eam:condition_point_edit' point.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Alarm Band</h5>
+            <div class="row g-2 small">
+                <div class="col-md-3"><div class="text-muted">Low</div>{{ point.low_alarm|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">High</div>{{ point.high_alarm|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Unit</div>{{ point.unit|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Active</div>{{ point.is_active|yesno:"Yes,No" }}</div>
+            </div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Recent Readings ({{ readings|length }})</h5>
+            <table class="table table-sm align-middle"><thead><tr><th>When</th><th>Value</th><th>Status</th><th>Recorded By</th></tr></thead><tbody>
+            {% for r in readings %}
+                <tr><td class="small">{{ r.recorded_at|date:"Y-m-d H:i" }}</td>
+                <td class="small">{{ r.reading_value }}</td>
+                <td><span class="badge bg-{% if r.status == 'critical' %}danger-subtle text-danger{% elif r.status == 'warning' %}warning-subtle text-warning{% else %}success-subtle text-success{% endif %}">{{ r.get_status_display }}</span></td>
+                <td class="small">{{ r.recorded_by.get_full_name|default:r.recorded_by.username|default:"-" }}</td></tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No readings yet.</td></tr>{% endfor %}
+            </tbody></table>
+        </div></div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Record Reading</h5>
+            <form method="post" action="{% url 'eam:condition_reading_create' point.pk %}">{% csrf_token %}{{ reading_form|crispy }}<button class="btn btn-primary"><i class="ri-add-line me-1"></i> Record</button></form>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
