@@ -93,6 +93,12 @@ class MESWorkOrder(TenantAwareModel, TimeStampedModel):
     completed_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
 
+    # Optional link to an EAM tool used for this work order.
+    tool = models.ForeignKey(
+        'eam.Tool', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='mes_work_orders',
+    )
+
     class Meta:
         ordering = ['-created_at']
         unique_together = ('tenant', 'wo_number')
@@ -395,6 +401,12 @@ class AndonAlert(TenantAwareModel, TimeStampedModel):
     )
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolution_notes = models.TextField(blank=True)
+
+    # Optional link to the EAM asset that triggered the alert (when alert_type='equipment').
+    asset = models.ForeignKey(
+        'eam.Asset', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='andon_alerts',
+    )
 
     class Meta:
         ordering = ['-severity', '-raised_at']
