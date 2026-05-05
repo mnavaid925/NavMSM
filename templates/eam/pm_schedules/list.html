@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}PM Schedule{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">PM Schedule</h4><div class="text-muted small">Upcoming preventive maintenance events.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'eam:pmschedule_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Schedule PM</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Number, plan, asset..."></div>
+    <div class="col-md-3"><select name="status" class="form-select">
+        <option value="">Status (any)</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Plan</th><th>Asset</th><th>Date</th><th>Assignee</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for s in page_obj %}
+        <tr><td class="small fw-semibold"><a href="{% url 'eam:pmschedule_detail' s.pk %}">{{ s.schedule_number }}</a></td>
+        <td class="small">{{ s.plan.name }}</td>
+        <td class="small">{{ s.plan.asset.tag }}</td>
+        <td class="small">{{ s.scheduled_date|date:"Y-m-d" }}</td>
+        <td class="small">{{ s.assignee.get_full_name|default:s.assignee.username|default:"-" }}</td>
+        <td><span class="badge bg-{% if s.status == 'completed' %}success-subtle text-success{% elif s.status == 'overdue' %}danger-subtle text-danger{% elif s.status == 'in_progress' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ s.get_status_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No PM schedules yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'eam/_pagination.html' %}
+</div></div>
+{% endblock %}
