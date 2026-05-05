@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Downtime Events{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Downtime Events</h4><div class="text-muted small">Planned + unplanned downtime per asset.</div></div>
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="asset" class="form-select">
+        <option value="">Asset (any)</option>
+        {% for a in assets %}<option value="{{ a.pk }}" {% if asset_filter == a.pk|stringformat:"d" %}selected{% endif %}>{{ a.tag }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><select name="downtime_type" class="form-select">
+        <option value="">Type (any)</option>
+        {% for v,l in downtime_type_choices %}<option value="{{ v }}" {% if downtime_type_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Asset</th><th>Started</th><th>Ended</th><th>Min</th><th>Type</th><th>MWO</th><th>Reason</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for d in page_obj %}
+        <tr><td class="small fw-semibold">{{ d.asset.tag }}</td>
+        <td class="small">{{ d.started_at|date:"Y-m-d H:i" }}</td>
+        <td class="small">{{ d.ended_at|date:"Y-m-d H:i"|default:"-" }}</td>
+        <td class="small">{{ d.minutes }}</td>
+        <td><span class="badge bg-{% if d.downtime_type == 'unplanned' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %}">{{ d.get_downtime_type_display }}</span></td>
+        <td class="small">{% if d.mwo %}<a href="{% url 'eam:mwo_detail' d.mwo_id %}">{{ d.mwo.mwo_number }}</a>{% else %}-{% endif %}</td>
+        <td class="small">{{ d.reason|truncatechars:40 }}</td>
+        <td class="text-end">
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <form method="post" action="{% url 'eam:downtime_delete' d.pk %}" style="display:inline" onsubmit="return confirm('Remove downtime event?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            {% endif %}
+        </td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No downtime events.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'eam/_pagination.html' %}
+</div></div>
+{% endblock %}
