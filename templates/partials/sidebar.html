@@ -200,6 +200,31 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarEAM" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-tools-line"></i> <span>Equipment & Assets</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarEAM" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'eam:index' %}" class="nav-link">EAM Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:asset_list' %}" class="nav-link">Assets</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:category_list' %}" class="nav-link">Asset Categories</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:meter_reading_list' %}" class="nav-link">Meter Readings</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:pmplan_list' %}" class="nav-link">PM Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:pmschedule_list' %}" class="nav-link">PM Schedule</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:condition_point_list' %}" class="nav-link">Monitoring Points</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:condition_reading_list' %}" class="nav-link">Condition Readings</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:prediction_list' %}" class="nav-link">Failure Predictions</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:mwo_list' %}" class="nav-link">Maintenance WOs</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:downtime_list' %}" class="nav-link">Downtime Events</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:tool_list' %}" class="nav-link">Tools &amp; Dies</a></li>
+                            <li class="nav-item"><a href="{% url 'eam:tool_maintenance_list' %}" class="nav-link">Tool Maintenance</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'supplier' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
