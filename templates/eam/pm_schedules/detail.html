@@ -23,7 +23,7 @@
             <h5 class="card-title">Status</h5>
             <span class="badge bg-{% if s.status == 'completed' %}success-subtle text-success{% elif s.status == 'overdue' %}danger-subtle text-danger{% elif s.status == 'in_progress' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ s.get_status_display }}</span>
             {% if s.started_at %}<div class="small text-muted mt-2">Started {{ s.started_at|date:"Y-m-d H:i" }}</div>{% endif %}
-            {% if s.completed_at %}<div class="small text-muted">Completed {{ s.completed_at|date:"Y-m-d H:i" }} by {{ s.completed_by.get_full_name|default:s.completed_by.username|default:"-" }}</div>{% endif %}
+            {% if s.completed_at %}<div class="small text-muted">Completed {{ s.completed_at|date:"Y-m-d H:i" }}{% if s.completed_by %} by {{ s.completed_by.get_full_name|default:s.completed_by.username }}{% endif %}</div>{% endif %}
             {% if s.notes %}<div class="small mt-2">{{ s.notes|linebreaksbr }}</div>{% endif %}
         </div></div>
 
@@ -58,7 +58,7 @@
             <div class="small"><a href="{% url 'eam:pmplan_detail' s.plan_id %}">{{ s.plan.name }}</a></div>
             <div class="small text-muted">{{ s.plan.get_trigger_type_display }}</div>
             <hr>
-            <div class="small"><strong>Assignee:</strong> {{ s.assignee.get_full_name|default:s.assignee.username|default:"Unassigned" }}</div>
+            <div class="small"><strong>Assignee:</strong> {% if s.assignee %}{{ s.assignee.get_full_name|default:s.assignee.username }}{% else %}Unassigned{% endif %}</div>
             {% if s.scheduled_meter %}<div class="small"><strong>At meter:</strong> {{ s.scheduled_meter }}</div>{% endif %}
         </div></div>
     </div>
