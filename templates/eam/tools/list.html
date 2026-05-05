@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Tools & Dies{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Tools &amp; Dies</h4><div class="text-muted small">Molds, dies, jigs, fixtures, cutting tools, gauges.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'eam:tool_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Tool</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="ID, name..."></div>
+    <div class="col-md-2"><select name="tool_type" class="form-select">
+        <option value="">Type (any)</option>
+        {% for v,l in tool_type_choices %}<option value="{{ v }}" {% if tool_type_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="status" class="form-select">
+        <option value="">Status (any)</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="active" class="form-select">
+        <option value="">All</option>
+        <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+    </select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Cycles</th><th>Hours</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for t in page_obj %}
+        <tr><td class="small fw-semibold"><a href="{% url 'eam:tool_detail' t.pk %}">{{ t.tool_id }}</a></td>
+        <td class="small">{{ t.name }}</td>
+        <td class="small">{{ t.get_tool_type_display }}</td>
+        <td class="small">{{ t.current_cycles }}{% if t.expected_life_cycles %} / {{ t.expected_life_cycles }}{% endif %}</td>
+        <td class="small">{{ t.current_hours }}{% if t.expected_life_hours %} / {{ t.expected_life_hours }}{% endif %}</td>
+        <td><span class="badge bg-{% if t.status == 'available' %}success-subtle text-success{% elif t.status == 'in_use' %}info-subtle text-info{% elif t.status == 'maintenance' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ t.get_status_display }}</span></td>
+        <td class="text-end">
+            <a href="{% url 'eam:tool_detail' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <a href="{% url 'eam:tool_edit' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'eam:tool_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Delete {{ t.tool_id }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            {% endif %}
+        </td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No tools yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'eam/_pagination.html' %}
+</div></div>
+{% endblock %}
