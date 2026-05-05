@@ -35,8 +35,8 @@
             <h5 class="card-title">Status &amp; Profile</h5>
             <span class="badge bg-{% if m.status == 'completed' %}success-subtle text-success{% elif m.status == 'in_progress' %}info-subtle text-info{% elif m.status == 'cancelled' %}secondary-subtle text-secondary{% else %}warning-subtle text-warning{% endif %}">{{ m.get_status_display }}</span>
             <div class="row g-2 small mt-2">
-                <div class="col-md-4"><div class="text-muted">Reported</div>{{ m.reported_at|date:"Y-m-d H:i" }} by {{ m.reported_by.get_full_name|default:m.reported_by.username|default:"-" }}</div>
-                <div class="col-md-4"><div class="text-muted">Assigned</div>{{ m.assigned_to.get_full_name|default:m.assigned_to.username|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Reported</div>{{ m.reported_at|date:"Y-m-d H:i" }}{% if m.reported_by %} by {{ m.reported_by.get_full_name|default:m.reported_by.username }}{% endif %}</div>
+                <div class="col-md-4"><div class="text-muted">Assigned</div>{% if m.assigned_to %}{{ m.assigned_to.get_full_name|default:m.assigned_to.username }}{% else %}-{% endif %}</div>
                 <div class="col-md-4"><div class="text-muted">Scheduled Start</div>{{ m.scheduled_start|date:"Y-m-d H:i"|default:"-" }}</div>
                 <div class="col-md-4"><div class="text-muted">Started</div>{{ m.started_at|date:"Y-m-d H:i"|default:"-" }}</div>
                 <div class="col-md-4"><div class="text-muted">Completed</div>{{ m.completed_at|date:"Y-m-d H:i"|default:"-" }}</div>
@@ -61,7 +61,7 @@
                 <form method="post" action="{% url 'eam:mwo_labor_create' m.pk %}" class="mb-3">{% csrf_token %}{{ labor_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Labor</button></form>
                 <table class="table table-sm align-middle"><thead><tr><th>Technician</th><th>Started</th><th>Ended</th><th>Min</th><th>Cost</th></tr></thead><tbody>
                 {% for l in labor_logs %}
-                    <tr><td class="small">{{ l.technician.get_full_name|default:l.technician.username }}</td>
+                    <tr><td class="small">{% if l.technician %}{{ l.technician.get_full_name|default:l.technician.username }}{% else %}-{% endif %}</td>
                     <td class="small">{{ l.started_at|date:"Y-m-d H:i" }}</td>
                     <td class="small">{{ l.ended_at|date:"Y-m-d H:i"|default:"-" }}</td>
                     <td class="small">{{ l.minutes }}</td>
