@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}PM {{ s.schedule_number }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ s.schedule_number }} - {{ s.plan.name }}</h4>
+    <div class="text-muted small">Asset: <a href="{% url 'eam:asset_detail' s.plan.asset_id %}">{{ s.plan.asset.tag }}</a> &middot; Date: {{ s.scheduled_date|date:"Y-m-d" }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'eam:pmschedule_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if s.status == 'scheduled' or s.status == 'overdue' %}
+        <form method="post" action="{% url 'eam:pmschedule_start' s.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-primary"><i class="ri-play-line me-1"></i> Start</button></form>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'eam:pmschedule_skip' s.pk %}" style="display:inline" onsubmit="return confirm('Skip this PM?');">{% csrf_token %}<button class="btn btn-warning"><i class="ri-skip-forward-line me-1"></i> Skip</button></form>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Status</h5>
+            <span class="badge bg-{% if s.status == 'completed' %}success-subtle text-success{% elif s.status == 'overdue' %}danger-subtle text-danger{% elif s.status == 'in_progress' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ s.get_status_display }}</span>
+            {% if s.started_at %}<div class="small text-muted mt-2">Started {{ s.started_at|date:"Y-m-d H:i" }}</div>{% endif %}
+            {% if s.completed_at %}<div class="small text-muted">Completed {{ s.completed_at|date:"Y-m-d H:i" }} by {{ s.completed_by.get_full_name|default:s.completed_by.username|default:"-" }}</div>{% endif %}
+            {% if s.notes %}<div class="small mt-2">{{ s.notes|linebreaksbr }}</div>{% endif %}
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Task Checklist</h5>
+            <table class="table table-sm align-middle"><thead><tr><th>Seq</th><th>Description</th><th>Critical</th><th>Result</th></tr></thead><tbody>
+            {% for t, c in task_rows %}
+                <tr><td class="small">{{ t.sequence }}</td>
+                <td class="small">{{ t.description }}</td>
+                <td>{% if t.is_critical %}<span class="badge bg-danger-subtle text-danger">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+                <td>{% if c %}<span class="badge bg-{% if c.result == 'pass' %}success-subtle text-success{% elif c.result == 'fail' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ c.get_result_display }}</span>{% else %}<span class="text-muted">Pending</span>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Plan has no tasks.</td></tr>{% endfor %}
+            </tbody></table>
+        </div></div>
+
+        {% if s.is_actionable %}
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Record Task Result</h5>
+            <form method="post" action="{% url 'eam:pmschedule_task_create' s.pk %}">{% csrf_token %}{{ completion_form|crispy }}<button class="btn btn-primary"><i class="ri-add-line me-1"></i> Record</button></form>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Complete PM</h5>
+            <form method="post" action="{% url 'eam:pmschedule_complete' s.pk %}">{% csrf_token %}{{ complete_form|crispy }}<button class="btn btn-success"><i class="ri-check-double-line me-1"></i> Mark Completed</button></form>
+        </div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Plan Info</h6>
+            <div class="small"><a href="{% url 'eam:pmplan_detail' s.plan_id %}">{{ s.plan.name }}</a></div>
+            <div class="small text-muted">{{ s.plan.get_trigger_type_display }}</div>
+            <hr>
+            <div class="small"><strong>Assignee:</strong> {{ s.assignee.get_full_name|default:s.assignee.username|default:"Unassigned" }}</div>
+            {% if s.scheduled_meter %}<div class="small"><strong>At meter:</strong> {{ s.scheduled_meter }}</div>{% endif %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
