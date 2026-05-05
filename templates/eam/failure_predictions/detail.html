@@ -19,7 +19,7 @@
                 <div class="col-md-4"><div class="text-muted">Confidence</div>{{ p.confidence_pct }} %</div>
                 <div class="col-md-4"><div class="text-muted">Predicted Failure</div>{{ p.predicted_failure_date|date:"Y-m-d"|default:"-" }}</div>
                 <div class="col-md-4"><div class="text-muted">Created</div>{{ p.created_at|date:"Y-m-d H:i" }}</div>
-                {% if p.resolved_at %}<div class="col-md-4"><div class="text-muted">Resolved</div>{{ p.resolved_at|date:"Y-m-d H:i" }} by {{ p.resolved_by.get_full_name|default:p.resolved_by.username|default:"-" }}</div>{% endif %}
+                {% if p.resolved_at %}<div class="col-md-4"><div class="text-muted">Resolved</div>{{ p.resolved_at|date:"Y-m-d H:i" }}{% if p.resolved_by %} by {{ p.resolved_by.get_full_name|default:p.resolved_by.username }}{% endif %}</div>{% endif %}
             </div>
             {% if p.recommended_action %}<hr><div class="text-muted small">Recommended Action</div><div class="small">{{ p.recommended_action|linebreaksbr }}</div>{% endif %}
             {% if p.resolution_notes %}<hr><div class="text-muted small">Resolution Notes</div><div class="small">{{ p.resolution_notes|linebreaksbr }}</div>{% endif %}
