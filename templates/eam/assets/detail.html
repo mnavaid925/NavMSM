@@ -78,7 +78,7 @@
                     <tr><td class="small">{{ r.recorded_at|date:"Y-m-d H:i" }}</td>
                     <td class="small">{{ r.get_meter_type_display }}</td>
                     <td class="small">{{ r.reading_value }}</td>
-                    <td class="small">{{ r.recorded_by.get_full_name|default:r.recorded_by.username|default:"-" }}</td></tr>
+                    <td class="small">{% if r.recorded_by %}{{ r.recorded_by.get_full_name|default:r.recorded_by.username }}{% else %}-{% endif %}</td></tr>
                 {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No meter readings yet.</td></tr>{% endfor %}
                 </tbody></table>
             </div>
