@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Tool Maintenance{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Tool Maintenance Records</h4><div class="text-muted small">Sharpening, calibration, repair history.</div></div>
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="tool" class="form-select">
+        <option value="">Tool (any)</option>
+        {% for t in tools %}<option value="{{ t.pk }}" {% if tool_filter == t.pk|stringformat:"d" %}selected{% endif %}>{{ t.tool_id }} - {{ t.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><select name="record_type" class="form-select">
+        <option value="">Type (any)</option>
+        {% for v,l in record_type_choices %}<option value="{{ v }}" {% if record_type_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Tool</th><th>Type</th><th>Performed</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for r in page_obj %}
+        <tr><td class="small fw-semibold"><a href="{% url 'eam:tool_detail' r.tool_id %}">{{ r.tool.tool_id }}</a></td>
+        <td class="small">{{ r.get_record_type_display }}</td>
+        <td class="small">{{ r.performed_at|date:"Y-m-d" }}</td>
+        <td class="small">{{ r.cost }}</td>
+        <td class="small">{{ r.notes|truncatechars:60 }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No maintenance records yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'eam/_pagination.html' %}
+</div></div>
+{% endblock %}
