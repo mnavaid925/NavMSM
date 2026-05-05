@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'apps.qms',
     'apps.inventory',
     'apps.procurement',
+    'apps.eam',
 ]
 
 MIDDLEWARE = [
