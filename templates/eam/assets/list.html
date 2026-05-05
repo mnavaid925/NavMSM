@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Assets{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Assets</h4><div class="text-muted small">Equipment master records with parent-child hierarchy.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'eam:asset_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Asset</a>
+    {% endif %}
+</div>
+
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Tag, name, serial..."></div>
+    <div class="col-md-2"><select name="status" class="form-select">
+        <option value="">Status (any)</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if status_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="criticality" class="form-select">
+        <option value="">Criticality (any)</option>
+        {% for v,l in criticality_choices %}<option value="{{ v }}" {% if criticality_filter == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="category" class="form-select">
+        <option value="">Category (any)</option>
+        {% for c in categories %}<option value="{{ c.pk }}" {% if category_filter == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="active" class="form-select">
+        <option value="">All</option>
+        <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Tag</th><th>Name</th><th>Category</th><th>Criticality</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for a in page_obj %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'eam:asset_detail' a.pk %}">{{ a.tag }}</a></td>
+            <td class="small">{{ a.name }}{% if a.parent %} <span class="badge bg-info-subtle text-info ms-1">child of {{ a.parent.tag }}</span>{% endif %}</td>
+            <td class="small">{{ a.category.name|default:"-" }}</td>
+            <td><span class="badge bg-{% if a.criticality == 'critical' %}danger-subtle text-danger{% elif a.criticality == 'high' %}warning-subtle text-warning{% elif a.criticality == 'medium' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ a.get_criticality_display }}</span></td>
+            <td><span class="badge bg-{% if a.status == 'down' %}danger-subtle text-danger{% elif a.status == 'maintenance' %}warning-subtle text-warning{% elif a.status == 'retired' %}secondary-subtle text-secondary{% else %}success-subtle text-success{% endif %}">{{ a.get_status_display }}</span></td>
+            <td class="text-end">
+                <a href="{% url 'eam:asset_detail' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'eam:asset_edit' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'eam:asset_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete asset {{ a.tag }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No assets yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'eam/_pagination.html' %}
+</div></div>
+{% endblock %}
