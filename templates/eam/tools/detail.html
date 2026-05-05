@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Tool {{ tool.tool_id }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ tool.tool_id }} - {{ tool.name }}</h4>
+    <div class="text-muted small">Type: {{ tool.get_tool_type_display }} &middot; Status: {{ tool.get_status_display }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'eam:tool_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'eam:tool_edit' tool.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% if tool.status != 'retired' %}
+        <form method="post" action="{% url 'eam:tool_retire' tool.pk %}" style="display:inline" onsubmit="return confirm('Retire {{ tool.tool_id }}?');">{% csrf_token %}<button class="btn btn-warning"><i class="ri-archive-line me-1"></i> Retire</button></form>
+        {% else %}
+        <form method="post" action="{% url 'eam:tool_reactivate' tool.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-success"><i class="ri-restart-line me-1"></i> Reactivate</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'eam:tool_delete' tool.pk %}" style="display:inline" onsubmit="return confirm('Delete {{ tool.tool_id }}? This cannot be undone.');">{% csrf_token %}<button class="btn btn-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Profile</h5>
+            <div class="row g-2 small">
+                <div class="col-md-3"><div class="text-muted">Category</div>{{ tool.category|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Location</div>{{ tool.location|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Purchase Date</div>{{ tool.purchase_date|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Purchase Cost</div>{{ tool.purchase_cost }}</div>
+                <div class="col-md-3"><div class="text-muted">Cycles</div>{{ tool.current_cycles }}{% if tool.expected_life_cycles %} / {{ tool.expected_life_cycles }}{% endif %}</div>
+                <div class="col-md-3"><div class="text-muted">Hours</div>{{ tool.current_hours }}{% if tool.expected_life_hours %} / {{ tool.expected_life_hours }}{% endif %}</div>
+                <div class="col-md-3"><div class="text-muted">Last Sharpened</div>{{ tool.last_sharpened_at|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-3"><div class="text-muted">Next Sharpen Due</div>{{ tool.next_sharpen_due|date:"Y-m-d"|default:"-" }}</div>
+                {% if tool.tool_type == 'mold' %}<div class="col-md-3"><div class="text-muted">Cavity Count</div>{{ tool.cavity_count }}</div>{% endif %}
+            </div>
+            {% if tool.description %}<hr><div class="text-muted small">Description</div><div class="small">{{ tool.description|linebreaksbr }}</div>{% endif %}
+        </div></div>
+
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-usage">Usage Logs ({{ usage_logs|length }})</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-maint">Maintenance ({{ maintenance_records|length }})</button></li>
+            {% if tool.tool_type == 'mold' %}<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-cavities">Cavities ({{ cavities|length }})</button></li>{% endif %}
+        </ul>
+        <div class="tab-content border border-top-0 p-3">
+            <div class="tab-pane active" id="tab-usage">
+                <form method="post" action="{% url 'eam:tool_usage_create' tool.pk %}" class="mb-3">{% csrf_token %}{{ usage_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Log Usage</button></form>
+                <table class="table table-sm align-middle"><thead><tr><th>When</th><th>MES WO</th><th>Cycles</th><th>Hours</th><th>Operator</th></tr></thead><tbody>
+                {% for u in usage_logs %}
+                    <tr><td class="small">{{ u.used_at|date:"Y-m-d H:i" }}</td>
+                    <td class="small">{{ u.mes_work_order.wo_number|default:"-" }}</td>
+                    <td class="small">{{ u.cycles_added }}</td>
+                    <td class="small">{{ u.hours_added }}</td>
+                    <td class="small">{{ u.operator.get_full_name|default:u.operator.username|default:"-" }}</td></tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No usage logged.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            <div class="tab-pane" id="tab-maint">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <form method="post" action="{% url 'eam:tool_maintenance_create' tool.pk %}" enctype="multipart/form-data" class="mb-3">{% csrf_token %}{{ maintenance_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Record</button></form>
+                {% endif %}
+                <table class="table table-sm align-middle"><thead><tr><th>Type</th><th>Performed</th><th>Cost</th><th>Notes</th></tr></thead><tbody>
+                {% for r in maintenance_records %}
+                    <tr><td class="small">{{ r.get_record_type_display }}</td>
+                    <td class="small">{{ r.performed_at|date:"Y-m-d" }}</td>
+                    <td class="small">{{ r.cost }}</td>
+                    <td class="small">{{ r.notes|truncatechars:50 }}</td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No maintenance records.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            {% if tool.tool_type == 'mold' %}
+            <div class="tab-pane" id="tab-cavities">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <form method="post" action="{% url 'eam:tool_cavity_create' tool.pk %}" class="mb-3">{% csrf_token %}{{ cavity_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Cavity</button></form>
+                {% endif %}
+                <table class="table table-sm align-middle"><thead><tr><th>Cavity</th><th>Cycles</th><th>Defects</th><th>Status</th><th>Last Inspected</th></tr></thead><tbody>
+                {% for c in cavities %}
+                    <tr><td class="small">{{ c.cavity_number }}</td>
+                    <td class="small">{{ c.cycles }}</td>
+                    <td class="small">{{ c.defect_count }}</td>
+                    <td><span class="badge bg-{% if c.status == 'blocked' %}danger-subtle text-danger{% elif c.status == 'repaired' %}warning-subtle text-warning{% else %}success-subtle text-success{% endif %}">{{ c.get_status_display }}</span></td>
+                    <td class="small">{{ c.last_inspected_at|date:"Y-m-d"|default:"-" }}</td></tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No cavity history yet.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Life Remaining</h6>
+            {% with cyc=tool.cycles_remaining hr=tool.hours_remaining %}
+            {% if cyc is not None %}<div class="small">Cycles: <strong>{{ cyc }}</strong></div>{% endif %}
+            {% if hr is not None %}<div class="small">Hours: <strong>{{ hr }}</strong></div>{% endif %}
+            {% if cyc is None and hr is None %}<div class="small text-muted">Life budget not configured.</div>{% endif %}
+            {% endwith %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
