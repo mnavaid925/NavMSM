@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Asset {{ asset.tag }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ asset.tag }} - {{ asset.name }}</h4>
+    <div class="text-muted small">
+        {{ asset.category.name|default:"Uncategorised" }}
+        {% if asset.parent %} &middot; child of <a href="{% url 'eam:asset_detail' asset.parent.pk %}">{{ asset.parent.tag }}</a>{% endif %}
+    </div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'eam:asset_list' %}" class="btn btn-light"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'eam:asset_edit' asset.pk %}" class="btn btn-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% if asset.can_retire %}
+        <form method="post" action="{% url 'eam:asset_retire' asset.pk %}" style="display:inline" onsubmit="return confirm('Retire {{ asset.tag }}?');">{% csrf_token %}<button class="btn btn-warning"><i class="ri-archive-line me-1"></i> Retire</button></form>
+        {% else %}
+        <form method="post" action="{% url 'eam:asset_reactivate' asset.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-success"><i class="ri-restart-line me-1"></i> Reactivate</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'eam:asset_delete' asset.pk %}" style="display:inline" onsubmit="return confirm('Delete {{ asset.tag }}? This cannot be undone.');">{% csrf_token %}<button class="btn btn-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Profile</h5>
+            <div class="row g-2 small">
+                <div class="col-md-4"><div class="text-muted">Status</div>
+                    <span class="badge bg-{% if asset.status == 'down' %}danger-subtle text-danger{% elif asset.status == 'maintenance' %}warning-subtle text-warning{% elif asset.status == 'retired' %}secondary-subtle text-secondary{% else %}success-subtle text-success{% endif %}">{{ asset.get_status_display }}</span></div>
+                <div class="col-md-4"><div class="text-muted">Criticality</div>
+                    <span class="badge bg-{% if asset.criticality == 'critical' %}danger-subtle text-danger{% elif asset.criticality == 'high' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ asset.get_criticality_display }}</span></div>
+                <div class="col-md-4"><div class="text-muted">Warehouse</div>{{ asset.warehouse.name|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Manufacturer</div>{{ asset.manufacturer|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Model</div>{{ asset.model_number|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Serial</div>{{ asset.serial_number|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Installed</div>{{ asset.installation_date|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Commissioned</div>{{ asset.commissioning_date|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Warranty Expiry</div>{{ asset.warranty_expiry|date:"Y-m-d"|default:"-" }}</div>
+                <div class="col-md-4"><div class="text-muted">Purchase Cost</div>{{ asset.purchase_cost }}</div>
+                <div class="col-md-4"><div class="text-muted">Current Value</div>{{ asset.current_value }}</div>
+                <div class="col-md-4"><div class="text-muted">Location</div>{{ asset.location_detail|default:"-" }}</div>
+            </div>
+            {% if asset.description %}<hr><div class="text-muted small">Description</div><div class="small">{{ asset.description|linebreaksbr }}</div>{% endif %}
+        </div></div>
+
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-spares">Spare Parts ({{ spare_parts.count }})</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-meters">Meter Readings</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-docs">Documents ({{ documents.count }})</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-mwo">Open Work Orders</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-children">Sub-assets ({{ children.count }})</button></li>
+        </ul>
+        <div class="tab-content border border-top-0 p-3">
+            <div class="tab-pane active" id="tab-spares">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <form method="post" action="{% url 'eam:asset_spare_create' asset.pk %}" class="mb-3">{% csrf_token %}{{ spare_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Link Spare</button></form>
+                {% endif %}
+                <table class="table table-sm align-middle"><thead><tr><th>Product</th><th>Min Qty</th><th>On Hand</th><th class="text-end"></th></tr></thead><tbody>
+                {% for sp in spare_parts %}
+                    <tr><td class="small">{{ sp.product.sku }} - {{ sp.product.name }}</td>
+                    <td class="small">{{ sp.recommended_min_qty }}</td>
+                    <td class="small">{{ sp.quantity_on_hand }}</td>
+                    <td class="text-end">
+                        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                        <form method="post" action="{% url 'eam:asset_spare_delete' sp.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No spare parts linked.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            <div class="tab-pane" id="tab-meters">
+                <form method="post" action="{% url 'eam:asset_reading_create' asset.pk %}" class="mb-3">{% csrf_token %}{{ reading_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Record Reading</button></form>
+                <table class="table table-sm align-middle"><thead><tr><th>When</th><th>Meter</th><th>Value</th><th>Recorded By</th></tr></thead><tbody>
+                {% for r in readings %}
+                    <tr><td class="small">{{ r.recorded_at|date:"Y-m-d H:i" }}</td>
+                    <td class="small">{{ r.get_meter_type_display }}</td>
+                    <td class="small">{{ r.reading_value }}</td>
+                    <td class="small">{{ r.recorded_by.get_full_name|default:r.recorded_by.username|default:"-" }}</td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No meter readings yet.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            <div class="tab-pane" id="tab-docs">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <form method="post" action="{% url 'eam:asset_document_create' asset.pk %}" enctype="multipart/form-data" class="mb-3">{% csrf_token %}{{ document_form|crispy }}<button class="btn btn-sm btn-primary"><i class="ri-upload-line me-1"></i> Upload</button></form>
+                {% endif %}
+                <table class="table table-sm align-middle"><thead><tr><th>Name</th><th>Type</th><th>Uploaded</th><th class="text-end"></th></tr></thead><tbody>
+                {% for d in documents %}
+                    <tr><td class="small fw-semibold"><a href="{{ d.attachment.url }}" target="_blank">{{ d.name }}</a></td>
+                    <td class="small">{{ d.get_doc_type_display }}</td>
+                    <td class="small">{{ d.created_at|date:"Y-m-d" }}</td>
+                    <td class="text-end">
+                        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                        <form method="post" action="{% url 'eam:asset_document_delete' d.pk %}" style="display:inline" onsubmit="return confirm('Delete document?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No documents.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            <div class="tab-pane" id="tab-mwo">
+                <table class="table table-sm align-middle"><thead><tr><th>MWO</th><th>Type</th><th>Title</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+                {% for m in open_mwos %}
+                    <tr><td class="small fw-semibold"><a href="{% url 'eam:mwo_detail' m.pk %}">{{ m.mwo_number }}</a></td>
+                    <td class="small">{{ m.get_wo_type_display }}</td>
+                    <td class="small">{{ m.title }}</td>
+                    <td class="small">{{ m.get_priority_display }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ m.get_status_display }}</span></td></tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No open work orders.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+            <div class="tab-pane" id="tab-children">
+                <table class="table table-sm align-middle"><thead><tr><th>Tag</th><th>Name</th><th>Status</th></tr></thead><tbody>
+                {% for child in children %}
+                    <tr><td class="small fw-semibold"><a href="{% url 'eam:asset_detail' child.pk %}">{{ child.tag }}</a></td>
+                    <td class="small">{{ child.name }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ child.get_status_display }}</span></td></tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No sub-assets.</td></tr>{% endfor %}
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Quick Actions</h5>
+            <a href="{% url 'eam:pmplan_create' %}" class="btn btn-outline-primary btn-sm w-100 mb-2"><i class="ri-calendar-line me-1"></i> Add PM Plan</a>
+            <a href="{% url 'eam:condition_point_create' %}" class="btn btn-outline-primary btn-sm w-100 mb-2"><i class="ri-line-chart-line me-1"></i> Add Monitoring Point</a>
+            <a href="{% url 'eam:mwo_create' %}" class="btn btn-outline-primary btn-sm w-100"><i class="ri-hammer-line me-1"></i> New Work Order</a>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">PM Plans ({{ plans.count }})</h6>
+            {% for p in plans %}
+                <div class="small mb-1"><a href="{% url 'eam:pmplan_detail' p.pk %}">{{ p.name }}</a> <span class="text-muted">{{ p.get_trigger_type_display }}{% if p.next_due_at %} - due {{ p.next_due_at|date:"Y-m-d" }}{% endif %}</span></div>
+            {% empty %}<div class="text-muted small">No active PM plans.</div>{% endfor %}
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Recent Downtime</h6>
+            {% for d in recent_downtime %}
+                <div class="small mb-1">{{ d.started_at|date:"Y-m-d H:i" }} - {{ d.minutes }}m <span class="badge bg-{% if d.downtime_type == 'unplanned' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %}">{{ d.get_downtime_type_display }}</span></div>
+            {% empty %}<div class="text-muted small">No downtime recorded.</div>{% endfor %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
