@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Positions{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Positions</h4><div class="text-muted small">Job titles per department.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:position_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Position</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or title..."></div>
+    <div class="col-md-3"><select name="department" class="form-select">
+        <option value="">Department (any)</option>
+        {% for d in departments %}<option value="{{ d.pk }}" {% if request.GET.department == d.pk|stringformat:"d" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Code</th><th>Title</th><th>Department</th><th>Level</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for p in page %}
+        <tr>
+            <td class="small fw-semibold">{{ p.code }}</td>
+            <td class="small">{{ p.title }}</td>
+            <td class="small">{{ p.department.name }}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ p.get_level_display }}</span></td>
+            <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'labor:position_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:position_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete position {{ p.title }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No positions yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
