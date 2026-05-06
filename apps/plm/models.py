@@ -99,6 +99,11 @@ class Product(TenantAwareModel, TimeStampedModel):
         null=True, blank=True, related_name='products',
         help_text='Drives direct-labor allocation when MES production is reported.',
     )
+    standard_sale_price = models.DecimalField(
+        max_digits=14, decimal_places=4,
+        null=True, blank=True,
+        help_text='Placeholder unit sale price for gross-margin reports until Module 17 (Sales) ships.',
+    )
 
     class Meta:
         ordering = ['sku']
