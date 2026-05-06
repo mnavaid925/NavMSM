@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.procurement',
     'apps.eam',
     'apps.labor',
+    'apps.cost',
 ]
 
 MIDDLEWARE = [
