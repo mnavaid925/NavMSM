@@ -1,10 +1,10 @@
-# Module 10 — Equipment & Asset Management (EAM) — Implementation Plan
+# Module 11 — Labor & Workforce Management — Implementation Plan
 
 > **Status:** DRAFT — awaiting user approval before any code is written.
 >
-> **Source spec:** `MSM.md` Module 10 + user message 2026-05-05.
+> **Source spec:** [`MSM.md`](../../MSM.md) Module 11 + user message 2026-05-06.
 >
-> Mirrors the Module 9 (Procurement) shape: 1 Django app, 5 sub-modules, full CRUD + workflow, idempotent seeder, full pytest test suite, README updates, sidebar nav, cross-module hooks. Honors all 18 lessons (esp. L-01 unique_together, L-02 decimal validators, L-03 view/template gate parity, L-09 ASCII stdout, L-10 RBAC mixins, L-12 sequence retry, L-13 inner atomic, L-14 per-workflow required, L-17 PROTECT on audit-trail children, L-18 weak=False on factory-registered signals).
+> Mirrors the Module 10 (EAM) shape: 1 Django app (`apps/labor/`), 5 sub-modules, full CRUD + workflow, idempotent seeder, full pytest test suite, README updates, sidebar nav, cross-module hooks. Honors all existing lessons (esp. **L-01** unique_together with tenant excluded, **L-02** decimal validators, **L-03** view/template gate parity, **L-07** `json_script` for inline JS data, **L-09** ASCII stdout in seeders, **L-10** RBAC mixins, **L-12** sequence retry on auto-numbered fields, **L-13** inner-atomic transaction, **L-14** per-workflow required fields, **L-17** PROTECT on audit-trail children, **L-18** `weak=False` on factory-registered signal handlers).
 
 ---
 
@@ -12,11 +12,11 @@
 
 | # | Sub-module | Description |
 |---|-----------|-------------|
-| 10.1 | Asset Registry & Hierarchy | Equipment master, parent-child relationships, spare parts linkage, meter readings |
-| 10.2 | Preventive Maintenance (PM) | Calendar / meter-based scheduling, task checklists, PM event lifecycle |
-| 10.3 | Predictive Maintenance | Condition monitoring points, vibration / thermal / oil-quality readings, failure predictions |
-| 10.4 | Maintenance Work Orders | Breakdown / preventive / corrective work orders, labor + material logging, downtime analysis |
-| 10.5 | Tool & Die Management | Tool life (cycles + hours), sharpening schedules, cavity / mold history |
+| 11.1 | Employee Master & Skills Matrix | Employee profiles, departments, positions, skills catalog, employee-skill mapping, certifications, expiry tracking |
+| 11.2 | Time & Attendance Integration | Shifts, shift rosters, attendance records (clock-in/out), leave types, leave requests, holidays |
+| 11.3 | Labor Cost Allocation | Cost centers, labor rates (per employee/period), labor bookings (auto-emitted from MES + EAM), allocation reports |
+| 11.4 | Training & Competency Management | Training programs, training plans (per employee), training sessions, attendance, competency assessments + results, gap analysis |
+| 11.5 | Incentive & Piece-Rate Calculation | Incentive schemes, piece rates (per product / operation / employee), incentive periods, calculation runs, per-employee summaries |
 
 ---
 
@@ -24,414 +24,482 @@
 
 | # | Question | Default proposal |
 |---|----------|-----------------|
-| Q1 | Build all 5 sub-modules in one pass, or stage them? | **All 5 in one pass** (matches Module 9 cadence). |
-| Q2 | Auto-number prefixes — `ASSET-00001`, `TOOL-00001`, `MWO-00001`, `PMS-00001`. Any collisions in operator-speak with `PUR-00001` / `WO-00001` (MES) / `BPO-00001` / `RFQ-00001`? | **None.** Use the four prefixes above. (`MWO` = Maintenance Work Order, distinct from MES `WO`.) |
-| Q3 | Cross-module FKs — should `mes.AndonAlert` get a nullable `asset` FK (so an equipment-type andon can name the offending asset and auto-spawn a breakdown MWO)? | **Yes**, mirroring the Module 9 pattern (procurement added nullable FKs to inventory.GRN + qms.IQC). Keep any legacy free-text `equipment_id` column for back-compat. |
-| Q4 | Should `qms.MeasurementEquipment` get a nullable `asset` FK (optional link from a calibrated instrument back to its EAM asset)? | **Yes** (nullable, optional). Keeps QMS calibration scope intact while enabling traceability. |
-| Q5 | Should `mes.MESWorkOrder` get a nullable `tool` FK (when a production op uses a specific tool / mold / die)? | **Yes** (nullable). Enables `ToolUsageLog` auto-emit on `mes.ProductionReport` (mirrors inventory's auto `production_in` movement). |
-| Q6 | Should an `mes.AndonAlert` with `type='equipment'` AND `asset` FK auto-create a draft `MaintenanceWorkOrder(type='breakdown')` via signal? | **Yes** (idempotent — the MWO carries `source_andon` so re-firing the signal is a no-op). |
-| Q7 | Where does PM scheduling live — a real cron (django-celery-beat) or a management command + manual button? | **Management command (`generate_pm_schedules`) + manual `Generate Upcoming PM` button on plan detail page.** Matches the project's "no celery yet" stance (per existing `capture_health` pattern). Cron wiring deferred. |
-| Q8 | Predictive engine scope — full ML or heuristic? | **Heuristic only in v1**: a `ConditionReading` outside `low_alarm` / `high_alarm` window flips a `FailurePrediction` row to `open`; trend-based rules deferred. Documented in *Out of scope*. |
-| Q9 | Include full pytest test suite (~80–120 tests, RBAC + IDOR + workflow + services + signals + cross-module hooks)? | **Yes** — matches Modules 5/6/7/8/9. |
-| Q10 | Seed command per tenant: ~10 assets (with parent-child), 4 PM plans, 2 condition-monitoring points + 25 readings, 3 work orders mixed statuses, 2 tools (incl. 1 mold w/ cavity history)? | **Yes**, idempotent. |
+| Q1 | Build all 5 sub-modules in one pass, or stage them? | **All 5 in one pass** (matches Modules 9 + 10 cadence). |
+| Q2 | Auto-number prefixes — `EMP-00001` (Employee), `LR-00001` (Leave Request), `LB-00001` (Labor Booking), `TS-00001` (Training Session), `CA-00001` (Competency Assessment), `INC-00001` (Incentive Run). Any collisions? | **None.** `LR` is unused; `LB` is unused; `TS` is unused; `INC` is unused; `CA` collides only with QMS "Corrective Action" (which is not auto-numbered, so safe). |
+| Q3 | Relationship to existing `mes.ShopFloorOperator` — that model is already a thin profile over `accounts.User`. Should `labor.Employee` *replace* it, *coexist*, or have `ShopFloorOperator.employee` FK back to the new master? | **Coexist + soft link.** Add nullable FK `mes.ShopFloorOperator.employee → labor.Employee` (one-to-one). MES keeps working unchanged. New `labor.Employee` is the canonical HR master; `ShopFloorOperator` becomes the floor-identity overlay (badge, default work center). Existing seeded shop-floor operators auto-link in the labor seeder. |
+| Q4 | Cross-module hooks — should `mes.OperatorTimeLog.post_save (action='stop_job')` auto-emit a `LaborBooking` for the elapsed minutes against the production order's product cost center? | **Yes** (idempotent via `(time_log, kind='direct')` uniqueness). Same shape as the EAM ↔ MES cross-module signals already shipped. |
+| Q5 | Cross-module hook — `eam.MWOLaborLog.post_save` → emit a `LaborBooking` to the MWO asset's cost center as **indirect** labor? | **Yes** (idempotent via `(mwo_labor_log, kind='indirect')` uniqueness). Optional/opt-out by leaving `cost_center` blank on the asset. |
+| Q6 | Cross-module hook — `mes.ProductionReport.post_save` → if an active piece-rate scheme covers `(product, operation, operator)`, accumulate into the open `IncentiveCalculation`? | **Yes**, but **idempotent**: `(production_report, scheme)` natural-key dedup. If no scheme matches, silently skip (no-op). |
+| Q7 | `request.tenant` filter pattern — same as every other module? | **Yes.** Every view filters by `tenant=request.tenant`. Every model carries `tenant` FK. RBAC follows EAM matrix (Authenticated / TenantAdmin). |
+| Q8 | Should an Employee be hard-linked to `accounts.User` (login required), or allow employee records without a User account (e.g., contractor / non-system worker)? | **Optional one-to-one** `Employee.user` (`null=True, blank=True, unique=True`). Allows tracking employees who don't have system access (machine operators on a shared kiosk login, contractors paid piece-rate, etc.). |
 
 ---
 
-## App layout (`apps/eam/`)
+## Sub-module 11.1 — Employee Master & Skills Matrix
 
-Mirrors `apps/procurement/`:
+### Models (in [`apps/labor/models.py`](../../apps/labor/models.py))
+
+| Model | Purpose | Key fields | Auto-# |
+|---|---|---|---|
+| `Department` | Org-chart unit (HR, Production, QC, Maintenance) | `name`, `code`, `parent` (self-FK), `manager` (FK Employee, nullable to break circular dep at create), `is_active` | — |
+| `Position` | Job title within a department | `title`, `code`, `department` FK, `level` (e.g. junior/mid/senior/lead), `description`, `is_active` | — |
+| `Employee` | Workforce master record | `employee_number` (auto `EMP-00001`), `user` (one-to-one, nullable), `first_name`, `last_name`, `email`, `phone`, `department` FK, `position` FK, `employment_type` (`permanent / contract / temporary / intern`), `hire_date`, `termination_date` (nullable), `dob`, `gender` (with "prefer_not_to_say"), `address`, `emergency_contact_name`, `emergency_contact_phone`, `status` (`active / on_leave / suspended / terminated`), `notes` | `EMP-00001` |
+| `Skill` | Tenant-level catalog of skills | `name`, `code`, `category` (e.g. operations / quality / safety / leadership), `description`, `is_active`. `unique_together=(tenant, code)` | — |
+| `EmployeeSkill` | Mapping employee → skill with proficiency | `employee` FK, `skill` FK, `proficiency` (1–5 enum: novice / advanced_beginner / competent / proficient / expert), `assessed_at`, `assessor` FK Employee (nullable), `notes`. `unique_together=(employee, skill)` | — |
+| `Certification` | Tenant-level catalog of certifications (e.g. ISO 9001 Lead Auditor, Forklift Op) | `name`, `code`, `issuing_authority`, `valid_period_days`, `is_active`. `unique_together=(tenant, code)` | — |
+| `EmployeeCertification` | Per-employee certification record | `employee` FK, `certification` FK, `certificate_number`, `issued_at`, `expires_at`, `attachment` (PDF/JPG/PNG, 25 MB cap, allowlist), `status` (`active / expiring_soon / expired / revoked`). `unique_together=(employee, certification, certificate_number)` | — |
+| `EmployeeDocument` | Generic uploads (contract, ID, training cert) | `employee` FK, `doc_type`, `file`, `description`, `uploaded_at` | — |
+
+**Decimal validators (L-02):** none in 11.1 (no Decimal fields).
+
+**unique_together with `tenant` excluded → form-level `clean()` (L-01):** `Department` (parent + name + code), `Position` (department + code), `Skill` (code), `Certification` (code), `EmployeeSkill` (already pure FK), `EmployeeCertification` (already pure FK).
+
+**Computed status:** `EmployeeCertification.status` auto-computed in `save()` from `expires_at` → `active` (>30d), `expiring_soon` (≤30d), `expired` (past). Mirrors `ProductCompliance.status` pattern from PLM.
+
+---
+
+## Sub-module 11.2 — Time & Attendance Integration
+
+### Models
+
+| Model | Purpose | Key fields | Auto-# |
+|---|---|---|---|
+| `Shift` | Shift template (Morning / Evening / Night) | `name`, `code`, `start_time`, `end_time`, `break_minutes`, `is_overnight` (when end < start), `color` (UI hex). `unique_together=(tenant, code)` | — |
+| `ShiftRoster` | Per-employee shift assignment over a date range | `employee` FK, `shift` FK, `start_date`, `end_date`, `notes`. Overlap protection in `clean()`. | — |
+| `AttendanceRecord` | One row per employee per work date | `employee` FK, `work_date`, `shift` FK (nullable — falls back to roster lookup), `clock_in_at`, `clock_out_at` (nullable until close-out), `worked_minutes` (denorm, computed), `status` (`present / absent / late / half_day / on_leave / holiday`), `notes`. `unique_together=(employee, work_date)` | — |
+| `LeaveType` | Tenant catalog of leave types | `name`, `code`, `paid` (bool), `default_annual_quota_days` (int, 0 = unlimited), `requires_attachment` (bool), `is_active`. `unique_together=(tenant, code)` | — |
+| `LeaveRequest` | Per-employee leave request | `request_number` (auto `LR-00001`), `employee` FK, `leave_type` FK, `start_date`, `end_date`, `days_requested` (Decimal, ≥ 0.5), `reason`, `attachment` (optional, allowlist + 25 MB cap), `status` (`draft / submitted / approved / rejected / cancelled`), `submitted_at`, `decided_by` FK User, `decided_at`, `decision_notes`. Workflow form (L-14): reject + cancel both require non-empty reason. | `LR-00001` |
+| `Holiday` | Tenant calendar of paid holidays | `name`, `holiday_date`, `is_recurring` (yearly), `description`. `unique_together=(tenant, holiday_date)` | — |
+
+### Services (in [`apps/labor/services/`](../../apps/labor/services/))
+
+- `services/attendance.py`:
+  - `compute_worked_minutes(clock_in, clock_out, break_minutes)` — pure, returns `int` minutes.
+  - `derive_status(record, shift, holiday)` — pure, returns `present / late / absent / half_day / holiday`.
+- `services/scheduling.py`:
+  - `generate_roster(employee, shift, start_date, end_date)` — emits `ShiftRoster` rows (idempotent, skip overlapping ranges with the same shift).
+
+### Cross-module hook
+
+- `mes.OperatorTimeLog.post_save (action='clock_in')` and `'clock_out'` → upsert today's `AttendanceRecord` for the linked Employee (via `ShopFloorOperator.employee`). Idempotent. Skip silently if no Employee link.
+
+---
+
+## Sub-module 11.3 — Labor Cost Allocation
+
+### Models
+
+| Model | Purpose | Key fields | Auto-# |
+|---|---|---|---|
+| `CostCenter` | Production / cost center for booking labor + overhead | `name`, `code`, `parent` (self-FK), `cc_type` (`production / quality / maintenance / admin`), `is_active`. `unique_together=(tenant, code)` | — |
+| `LaborRate` | Hourly rate for an employee for a date range | `employee` FK, `hourly_rate` (Decimal, > 0), `overtime_multiplier` (Decimal, 1.0–3.0), `effective_from`, `effective_to` (nullable for "open"). Overlap protection in `clean()`. | — |
+| `LaborBooking` | Append-only labor cost ledger | `booking_number` (auto `LB-00001`), `employee` FK, `kind` (`direct / indirect / overtime / idle`), `cost_center` FK (nullable for unallocated), `worked_at` (datetime), `minutes` (positive int), `hourly_rate_snapshot` (Decimal), `total_cost` (Decimal, computed `minutes * rate / 60`), `source_type` (`manual / mes_time_log / eam_mwo_labor`), `source_time_log` FK (nullable, → `mes.OperatorTimeLog`), `source_mwo_labor` FK (nullable, → `eam.MWOLaborLog`), `notes`. PROTECT FK on Employee (L-17). Indexed on `(tenant, employee, -worked_at)` and `(tenant, cost_center, -worked_at)`. | `LB-00001` |
+
+### Services
+
+- `services/cost_allocation.py`:
+  - `lookup_rate(employee, at_dt)` — pure (given a list of LaborRate rows). Returns the rate effective at `at_dt`.
+  - `book_labor(employee, kind, minutes, worked_at, cost_center, source=…)` — atomic write of `LaborBooking` with rate snapshot. Idempotent via `(source_time_log, kind)` or `(source_mwo_labor, kind)` natural keys when source is set.
+  - `summarize_by_cost_center(start, end, tenant)` — pure aggregation for the dashboard.
+
+### Cross-module hooks (in `apps/labor/signals.py`)
+
+- `mes.OperatorTimeLog.post_save` (action `stop_job`) → resolve elapsed minutes from the matching `start_job` / `resume_job` event(s), book as **direct** labor against the production order's product cost center (or unallocated if none configured). Idempotent.
+- `eam.MWOLaborLog.post_save` → book as **indirect** labor against the asset's cost center (or unallocated). Idempotent. Live-recompute on `MWOLaborLog.minutes` updates is out of scope (manual adjustment).
+
+---
+
+## Sub-module 11.4 — Training & Competency Management
+
+### Models
+
+| Model | Purpose | Key fields | Auto-# |
+|---|---|---|---|
+| `TrainingProgram` | Catalog of programs | `name`, `code`, `description`, `delivery_mode` (`classroom / online / on_the_job / external`), `duration_hours` (Decimal ≥ 0.5), `competency_target` FK Skill (nullable — what skill this trains), `is_active`. `unique_together=(tenant, code)` | — |
+| `TrainingPlan` | Per-employee training assignment | `employee` FK, `program` FK, `target_completion_date`, `status` (`assigned / in_progress / completed / waived / overdue`), `assigned_by` FK User, `notes`. `unique_together=(employee, program, target_completion_date)` | — |
+| `TrainingSession` | A scheduled instance of a program | `session_number` (auto `TS-00001`), `program` FK, `start_at`, `end_at`, `location`, `instructor` FK Employee (nullable), `capacity` (int ≥ 1), `status` (`scheduled / in_progress / completed / cancelled`), `notes`. | `TS-00001` |
+| `TrainingAttendance` | Per-attendee record | `session` FK, `employee` FK, `attended` (bool), `score` (Decimal 0–100, optional), `feedback`, `recorded_by` FK User. `unique_together=(session, employee)` | — |
+| `CompetencyAssessment` | Per-employee competency evaluation event | `assessment_number` (auto `CA-00001`), `employee` FK, `position` FK (the role being assessed for), `assessed_at`, `assessor` FK User, `overall_score` (Decimal 0–100, computed), `status` (`draft / completed`), `notes`. | `CA-00001` |
+| `CompetencyResult` | Per-skill row inside an assessment | `assessment` FK, `skill` FK, `expected_level` (1–5), `actual_level` (1–5), `gap` (computed `expected - actual`), `comments`. `unique_together=(assessment, skill)` | — |
+
+### Services
+
+- `services/competency.py`:
+  - `compute_gap(assessment)` — pure: returns list of `(skill, gap)` tuples + overall avg gap.
+  - `expiring_certifications(tenant, horizon_days=30)` — pure: returns expiring `EmployeeCertification` rows for dashboard alert.
+  - `recompute_assessment_score(assessment)` — pure, called from `CompetencyResult.save()`.
+
+### UI / dashboard hooks
+
+- Skills-matrix grid view at `/labor/skills-matrix/` — employees vs skills heatmap (color-coded by proficiency). Uses ApexCharts or simple Bootstrap table.
+- Certification-expiry alert panel on `/labor/` dashboard (≤30d red, ≤90d yellow).
+
+---
+
+## Sub-module 11.5 — Incentive & Piece-Rate Calculation
+
+### Models
+
+| Model | Purpose | Key fields | Auto-# |
+|---|---|---|---|
+| `IncentiveScheme` | Tenant-level incentive scheme | `name`, `code`, `scheme_type` (`piece_rate / production_bonus / quality_bonus / attendance_bonus`), `applicable_employees` (M2M Employee, optional — empty = all), `applicable_products` (M2M `plm.Product`, optional), `applicable_positions` (M2M Position, optional), `effective_from`, `effective_to` (nullable), `is_active`, `notes`. `unique_together=(tenant, code)` | — |
+| `PieceRate` | Per-product (or per-operation) rate row inside a scheme | `scheme` FK, `product` FK (nullable), `operation` FK `pps.RoutingOperation` (nullable), `rate_per_unit` (Decimal, > 0), `min_quantity` (Decimal ≥ 0, default 0), `max_quantity` (Decimal, nullable), `notes`. Either `product` or `operation` must be set (not both NULL); model `clean()` enforces. | — |
+| `IncentivePeriod` | Calculation window (typically monthly) | `name`, `start_date`, `end_date`, `status` (`open / locked / paid`), `notes`. `unique_together=(tenant, start_date, end_date)`. | — |
+| `IncentiveRun` | Per-period batch calculation | `run_number` (auto `INC-00001`), `period` FK, `scheme` FK, `status` (`draft / running / completed / discarded`), `started_at`, `completed_at`, `total_amount` (Decimal, computed), `notes`. | `INC-00001` |
+| `IncentiveLine` | Per-employee line within a run | `run` FK, `employee` FK, `qualifying_units` (Decimal ≥ 0), `rate_applied` (Decimal), `amount` (Decimal, computed `units * rate`), `production_reports` (M2M `mes.ProductionReport` — for traceability of which reports rolled up). `unique_together=(run, employee)`. | — |
+
+### Services
+
+- `services/piece_rate.py`:
+  - `lookup_rate(scheme, product, operation, qty)` — pure: returns the matching `PieceRate.rate_per_unit` (preferring operation-level over product-level when both exist).
+  - `compute_run(run)` — main engine: scans `mes.ProductionReport` rows in the period, groups by employee, applies rates, materializes `IncentiveLine` rows. Idempotent: `discarded` and re-run cleans out the prior `IncentiveLine` set inside an atomic block.
+  - `summarize_employee(employee, period)` — pure helper for the per-employee earnings widget.
+
+### Cross-module hook
+
+- `mes.ProductionReport.post_save` → if an open `IncentiveRun(scheme matches)` exists for the report's period and the report is positive (`good_qty > 0`), bump or create the matching `IncentiveLine` atomically. Idempotent via M2M `production_reports` membership check. Silently skip when no scheme matches.
+
+---
+
+## Workflow & button gates (L-03 view/template parity)
+
+| Resource | Workflow | Template buttons | View gates |
+|---|---|---|---|
+| `LeaveRequest` | `draft → submitted → approved / rejected → cancelled` | Submit (draft), Approve (submitted, admin), Reject (submitted, admin), Cancel (draft / submitted / approved owner) | Reject + cancel require non-empty `decision_notes` (L-14). |
+| `IncentiveRun` | `draft → running → completed / discarded` | Run (draft, admin), Discard (draft / completed, admin) | Run executes `compute_run` inside `transaction.atomic()`. |
+| `CompetencyAssessment` | `draft → completed` | Complete (draft, admin) | Complete requires ≥ 1 `CompetencyResult` row (L-14). |
+| `TrainingPlan` | `assigned → in_progress → completed / waived / overdue` | Start (assigned), Complete (in_progress), Waive (assigned / in_progress, admin) | Waive requires non-empty `notes` (L-14). |
+| `IncentivePeriod` | `open → locked → paid` | Lock (open, admin), Mark Paid (locked, admin) | Locked period rejects new bookings; paid period is read-only. |
+
+---
+
+## Cross-module migrations
+
+| Touched | Bridge | Migration file (planned) |
+|---|---|---|
+| `mes.ShopFloorOperator` | Add nullable FK `employee → labor.Employee` (one-to-one). | `apps/mes/migrations/0003_shopfloor_operator_employee.py` |
+| `eam.Asset` | Add nullable FK `cost_center → labor.CostCenter` (drives indirect-labor allocation when MWO labor is logged). | `apps/eam/migrations/0003_asset_cost_center.py` |
+| `plm.Product` | Add nullable FK `cost_center → labor.CostCenter` (drives direct-labor allocation when MES production is reported). | `apps/plm/migrations/0002_product_cost_center.py` |
+
+(All three FKs are nullable — existing rows continue to work; allocation simply lands on `cost_center=None` if not set.)
+
+---
+
+## URL surface (in [`apps/labor/urls.py`](../../apps/labor/urls.py), mounted at `/labor/`)
 
 ```
-apps/eam/
-├── __init__.py
-├── apps.py                       # ready() loads signals
-├── models.py
-├── admin.py
-├── forms.py
-├── views.py
-├── urls.py
-├── signals.py
-├── services/
-│   ├── __init__.py
-│   ├── pm_scheduler.py           # generate_upcoming_pm(plan, horizon_days) — pure
-│   ├── downtime.py               # compute_downtime(mwo) — pure; downtime rollup per asset
-│   ├── prediction.py             # check_reading(reading) — heuristic alarm-band classifier
-│   └── tool_life.py              # bump_tool_life(tool, cycles, hours) — atomic UPDATE
-├── migrations/__init__.py
-├── management/
-│   ├── __init__.py
-│   └── commands/
-│       ├── __init__.py
-│       ├── seed_eam.py
-│       └── generate_pm_schedules.py   # idempotent — creates next PMSchedule per active plan
-└── tests/
-    ├── __init__.py
-    ├── conftest.py
-    ├── test_models.py
-    ├── test_forms.py
-    ├── test_services.py
-    ├── test_signals.py
-    ├── test_views.py
-    └── test_security.py
+/labor/                                                          → dashboard
+/labor/employees/                                                → list (search + filter dept/position/status/active)
+/labor/employees/new/ · <pk>/ · <pk>/edit/ · <pk>/delete/ · <pk>/terminate/ · <pk>/reactivate/
+/labor/departments/    + CRUD
+/labor/positions/      + CRUD
+/labor/skills/         + CRUD
+/labor/skills-matrix/                                            → employees-vs-skills grid
+/labor/employee-skills/<emp_id>/  + CRUD inline
+/labor/certifications/ + CRUD
+/labor/employee-certifications/<emp_id>/ + CRUD inline
+/labor/employee-documents/<emp_id>/ + CRUD inline
+/labor/shifts/         + CRUD
+/labor/shift-rosters/  + CRUD
+/labor/attendance/     + CRUD (per-day, per-employee)
+/labor/attendance/import/                                        → CSV import (deferred to v2 — placeholder route)
+/labor/leave-types/    + CRUD
+/labor/leave-requests/ + CRUD + workflow (submit/approve/reject/cancel)
+/labor/holidays/       + CRUD
+/labor/cost-centers/   + CRUD
+/labor/labor-rates/    + CRUD
+/labor/labor-bookings/ + list (read-only) + detail + manual-create
+/labor/labor-bookings/summary/                                   → cost-center allocation report
+/labor/training-programs/ + CRUD
+/labor/training-plans/ + CRUD + workflow
+/labor/training-sessions/ + CRUD
+/labor/training-attendance/<session_id>/ + CRUD inline
+/labor/competency-assessments/ + CRUD + complete workflow
+/labor/incentive-schemes/ + CRUD
+/labor/piece-rates/<scheme_id>/ + CRUD inline
+/labor/incentive-periods/ + CRUD + lock/pay workflow
+/labor/incentive-runs/ + CRUD + run/discard workflow
+/labor/incentive-lines/<run_id>/                                 → per-employee detail inside a run
 ```
 
 ---
 
-## Models — sub-module-by-sub-module
-
-All models inherit `TenantAwareModel + TimeStampedModel`. Every status field gets `STATUS_CHOICES`. Every Decimal field carries explicit `MinValueValidator` (+ `MaxValueValidator` where natural) per L-02. Every `unique_together` includes `tenant`. Audit-trail child FKs use `on_delete=PROTECT` per L-17.
-
-### 10.1 Asset Registry & Hierarchy (5 models)
-
-| Model | Key fields | Notes |
-|---|---|---|
-| `AssetCategory` | `name`, `parent` (self-FK), `description` | Hierarchical taxonomy (Pump / Motor / Conveyor / CNC). `unique_together=(tenant, name, parent)`. |
-| `Asset` | `tag` (unique per tenant), `name`, `category` FK, `parent` (self-FK for parent-child hierarchy), `warehouse` FK (`inventory.Warehouse`, nullable), `manufacturer`, `model_number`, `serial_number`, `installation_date`, `commissioning_date`, `criticality` (low/medium/high/critical), `status` (operational/down/maintenance/retired), `purchase_cost`, `current_value`, `warranty_expiry`, `is_active` | Auto-numbered `ASSET-00001`. `unique_together=(tenant, tag)`. PROTECT FK from MWO/Tool/etc. |
-| `AssetSparePart` | `asset` FK, `product` FK (`plm.Product`), `quantity_on_hand` (cached), `recommended_min_qty`, `notes` | Through-table; `unique_together=(asset, product)`. |
-| `AssetMeterReading` | `asset` FK, `meter_type` (hours/cycles/mileage/kwh), `reading_value` (Decimal ≥ 0), `recorded_at`, `recorded_by` (User) | Append-only ledger; PROTECT FK on `asset` (audit trail). |
-| `AssetDocument` | `asset` FK, `name`, `doc_type` (manual/drawing/cert/warranty/other), `attachment` (FileField, allowlist `.pdf .png .jpg .jpeg .dwg .dxf`, 25 MB cap) | Attachments per L-07 / Module 6 pattern. |
-
-### 10.2 Preventive Maintenance (PM) (4 models)
-
-| Model | Key fields | Notes |
-|---|---|---|
-| `MaintenancePlan` | `name`, `asset` FK, `trigger_type` (calendar/meter/both), `frequency_days` (nullable), `frequency_meter` (nullable Decimal), `last_done_at` (nullable date), `next_due_at` (nullable date), `is_active` | Drives auto-generation of upcoming `PMSchedule` rows. |
-| `MaintenanceTask` | `plan` FK, `sequence`, `description`, `expected_minutes`, `is_critical` | Checklist item template; `unique_together=(plan, sequence)`. |
-| `PMSchedule` | `plan` FK, `schedule_number` (auto `PMS-00001`), `scheduled_date`, `scheduled_meter`, `status` (scheduled/in_progress/completed/skipped/overdue), `assignee` (User, nullable), `started_at`, `completed_at`, `notes` | The actual upcoming PM event; can be rolled forward into a real `MaintenanceWorkOrder`. |
-| `PMTaskCompletion` | `pm_schedule` FK, `task` FK, `result` (pass/fail/na), `comments`, `completed_at`, `completed_by` (User) | Append-only; PROTECT FK on `pm_schedule` (audit). |
-
-### 10.3 Predictive Maintenance (3 models)
-
-| Model | Key fields | Notes |
-|---|---|---|
-| `ConditionMonitoringPoint` | `asset` FK, `name`, `parameter` (vibration/temperature/pressure/current/oil_quality/other), `unit`, `low_alarm`, `high_alarm`, `is_active` | One sensor location on an asset. |
-| `ConditionReading` | `point` FK, `reading_value`, `recorded_at`, `status` (normal/warning/critical — auto-set by `services.prediction.check_reading`) | Append-only; PROTECT FK on `point`. |
-| `FailurePrediction` | `asset` FK, `triggered_by_reading` FK (nullable), `predicted_failure_date`, `confidence_pct` (0–100), `recommended_action`, `status` (open/investigating/resolved/false_positive), `resolved_at`, `resolved_by` (User) | Heuristic — auto-created when `check_reading` flags a reading as critical and no open prediction exists. |
-
-### 10.4 Maintenance Work Orders (4 models)
-
-| Model | Key fields | Notes |
-|---|---|---|
-| `MaintenanceWorkOrder` | `mwo_number` (auto `MWO-00001`), `asset` FK, `wo_type` (breakdown/preventive/corrective/predictive/inspection), `priority` (low/medium/high/critical), `problem_description`, `reported_by` (User), `assigned_to` (User, nullable), `status` (draft/scheduled/in_progress/on_hold/completed/cancelled), `reported_at`, `scheduled_start`, `started_at`, `completed_at`, `downtime_minutes` (computed denorm), `failure_code`, `root_cause`, `resolution_notes`. **Source FKs (all nullable):** `source_pm_schedule` (FK `PMSchedule`), `source_failure_prediction` (FK `FailurePrediction`), `source_andon` (FK `mes.AndonAlert`). | Workflow gates per L-03. Workflow forms enforce per-transition required (resolution_notes on completion) per L-14. |
-| `MWOLaborLog` | `mwo` FK, `technician` (User), `started_at`, `ended_at`, `minutes` (computed), `hourly_rate`, `total_cost` (computed) | Append-only; PROTECT FK on `mwo`. |
-| `MWOMaterialLog` | `mwo` FK, `product` FK (`plm.Product`), `quantity`, `unit_cost`, `total_cost` (computed), `stock_movement` FK (`inventory.StockMovement`, nullable — cross-module link) | Append-only; PROTECT FK on `mwo`. |
-| `DowntimeEvent` | `asset` FK, `mwo` FK (nullable), `started_at`, `ended_at`, `minutes` (computed), `reason`, `downtime_type` (planned/unplanned) | Append-only; PROTECT FK on `asset`. Powers the asset-level downtime KPI. |
-
-### 10.5 Tool & Die Management (4 models)
-
-| Model | Key fields | Notes |
-|---|---|---|
-| `Tool` | `tool_id` (auto `TOOL-00001`), `name`, `tool_type` (mold/die/jig/fixture/cutting_tool/gauge), `category` (free text), `location`, `status` (available/in_use/maintenance/retired), `purchase_date`, `expected_life_cycles`, `current_cycles` (denorm), `expected_life_hours`, `current_hours` (denorm), `last_sharpened_at`, `next_sharpen_due`, `cavity_count` (mold-only), `is_active` | Auto-numbered `TOOL-00001`. `unique_together=(tenant, tool_id)`. |
-| `ToolUsageLog` | `tool` FK, `mes_work_order` FK (nullable, cross-module to `mes.MESWorkOrder`), `used_at`, `cycles_added`, `hours_added`, `operator` (User) | Append-only; PROTECT FK on `tool`. Auto-emitted from `mes.ProductionReport.post_save` when the parent op's MES work order has a `tool` FK. |
-| `ToolMaintenanceRecord` | `tool` FK, `record_type` (sharpening/cleaning/repair/calibration/inspection), `performed_at`, `performed_by` (User), `cost`, `notes`, `attachment` (FileField, 25 MB cap) | Append-only; PROTECT FK on `tool`. |
-| `MoldCavityHistory` | `tool` FK (must be `tool_type='mold'`), `cavity_number`, `cycles` (denorm), `last_inspected_at`, `defect_count`, `status` (active/blocked/repaired) | `unique_together=(tool, cavity_number)`; cleaned in form to enforce mold-only. |
-
-**Total: 20 models in `apps/eam/`.**
-
----
-
-## Cross-module integration (touching other apps)
-
-Each one is a separate migration in the touched app:
-
-| Touched | Bridge | Migration |
-|---|---|---|
-| `apps.mes.AndonAlert` | Add nullable FK `asset → eam.Asset`. Keep existing `equipment_id` text column for back-compat. | `apps/mes/migrations/000X_andonalert_asset.py` |
-| `apps.mes.MESWorkOrder` | Add nullable FK `tool → eam.Tool`. | `apps/mes/migrations/000X_mesworkorder_tool.py` |
-| `apps.qms.MeasurementEquipment` | Add nullable FK `asset → eam.Asset`. Keep existing `tag` for back-compat. | `apps/qms/migrations/000X_measurementequipment_asset.py` |
-| Cross-module signal: `mes.AndonAlert.post_save` | When `andon.type='equipment'` AND `andon.asset` is set AND no open MWO exists for that andon, [`apps/eam/signals.py`](apps/eam/signals.py) auto-creates a draft `MaintenanceWorkOrder(wo_type='breakdown', source_andon=andon, …)`. Idempotent — re-firing is a no-op via `source_andon` lookup. | (signal only) |
-| Cross-module signal: `mes.ProductionReport.post_save` | When the parent `mes.MESWorkOrder.tool` is set, emit a `ToolUsageLog(cycles_added=report.good_qty)` and bump `Tool.current_cycles`. Idempotent via `(tool, mes_work_order, used_at)` natural key. | (signal only) |
-| Cross-module signal (already present): `inventory.StockMovement.post_save` | No new hook; MWO material logs simply reference `stock_movement` FK directly when the consumer creates a `production_out` movement. | n/a |
-
-Both EAM-side cross-module hooks live inside `apps/eam/signals.py` (not in mes/qms) so removing the EAM app cleanly disables the events. Each hook stashes prior state in a dedicated `_eam_x_prev_status` attribute via a `pre_save` handler — no dependency on other modules' naming.
-
----
-
-## Audit signal pattern
-
-`apps/eam/signals.py` wires `pre_save` + `post_save` audit pattern via the **same `_mk_status_signals(model, action_prefix)` factory used by procurement** (Lesson L-18: connect with `weak=False`). Status-tracked models:
-
-- `Asset` → `eam.asset.<status>`
-- `MaintenancePlan` → `eam.plan.activated` / `eam.plan.deactivated`
-- `PMSchedule` → `eam.pm_schedule.<status>`
-- `FailurePrediction` → `eam.prediction.<status>`
-- `MaintenanceWorkOrder` → `eam.mwo.<status>`
-- `Tool` → `eam.tool.<status>`
-
-Plus explicit module-level handlers for the **2 cross-module hooks** above (with `weak=False`).
-
----
-
-## Forms (`apps/eam/forms.py`)
-
-20 ModelForms, one per concrete model. All inherit `TenantScopedFormMixin` (mirrors procurement). All exclude `tenant` from `Meta.fields` and enforce duplicates in `clean()` per L-01. All Decimal fields validated per L-02.
-
-Per-workflow forms (L-14):
-- `MWOWorkflowForm` — requires `resolution_notes` when transitioning to `completed`.
-- `FailurePredictionResolveForm` — requires non-empty `resolution_notes` and `resolved_action_taken` choice.
-- `PMScheduleCompleteForm` — requires at least one `PMTaskCompletion` row.
-- `ToolMaintenanceRecordForm` — `attachment` allowlist `.pdf .png .jpg .jpeg`, 25 MB cap.
-- `AssetDocumentForm` — same allowlist + `.dwg .dxf`.
-
----
-
-## Views (`apps/eam/views.py`)
-
-Mirror procurement's class-based pattern. Approximately:
-
-| Type | Count | Examples |
-|---|---|---|
-| List (with filters) | 12 | `AssetListView`, `PMPlanListView`, `PMScheduleListView`, `ConditionPointListView`, `ConditionReadingListView`, `FailurePredictionListView`, `MWOListView`, `DowntimeListView`, `ToolListView`, `ToolMaintenanceListView`, `AssetCategoryListView`, `AssetSparePartListView` |
-| Create | 14 | per primary model + line/child creators |
-| Detail | 10 | with tabbed sections (Asset detail = Spare Parts / Meter Readings / Documents / Open MWOs / PM Plans) |
-| Edit | 8 | for non-append-only models |
-| Delete | 12 | POST-only with PROTECT-error catch (L-13: inner atomic + try/except `ProtectedError`) |
-| Workflow actions | 16 | `MWOScheduleView`, `MWOStartView`, `MWOHoldView`, `MWOResumeView`, `MWOCompleteView`, `MWOCancelView`, `PMScheduleStartView`, `PMScheduleCompleteView`, `PMScheduleSkipView`, `FailurePredictionInvestigateView`, `FailurePredictionResolveView`, `FailurePredictionFalsePositiveView`, `ToolRetireView`, `ToolReactivateView`, `AssetRetireView`, `AssetReactivateView` |
-| Special | 3 | `IndexView` (dashboard with KPIs), `PMPlanGenerateView` (button to call `generate_upcoming_pm`), `MWOGanttView` (ApexCharts rangeBar of scheduled MWOs by asset, deferred if scope tight) |
-
-**Mixin matrix** (mirrors procurement):
-- Read-only list / detail → `TenantRequiredMixin`
-- Reading capture (any tenant user can log a sensor reading or a meter reading) → `TenantRequiredMixin`
-- All create / edit / delete / workflow / generate → `TenantAdminRequiredMixin` (per L-10)
-
-Every state-changing view uses the conditional `UPDATE … WHERE status IN (…)` race-safe pattern. Auto-numbered creates use the L-12 retry-on-IntegrityError loop.
-
----
-
-## Templates (`templates/eam/`)
-
-Mirrors `templates/procurement/`. One sub-folder per primary entity:
+## Templates (in [`templates/labor/`](../../templates/labor/))
 
 ```
-templates/eam/
-├── index.html                    # dashboard
-├── assets/                       # list, form, detail (tabs: spares, meters, docs, mwos, pm)
-├── categories/                   # list, form, detail
-├── spare_parts/                  # form (modal-style), list (rare — usually inline on asset detail)
-├── meter_readings/               # list, form
-├── documents/                    # list, form, download view
-├── pm_plans/                     # list, form, detail (tasks inline, generate button)
-├── pm_schedules/                 # list, form, detail (task-completion checklist)
-├── condition_points/             # list, form, detail (with sparkline)
-├── condition_readings/           # list, form
-├── failure_predictions/          # list, detail (no form — auto-created)
-├── mwo/                          # list, form, detail (labor + material logs inline, gantt-link)
-├── downtime/                     # list, form, detail (per-asset downtime KPIs)
-├── tools/                        # list, form, detail (usage + maintenance + cavities tabs)
-├── tool_maintenance/             # list, form
-└── partials/                     # reusable widgets (asset_status_badge.html, criticality_badge.html, sparkline.html)
+templates/labor/
+├── _pagination.html
+├── index.html                                   # dashboard with KPI cards + ApexCharts
+├── employees/{list,form,detail}.html
+├── departments/{list,form}.html
+├── positions/{list,form}.html
+├── skills/{list,form}.html
+├── skills_matrix/index.html                     # employee × skill grid
+├── certifications/{list,form}.html
+├── employee_certifications/{list,form}.html
+├── employee_documents/{list,form}.html
+├── shifts/{list,form}.html
+├── shift_rosters/{list,form}.html
+├── attendance/{list,form,detail}.html
+├── leave_types/{list,form}.html
+├── leave_requests/{list,form,detail}.html
+├── holidays/{list,form}.html
+├── cost_centers/{list,form}.html
+├── labor_rates/{list,form}.html
+├── labor_bookings/{list,form,detail}.html
+├── labor_bookings/summary.html
+├── training_programs/{list,form}.html
+├── training_plans/{list,form,detail}.html
+├── training_sessions/{list,form,detail}.html
+├── training_attendance/form.html
+├── competency_assessments/{list,form,detail}.html
+├── incentive_schemes/{list,form,detail}.html
+├── piece_rates/form.html
+├── incentive_periods/{list,form}.html
+├── incentive_runs/{list,form,detail}.html
+└── incentive_lines/list.html
 ```
 
-All list templates include search + filter dropdowns per the project's Filter Implementation Rules (status_choices, category, FK querysets passed from view, `|stringformat:"d"` for FK pk comparison). All list templates have a full Actions column (View / Edit / Delete) per CRUD Completeness Rules.
+All chart payloads use `{{ data|json_script:"id" }}` per **L-07** (no `|safe` on `json.dumps()`).
 
 ---
 
-## URL config
+## Sidebar navigation
 
-Add to `config/urls.py` (after procurement):
+Add a new "Labor & Workforce" group to [`templates/partials/sidebar.html`](../../templates/partials/sidebar.html) below "Equipment & Asset Management":
 
-```python
-path('eam/', include('apps.eam.urls')),
-```
-
-`apps/eam/urls.py` `app_name='eam'`. Approximately 75 routes. Naming convention mirrors procurement (`asset_list`, `asset_detail`, `asset_create`, `asset_edit`, `asset_delete`, `mwo_complete`, etc.).
-
----
-
-## Settings update
-
-Add `'apps.eam'` to `INSTALLED_APPS` in `config/settings.py` (after `'apps.procurement'`).
-
----
-
-## Sidebar nav
-
-Add a new collapsible menu group in `templates/partials/sidebar.html` after the Procurement block (around line 215 after the closing `{% endif %}`):
-
-```html
-<li class="nav-item">
-    <a class="nav-link menu-link" href="#sidebarEAM" data-bs-toggle="collapse" role="button" aria-expanded="false">
-        <i class="ri-tools-line"></i> <span>Equipment & Assets</span>
-    </a>
-    <div class="collapse menu-dropdown" id="sidebarEAM" data-bs-parent="#navbar-nav">
-        <ul class="nav nav-sm flex-column">
-            <li class="nav-item"><a href="{% url 'eam:index' %}" class="nav-link">EAM Dashboard</a></li>
-            <li class="nav-item"><a href="{% url 'eam:asset_list' %}" class="nav-link">Assets</a></li>
-            <li class="nav-item"><a href="{% url 'eam:category_list' %}" class="nav-link">Asset Categories</a></li>
-            <li class="nav-item"><a href="{% url 'eam:pmplan_list' %}" class="nav-link">PM Plans</a></li>
-            <li class="nav-item"><a href="{% url 'eam:pmschedule_list' %}" class="nav-link">PM Schedule</a></li>
-            <li class="nav-item"><a href="{% url 'eam:condition_point_list' %}" class="nav-link">Monitoring Points</a></li>
-            <li class="nav-item"><a href="{% url 'eam:prediction_list' %}" class="nav-link">Failure Predictions</a></li>
-            <li class="nav-item"><a href="{% url 'eam:mwo_list' %}" class="nav-link">Maintenance Work Orders</a></li>
-            <li class="nav-item"><a href="{% url 'eam:downtime_list' %}" class="nav-link">Downtime Events</a></li>
-            <li class="nav-item"><a href="{% url 'eam:tool_list' %}" class="nav-link">Tools & Dies</a></li>
-        </ul>
-    </div>
-</li>
-```
-
-(Rendered for any authenticated tenant user — supplier-portal users get the same `{% if request.user.role != 'supplier' %}` guard if a future supplier role should not see EAM. Default: **shown to all internal users.**)
+- Dashboard → `/labor/`
+- Employees → `/labor/employees/`
+- Skills Matrix → `/labor/skills-matrix/`
+- Certifications → `/labor/certifications/`
+- Time & Attendance → submenu (Shifts, Rosters, Attendance, Holidays)
+- Leave → submenu (Leave Types, Leave Requests)
+- Cost Centers → `/labor/cost-centers/`
+- Labor Bookings → `/labor/labor-bookings/`
+- Training → submenu (Programs, Plans, Sessions, Competency Assessments)
+- Incentives → submenu (Schemes, Piece Rates, Periods, Runs)
 
 ---
 
-## Seed command (`apps/eam/management/commands/seed_eam.py`)
+## Audit signals (in [`apps/labor/signals.py`](../../apps/labor/signals.py))
 
-Idempotent per CLAUDE.md *Seed Command Rules*. Per tenant:
+Apply the same `_mk_status_signals(model, action_prefix)` factory pattern as procurement + EAM, registered with `weak=False` (**L-18**):
 
-1. `_seed_categories(tenant)` — 6 categories (Pumps, Motors, CNC, Conveyor, HVAC, Tooling) with parent-child.
-2. `_seed_assets(tenant)` — ~10 assets across 3 categories, mixed criticality, 1 parent-child pair (e.g. `CNC-LATHE-01` with sub-asset `SPINDLE-01`), warehouse linked.
-3. `_seed_spare_parts(tenant, assets)` — 1–3 spares per critical asset linked to existing `plm.Product` rows.
-4. `_seed_meter_readings(tenant, assets)` — 30 days of synthetic readings per metered asset.
-5. `_seed_pm_plans_and_schedules(tenant, assets)` — 4 plans (calendar + meter mix), generate next 3 schedules per plan.
-6. `_seed_condition_points_and_readings(tenant, assets)` — 2 points per critical asset, 25 readings each (1 deliberately critical → triggers `FailurePrediction`).
-7. `_seed_work_orders(tenant, assets, admin)` — 3 MWOs (breakdown/scheduled/completed) with labor + material logs + downtime event for the breakdown one.
-8. `_seed_tools(tenant)` — 2 tools incl. 1 mold with 4 cavities + maintenance records + usage logs.
+- `Employee` → `labor.employee.<status>` on hire / terminate / reactivate / suspend.
+- `LeaveRequest` → `labor.leave.<status>` on every state transition.
+- `IncentiveRun` → `labor.incentive_run.<status>`.
+- `IncentivePeriod` → `labor.period.<status>`.
+- `CompetencyAssessment` → `labor.assessment.<status>`.
+- `TrainingPlan` → `labor.training_plan.<status>`.
+- `EmployeeCertification` → `labor.cert.<status>` on `expires_at` flip-driven transitions (computed in save()).
 
-Print login instructions (per CLAUDE.md Seed Command Rules — name a tenant admin and warn that `admin` superuser has no tenant). ASCII-only stdout per L-09 (no `→`, use `->`).
-
-Plus a separate `generate_pm_schedules` management command (idempotent — creates the next-due `PMSchedule` row per active plan if one does not already exist within the plan's frequency window).
-
-Add `seed_eam` to the `seed_data` orchestrator after `seed_procurement`.
+A regression-guard test in `apps/labor/tests/test_signals.py — TestL18DispatchUIDPresence` asserts every required `dispatch_uid` remains attached.
 
 ---
 
-## Tests (`apps/eam/tests/`)
+## RBAC matrix (L-10)
 
-Target ~80–100 tests, ~25 s. Mirrors procurement's test file split. Coverage:
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, list pages, detail pages, own profile, own attendance, own leave list, own training plan list | Authenticated tenant user | `TenantRequiredMixin` |
+| Submit own LeaveRequest, cancel own LeaveRequest (draft/submitted), record own attendance close-out (if not auto-emitted) | Authenticated tenant user | `TenantRequiredMixin` |
+| Employee CRUD + terminate / reactivate; Department / Position / Skill / Certification CRUD; LeaveRequest approve / reject; Shift / ShiftRoster / Holiday CRUD; CostCenter / LaborRate CRUD; manual LaborBooking create / delete; TrainingProgram / TrainingPlan / TrainingSession / TrainingAttendance CRUD; CompetencyAssessment CRUD + complete; IncentiveScheme / PieceRate / IncentivePeriod CRUD; IncentiveRun create + run + discard; IncentivePeriod lock + pay | Tenant admin | `TenantAdminRequiredMixin` |
 
-- **`test_models.py`** — model invariants, decimal validators, unique_together, status choices, denorm rollups (downtime, current_cycles, current_hours).
-- **`test_forms.py`** — L-01 unique_together checks, L-02 decimal bounds, L-14 per-workflow required (MWO completion notes, prediction resolution notes, PM checklist completeness, tool-maintenance attachment allowlist).
-- **`test_services.py`** — pure-function tests: `pm_scheduler.generate_upcoming_pm()` round-trips correctly across calendar / meter / both triggers; `prediction.check_reading()` flips status correctly across alarm bands; `downtime.compute_downtime()` sums correctly; `tool_life.bump_tool_life()` is race-safe.
-- **`test_signals.py`** — audit emission across creates + transitions; cross-module hooks (AndonAlert→MWO auto-spawn, ProductionReport→ToolUsageLog auto-emit, including the no-asset-link / no-tool-link skip paths); `weak=False` regression assertion (`post_save.receivers` contains every dispatch_uid).
-- **`test_views.py`** — full CRUD smoke, workflow happy paths, MWO complete with required notes, PM schedule complete via task-completion form, prediction resolve, tool retire.
-- **`test_security.py`** — `TestRBACMatrix` (operator vs admin redirects + state-not-changed assertions), `TestMultiTenantIDOR` (cross-tenant 404), `TestAnonymousRedirect` (unauthenticated → login).
-
----
-
-## README updates
-
-Per the project's *README Maintenance Rule*, the README must be updated **in the same session**:
-
-1. Bump module count in opening paragraph (Phase 1 now includes Module 10).
-2. Add `## Module 10 — Equipment & Asset Management (EAM)` section between Module 9 and `## UI / Theme Customization` — full sub-module breakdown matching the Module 9 prose style.
-3. Update Table of Contents.
-4. Update **Highlights** bullet list (one new bullet for Module 10 mirroring the existing module bullets).
-5. Update **Project Structure** (`apps/eam/` block).
-6. Update **Screenshots / UI Tour** routes table (~20 new rows).
-7. Update **Management Commands** table (`seed_eam`, `generate_pm_schedules`, `pytest apps/eam/tests/`).
-8. Update **Seeded Demo Data** to mention EAM.
-9. Update **Roadmap** — strike through `10. Equipment & Asset Management (EAM)`, mark `✅ shipped`.
-10. Update `seed_data` orchestrator description.
+A `TestRBACMatrix` regression test in `apps/labor/tests/test_security.py` asserts redirect + state-not-changed for every admin-gated POST. `TestMultiTenantIDOR` confirms cross-tenant reads/writes 404. `TestAnonymousRedirect` confirms unauthenticated requests redirect to login.
 
 ---
 
-## Ordered task list (for execution after approval)
+## Validation guards (L-01, L-02, L-14)
 
-The list below will be flipped to `[x]` as each step lands.
-
-### Phase A — App skeleton + models
-- [ ] A.1 Create `apps/eam/__init__.py` + `apps.py` + register in `INSTALLED_APPS`.
-- [ ] A.2 Write `apps/eam/models.py` (all 20 models, decimal validators, unique_together, PROTECT FKs, helper methods like `is_editable()`, `is_actionable()` for L-03 view/template gate parity).
-- [ ] A.3 Generate initial migration `0001_initial.py`.
-- [ ] A.4 Cross-module migrations:
-  - [ ] A.4.a `apps/mes/migrations/000X_andonalert_asset.py` (nullable FK).
-  - [ ] A.4.b `apps/mes/migrations/000X_mesworkorder_tool.py` (nullable FK).
-  - [ ] A.4.c `apps/qms/migrations/000X_measurementequipment_asset.py` (nullable FK).
-- [ ] A.5 `apps/eam/admin.py` — register all 20 models with inline admins where natural.
-
-### Phase B — Forms / services / signals
-- [ ] B.1 `apps/eam/forms.py` — 20 ModelForms with L-01 / L-02 / L-14 guards.
-- [ ] B.2 `apps/eam/services/pm_scheduler.py` — pure `generate_upcoming_pm(plan, horizon_days)`.
-- [ ] B.3 `apps/eam/services/downtime.py` — pure `compute_downtime(mwo)`.
-- [ ] B.4 `apps/eam/services/prediction.py` — pure `check_reading(reading)`.
-- [ ] B.5 `apps/eam/services/tool_life.py` — atomic `bump_tool_life(tool, cycles, hours)` (L-12 + L-13).
-- [ ] B.6 `apps/eam/signals.py` — `_mk_status_signals` factory + 6 status-tracked models + 2 cross-module hooks (all `weak=False` per L-18) + `weak=False` regression-guard test in `test_signals.py`.
-
-### Phase C — Views / URLs / templates
-- [ ] C.1 `apps/eam/urls.py` — ~75 routes, `app_name='eam'`.
-- [ ] C.2 Add `path('eam/', include('apps.eam.urls'))` to `config/urls.py`.
-- [ ] C.3 `apps/eam/views.py` — all CBVs with correct mixins (per L-10), L-12 retry on auto-numbered creates, L-13 inner-atomic on every `try/except IntegrityError` / `try/except ProtectedError`, race-safe conditional UPDATEs on every status transition.
-- [ ] C.4 Templates — one folder per primary entity (16 folders, ~40 files: list / form / detail / detail-tabs / partials).
-- [ ] C.5 Sidebar nav — add EAM block in `templates/partials/sidebar.html`.
-
-### Phase D — Seeders
-- [ ] D.1 `apps/eam/management/__init__.py` + `apps/eam/management/commands/__init__.py`.
-- [ ] D.2 `apps/eam/management/commands/seed_eam.py` — 8 helper functions, idempotent, ASCII stdout per L-09.
-- [ ] D.3 `apps/eam/management/commands/generate_pm_schedules.py` — idempotent next-due generator.
-- [ ] D.4 Add `seed_eam` to the `seed_data` orchestrator.
-
-### Phase E — Tests
-- [ ] E.1 `apps/eam/tests/conftest.py` + 6 test files; target ~80–100 tests, RBAC matrix + multi-tenant IDOR + cross-module hooks + L-18 dispatch-uid presence guard.
-- [ ] E.2 Run `pytest apps/eam/tests/` and resolve to 0 failures.
-
-### Phase F — README + commits
-- [ ] F.1 Update `README.md` (10 separate edits per the README Maintenance Rule list above).
-- [ ] F.2 Hand the user a per-file commit snippet block (PowerShell `;`-separated, one `git add` + `git commit` per file per CLAUDE.md *STRICT — ONE FILE PER COMMIT*).
-
-### Phase G — Lessons capture
-- [ ] G.1 If any user correction lands during this build, append a new `L-19+` entry to `.claude/tasks/lessons.md` per CLAUDE.md *Self-Improvement Loop*.
+- **L-01** — every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, …)` `unique_together` check (full list per sub-module above).
+- **L-02** — every Decimal field carries explicit `MinValueValidator` (and `MaxValueValidator` where natural):
+  - `LaborRate.hourly_rate > 0`, `overtime_multiplier 1.0–3.0`
+  - `LaborBooking.minutes > 0`, `total_cost ≥ 0`
+  - `LeaveRequest.days_requested ≥ 0.5`
+  - `TrainingProgram.duration_hours ≥ 0.5`
+  - `TrainingAttendance.score 0–100`
+  - `CompetencyResult.expected_level 1–5`, `actual_level 1–5`
+  - `PieceRate.rate_per_unit > 0`, `min_quantity ≥ 0`, `max_quantity > min_quantity` when set
+  - `IncentiveLine.qualifying_units ≥ 0`, `rate_applied > 0`, `amount ≥ 0`
+- **L-14** — per-workflow forms enforce per-transition required fields:
+  - `LeaveRequestRejectForm.clean_decision_notes()` → required.
+  - `LeaveRequestCancelForm.clean_decision_notes()` → required when status was already `approved`.
+  - `CompetencyAssessmentCompleteForm.clean()` → ≥ 1 `CompetencyResult` row required.
+  - `TrainingPlanWaiveForm.clean_notes()` → required.
+  - `IncentiveRunRunForm.clean()` → period must be `open` AND ≥ 1 production report exists in the window.
+  - `EmployeeCertificationForm.clean_attachment()` → extension allowlist + 25 MB cap.
 
 ---
 
-## Out of scope (deferred to follow-up phases)
+## Seeder (in `apps/labor/management/commands/seed_labor.py`)
 
-- **ML-driven failure prediction** — only heuristic alarm-band rules in v1; trend / anomaly / regression models deferred.
-- **Real IoT / SCADA ingestion** — `ConditionReading` is created via UI form / management seed in v1; live MQTT / OPC-UA ingestion is **Module 15** scope.
-- **Mobile-friendly technician app** — work order completion is desktop-only in v1; touch-optimized terminal akin to `mes/terminal/` deferred.
-- **Spare-parts auto-reorder when asset triggers MWO** — the `MWOMaterialLog → inventory.StockMovement` link is manual in v1 (auto-create deferred).
-- **Calibration consolidation** — `qms.MeasurementEquipment` and `eam.Asset` stay parallel concepts in v1 (linked by an optional FK, not unified).
-- **Tool grinding / re-sharpening BOM cost roll-up** — tracked in `ToolMaintenanceRecord.cost` only; no rollup into `bom.CostElement`.
-- **Warranty alerts** — `Asset.warranty_expiry` is stored but no proactive notification; deferred until Module 20 (Workflow & Process Automation).
+Idempotent. Skip if `Employee.objects.filter(tenant=tenant).exists()` and `--flush` not set. ASCII-only stdout (L-09). Per tenant, generate:
+
+- 4 departments (Production / Quality / Maintenance / Admin) + 1 self-FK Production sub-dept "Assembly".
+- 8 positions (Operator / Senior Operator / QC Inspector / Maintenance Technician / Shift Supervisor / Production Manager / HR Officer / Plant Manager).
+- 12 skills (5 operations, 3 quality, 2 safety, 2 leadership) + 5 certifications.
+- 20 employees with `EMP-00001 … EMP-00020`, distributed across departments + positions; first 6 are linked to the existing `mes.ShopFloorOperator` records (so cross-module hooks immediately have something to fire on); 14 employee-skill rows (≈3 per employee); 5 certification records; 2 deliberately near-expiry to populate the dashboard alert panel.
+- 3 shifts (Morning 06–14, Evening 14–22, Night 22–06) + a 14-day shift roster across all employees.
+- 14 days of `AttendanceRecord` rows for each shop-floor operator (95% present + 5% sick).
+- 5 leave types (Annual / Sick / Casual / Maternity / Bereavement) + 6 leave requests across statuses (1 draft, 2 submitted, 1 approved, 1 rejected, 1 cancelled).
+- 4 holidays in the next 60 days.
+- 5 cost centers (Production_Main / Production_Assembly / Quality / Maintenance / Admin) + 20 employee labor rates (1 per employee, $15–$45/hr range).
+- 30 days of `LaborBooking` rows back-fed from the existing seeded `mes.OperatorTimeLog` and `eam.MWOLaborLog` data (call the same cross-module signal handler directly to backfill — exercises the entire path).
+- 4 training programs + 8 training plans + 2 training sessions + 6 attendance rows.
+- 1 competency assessment (with 5 result rows) per supervisor employee → covers the gap-analysis dashboard widget.
+- 2 incentive schemes (1 piece-rate Active, 1 production-bonus Inactive) + 5 piece rates per scheme + 1 open period + 1 completed run with 6 incentive lines.
+
+Print a summary count line: `Created 20 employees, 30 attendance days, 30 labor bookings, 6 leave requests, 4 training programs, 1 incentive run.`
 
 ---
 
-## Review section
+## Tests (in `apps/labor/tests/`)
 
-**Build completed: 2026-05-06.** All 7 phases (A → G) shipped clean per the original plan with **zero user corrections during execution**. Q1–Q10 in the *Decisions to confirm* table were all accepted as defaults.
+Mirror the EAM test suite shape. Target ~120 tests, ≤ 60 s runtime under `config/settings_test.py` (SQLite in-memory):
 
-### What shipped
+- `test_models.py` — model invariants, auto-numbering (`EMP-00001` etc.), decimal validators (L-02), denorm computations (`AttendanceRecord.worked_minutes`, `LaborBooking.total_cost`, `IncentiveLine.amount`).
+- `test_forms.py` — L-01 unique_together for every form, L-02 decimal bounds, L-14 per-workflow required fields, file-attachment validators.
+- `test_services.py` — pure functions (`compute_worked_minutes`, `derive_status`, `lookup_rate`, `compute_gap`, `compute_run`).
+- `test_signals.py` — audit-emission per status transition, **L-18 dispatch_uid presence guard**, cross-module hooks (mes time-log → labor booking, eam mwo labor → labor booking, mes production report → incentive line) + idempotency.
+- `test_views.py` — full CRUD smoke + workflow happy paths.
+- `test_security.py` — RBAC matrix, multi-tenant IDOR, anonymous-redirect on every URL.
 
-- **20 models** in `apps/eam/`, all `TenantAwareModel + TimeStampedModel`, all decimal fields validated, all unique_together either DB-enforced or backed by an L-01 form-level `clean()` (e.g. `AssetCategoryForm` for the NULL-parent case the SQL constraint can't enforce).
-- **3 migrations**: `eam/0001_initial.py` (auto-generated), `mes/0002_andonalert_asset_mesworkorder_tool.py`, `qms/0004_measurementequipment_asset.py`. All 3 cross-module FKs are nullable and back-compat-safe.
-- **4 pure-function services**: `pm_scheduler.generate_upcoming_pm()`, `prediction.classify_reading()`, `downtime.compute_downtime()`, `tool_life.bump_tool_life()` + `consume_usage_log()`.
-- **20 ModelForms** (one per model) with full L-01 / L-02 / L-14 coverage; 3 dedicated workflow forms (`MWOCompleteForm`, `FailurePredictionResolveForm`, `PMScheduleCompleteForm`).
-- **Audit signal factory** wired with `weak=False` (Lesson L-18) for 5 status-tracked models + dedicated handler for `MaintenancePlan.is_active` flips.
-- **3 cross-module signals**: `ConditionReading` post_save → auto-spawn `FailurePrediction` on critical (idempotent); `mes.AndonAlert` post_save → auto-create breakdown MWO when `alert_type='equipment'` AND `asset` set (idempotent via `source_andon`); `mes.ProductionReport` post_save → auto `ToolUsageLog` + atomic `Tool.current_cycles` bump when the parent MWO has `tool` set (idempotent via `(tool, mes_work_order, used_at)` natural key).
-- **~75 URL routes** under `/eam/` + sidebar nav block (gated by `request.user.role != 'supplier'`).
-- **~45 view classes** with the correct `TenantRequiredMixin` / `TenantAdminRequiredMixin` split per Lesson L-10 — admin-only for create/edit/delete/retire/cancel/resolve, tenant-user for record-meter-reading / record-condition-reading / start/hold/resume/complete MWO / start-and-complete PM.
-- **~30 templates** under `templates/eam/`: 1 dashboard + filter-driven list + form + detail per primary entity, with the asset detail wired with 5 tabs (Spare Parts, Meter Readings, Documents, Open Work Orders, Sub-assets) and the MWO detail wired with 3 tabs (Labor, Material, Downtime).
-- **2 management commands**: idempotent `seed_eam` (6 categories, 10 assets, 12 spare parts, 180 meter readings, 4 PM plans + 13 tasks + 12 schedules, 6 monitoring points + 151 readings incl. 1 deliberately critical, 3 MWOs, 2 tools incl. 1 mold with 4 cavities — per tenant) and idempotent `generate_pm_schedules` (creates next-due rows + flips past-dated `scheduled` rows to `overdue`).
-- **119 pytest tests, ~58 s runtime**, **100% pass rate** on the first integrated run after a single trivial test-data tweak (`used_at` field added to one tool-usage POST). Coverage: model invariants + auto-numbering + decimal validators (L-02), L-01 unique_together at the form layer, L-14 per-workflow required, pure-function services, audit signals + L-18 `dispatch_uid` presence guard, cross-module hooks (with no-asset-link skip + non-equipment-type skip), full CRUD + workflow happy paths, RBAC matrix (operator vs admin), multi-tenant IDOR, anonymous redirect.
-- **README updated in the same session** per the README Maintenance Rule: opening paragraph (module count), Table of Contents, Highlights bullet, Project Structure block, UI Tour routes table, Project Structure templates row, Management Commands table, Seeded Demo Data, Roadmap, plus the dedicated `## Module 10 — Equipment & Asset Management (EAM)` section.
-- `seed_data` orchestrator wired to call `seed_eam` after `seed_procurement`.
+Run via: `pytest apps/labor/tests/`
 
-### Verification path
+---
 
-1. `python manage.py check` — 0 issues at every phase boundary.
-2. `python manage.py makemigrations eam mes qms` — clean output, 3 migration files generated.
-3. `python manage.py migrate` — all 3 migrations applied in MySQL dev DB.
-4. `python manage.py seed_eam` — first run created data for all 3 tenants; second run skipped everything cleanly (idempotency proven).
-5. `python -c "FailurePrediction.all_objects.count() == 3"` — confirmed the `ConditionReading` post_save signal spawned 3 predictions (one per tenant from the deliberately critical seeded reading) — i.e. Lesson L-18 `weak=False` is in effect.
-6. `python -m pytest apps/eam/tests/` — **119 / 119 passing** in 55–58 s.
+## README updates (per CLAUDE.md README Maintenance Rule)
 
-### Lessons learned
+In the same commit batch:
 
-**No user corrections during this build.** The two self-caught test failures were:
-- `unique_together` doesn't trip on NULL parent (a known SQL gotcha) — captured by tightening the test to use a non-NULL parent and noting the limitation in a code comment + the form-level `clean()` for the NULL case.
-- A POST without `used_at` failed the form because the field has `default=timezone.now` on the model but is required on the form — fixed in the test, not the production code.
+1. Update intro paragraph and Highlights bullet for Module 11.
+2. Add Module 11 row to the Roadmap (mark as ✅ shipped).
+3. Add the Module 11 routes to "Screenshots / UI Tour".
+4. Add the new app entry under "Project Structure" (`apps/labor/` block + `templates/labor/` block).
+5. Add a dedicated "Module 11 — Labor & Workforce Management" section after the EAM section: 5 sub-module sections with model bullet lists + cross-module hooks + audit + RBAC + tests + out-of-scope.
+6. Add `seed_labor` to "Management Commands" table; update `seed_data` orchestrator entry to include it.
+7. Add `pytest apps/labor/tests/` row to the test commands.
 
-Neither is a new pattern worth promoting to `lessons.md`; both are well-known Django behaviors and already accounted for elsewhere in the codebase.
+---
 
-### What's not in scope (deferred to future modules)
+## Implementation phases (checkable items)
 
-- ML-based predictive maintenance (heuristic alarm-band only in v1).
-- Live IoT / SCADA ingestion (manual/seed entry only — Module 15 territory).
-- Mobile-friendly technician terminal (desktop-only completion in v1).
-- Auto-reorder of spares when an asset triggers an MWO (manual `MWOMaterialLog → StockMovement` in v1).
-- QMS `MeasurementEquipment` and EAM `Asset` consolidation (parallel concepts in v1, optional FK link).
-- Tool sharpening cost roll-up into BOM cost elements.
-- Warranty-expiry email notifications (deferred to Module 20).
+> One file per commit per [.claude/CLAUDE.md → STRICT — ONE FILE PER COMMIT](../../.claude/CLAUDE.md). Commit snippets are PowerShell-safe (use `;` not `&&`).
 
-### Final commit snippet block
+### Phase 0 — Scaffold the Django app
+- [ ] `apps/labor/__init__.py`
+- [ ] `apps/labor/apps.py` — `default_auto_field` + `ready()` wiring `signals.py`
+- [ ] `apps/labor/admin.py` — minimal admin registration
+- [ ] `apps/labor/management/__init__.py`
+- [ ] `apps/labor/management/commands/__init__.py`
+- [ ] `apps/labor/services/__init__.py`
+- [ ] `apps/labor/tests/__init__.py`
+- [ ] `apps/labor/migrations/__init__.py`
+- [ ] Register `apps.labor` in `config/settings.py:INSTALLED_APPS`
+- [ ] Mount `path('labor/', include('apps.labor.urls'))` in `config/urls.py`
 
-Provided to the user separately in the chat — one `git add` + `git commit` per file, PowerShell `;`-separated, per CLAUDE.md *STRICT — ONE FILE PER COMMIT* and *Shell Compatibility* rules.
+### Phase 1 — Sub-module 11.1 Employee Master & Skills Matrix
+- [ ] `apps/labor/models.py` — Department, Position, Employee, Skill, EmployeeSkill, Certification, EmployeeCertification, EmployeeDocument
+- [ ] `apps/labor/forms.py` — corresponding forms with L-01 / L-02 / L-14 guards
+- [ ] `apps/labor/views.py` — full CRUD for above
+- [ ] `apps/labor/urls.py` — Phase-1 routes
+- [ ] Templates for Phase 1
+
+### Phase 2 — Sub-module 11.2 Time & Attendance
+- [ ] Append models (Shift, ShiftRoster, AttendanceRecord, LeaveType, LeaveRequest, Holiday)
+- [ ] `apps/labor/services/attendance.py` + `scheduling.py`
+- [ ] Append forms + views + urls + templates
+- [ ] Cross-module hook stub (mes.OperatorTimeLog → AttendanceRecord)
+
+### Phase 3 — Sub-module 11.3 Labor Cost Allocation
+- [ ] Append models (CostCenter, LaborRate, LaborBooking)
+- [ ] Cross-module migrations: `mes.ShopFloorOperator.employee`, `eam.Asset.cost_center`, `plm.Product.cost_center`
+- [ ] `apps/labor/services/cost_allocation.py`
+- [ ] Cross-module signals (mes.OperatorTimeLog stop_job → LaborBooking ; eam.MWOLaborLog → LaborBooking)
+- [ ] Append forms + views + urls + templates + summary report view
+
+### Phase 4 — Sub-module 11.4 Training & Competency
+- [ ] Append models (TrainingProgram, TrainingPlan, TrainingSession, TrainingAttendance, CompetencyAssessment, CompetencyResult)
+- [ ] `apps/labor/services/competency.py`
+- [ ] Append forms + views + urls + templates + gap-analysis chart
+
+### Phase 5 — Sub-module 11.5 Incentive & Piece-Rate
+- [ ] Append models (IncentiveScheme, PieceRate, IncentivePeriod, IncentiveRun, IncentiveLine)
+- [ ] `apps/labor/services/piece_rate.py`
+- [ ] Cross-module signal (mes.ProductionReport → IncentiveLine accumulation)
+- [ ] Append forms + views + urls + templates + run/discard workflow
+
+### Phase 6 — Audit, dashboard, sidebar
+- [ ] `apps/labor/signals.py` — full audit factory + L-18 weak=False
+- [ ] `apps/labor/views.py:dashboard()` — KPI cards (active employees, on leave today, certifications expiring ≤30d, open leave requests, current-period incentive total) + ApexCharts (attendance % trend 30d + labor cost by cost-center pie)
+- [ ] `templates/labor/index.html` (uses `json_script` per L-07)
+- [ ] `templates/partials/sidebar.html` — add Labor & Workforce group
+
+### Phase 7 — Seeder
+- [ ] `apps/labor/management/commands/seed_labor.py` — idempotent, ASCII-only stdout
+- [ ] Update `apps/core/management/commands/seed_data.py` orchestrator to include `seed_labor`
+
+### Phase 8 — Tests
+- [ ] `apps/labor/tests/test_models.py`
+- [ ] `apps/labor/tests/test_forms.py`
+- [ ] `apps/labor/tests/test_services.py`
+- [ ] `apps/labor/tests/test_signals.py` (incl. L-18 dispatch_uid presence + cross-module hooks)
+- [ ] `apps/labor/tests/test_views.py`
+- [ ] `apps/labor/tests/test_security.py` (RBAC + IDOR + anonymous redirect)
+
+### Phase 9 — README + final commits
+- [ ] Update [`README.md`](../../README.md) per Maintenance Rule (intro, Highlights, Roadmap, Routes, Project Structure, dedicated Module 11 section, Management Commands, test commands).
+- [ ] Hand the user a per-file PowerShell commit snippet block (one `git add` + one `git commit` per file — including `__init__.py` files, migrations, every template, every test, README, sidebar, settings, root urls).
+
+---
+
+## Risks & open questions surfaced during planning
+
+1. **Circular FK at create-time** — `Department.manager → Employee` and `Employee.department → Department` form a cycle. Mitigation: `Department.manager` is **nullable**, and the seeder creates departments first (manager = NULL), then employees, then back-fills the manager FK in a second pass.
+2. **`LaborBooking` history of MES time logs** — at module-install time there are already seeded `mes.OperatorTimeLog` rows. The seeder backfills bookings explicitly; the signal does NOT backfill on module install (would be expensive + non-idempotent on fresh data). Documented in the `seed_labor` summary line.
+3. **Piece-rate calculation ordering** — if `IncentiveRun.compute_run` is invoked while an `IncentivePeriod` is still receiving new `ProductionReport` rows, the M2M membership check guarantees we don't double-count, but a **late-arriving** report after `completed` status will need a manual "rerun" by the admin (admin button: Discard → Run again). Documented in the workflow gates table.
+4. **Employee privacy** — `Employee.dob`, `address`, `emergency_contact_*` are PII. View-level RBAC restricts non-admins to their own record (`get_object_or_404(Employee, pk=request.user.employee.pk)`). Documented in security section. **Out-of-scope:** field-level encryption (deferred to Module 22 — System Administration & Security).
+5. **No-User Employees** — when `Employee.user IS NULL`, attendance + leave + incentive flows still work (admin records on their behalf). Self-service routes (`my profile`, `my leave`) are gated by `request.user.employee_set.exists()`.
+
+---
+
+## Out of scope (deferred)
+
+- **Payroll computation** — labor bookings + incentive lines feed *into* payroll but the actual payslip generation, tax math, and bank-disbursement integration are scoped to Module 12 (Cost Management & Accounting).
+- **Biometric / RFID badge integration** — clock-in/out comes via the existing MES kiosk `OperatorTimeLog`; new biometric devices are deferred to Module 15 (IoT & SCADA Integration).
+- **Mobile self-service app** — desktop-only in v1; touch-optimized employee terminal deferred.
+- **Multi-currency labor rates** — single tenant currency in v1.
+- **Workflow approval chains** — flat 1-level approval (admin approves) in v1; multi-level (manager → HR → finance) deferred to Module 20 (Workflow & Process Automation).
+- **Skill-gap-driven auto-training** — competency assessment surfaces gaps but does NOT auto-create training plans in v1; the admin reviews + creates manually. Auto-creation is a v2 elegance pass.
+- **Federated identity / SSO for employee login** — deferred to Module 22.
+
+---
+
+## Total file count estimate
+
+| Bucket | Files |
+|---|---|
+| `apps/labor/` Python | 1 `__init__.py`, `apps.py`, `admin.py`, `models.py`, `forms.py`, `views.py`, `urls.py`, `signals.py` = **8** |
+| `apps/labor/services/` | `__init__.py`, `attendance.py`, `scheduling.py`, `cost_allocation.py`, `competency.py`, `piece_rate.py` = **6** |
+| `apps/labor/management/` | 2 `__init__.py` + `seed_labor.py` = **3** |
+| `apps/labor/migrations/` | `__init__.py` + ~3 numbered migrations (initial + 2 incremental) = **4** |
+| `apps/labor/tests/` | `__init__.py` + 6 test modules = **7** |
+| Cross-module migrations | `mes/0003_*.py`, `eam/0003_*.py`, `plm/0002_*.py` = **3** |
+| Modified existing files | `config/settings.py`, `config/urls.py`, `templates/partials/sidebar.html`, `apps/core/management/commands/seed_data.py`, `README.md` = **5** |
+| Templates | `_pagination.html`, `index.html` + ~50 list/form/detail HTMLs across 5 sub-modules = **~55** |
+| **Total** | **~91 files** |
+
+That's ~91 separate `git add` + `git commit` snippets at the end (matches the EAM cadence; user has approved this volume before).
+
+---
+
+## Awaiting user approval
+
+**Please confirm:**
+1. Approve the 8 default decisions in the "Decisions to confirm" table (or override).
+2. Approve the implementation order (Phases 0 → 9, all 5 sub-modules in one pass).
+3. Approve the cross-module migrations on `mes`, `eam`, `plm` (all are nullable additions — zero breaking change).
+4. Approve the auto-number prefixes (`EMP / LR / LB / TS / CA / INC`).
+5. Confirm scope cuts in "Out of scope" are acceptable for v1.
+
+Once approved, I will start at Phase 0 and proceed sequentially, marking each `[ ]` as `[x]` as it ships, with one-file-per-commit snippets handed over at the end of each phase.
