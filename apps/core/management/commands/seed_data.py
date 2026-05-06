@@ -33,3 +33,5 @@ class Command(BaseCommand):
         call_command('seed_eam', flush=options.get('flush', False))
         self.stdout.write(self.style.HTTP_INFO('→ seed_labor'))
         call_command('seed_labor', flush=options.get('flush', False))
+        self.stdout.write(self.style.HTTP_INFO('→ seed_cost'))
+        call_command('seed_cost', flush=options.get('flush', False))
