@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Cost Management & Accounting{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Cost Management & Accounting</h4>
+        <div class="text-muted small">Standard costing, WIP, overhead allocation, COGM, and plant P&amp;L.</div></div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'cost:version_create' %}" class="btn btn-primary"><i class="ri-archive-line me-1"></i> New Cost Version</a>
+        <a href="{% url 'cost:period_create' %}" class="btn btn-outline-primary"><i class="ri-calendar-line me-1"></i> New Period</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Active Version</div><h5 class="mb-0">{% if active_version %}{{ active_version.version_number }}{% else %}<span class="text-muted">none</span>{% endif %}</h5></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Open Jobs</div><h3>{{ open_jobs }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card border-success"><div class="card-body"><div class="text-muted small">Closed Jobs (MTD)</div><h3 class="text-success">{{ closed_jobs_month }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Open Periods</div><h3>{{ open_periods }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card border-info"><div class="card-body"><div class="text-muted small">Total WIP Balance</div><h4 class="text-info mb-0">{{ wip_total|floatformat:2 }}</h4></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">COGM Trend (recent periods)</h5>
+        <div id="cogm-chart" style="height:240px"></div>
+    </div></div></div>
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Variances (PO total)</h5>
+        <div id="variance-chart" style="height:240px"></div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Recent Allocations <a href="{% url 'cost:allocation_list' %}" class="small">View all &rarr;</a></h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Pool</th><th>Period</th><th class="text-end">Amount</th></tr></thead>
+            <tbody>
+            {% for a in recent_allocations %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'cost:allocation_detail' a.pk %}">{{ a.allocation_number }}</a></td>
+                    <td class="small">{{ a.pool.code }}</td>
+                    <td class="small">{{ a.period.name }}</td>
+                    <td class="small text-end">{{ a.applied_amount|floatformat:2 }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No allocations yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Recent Variances <a href="{% url 'cost:variance_list' %}" class="small">View all &rarr;</a></h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>PO</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+            {% for v in recent_variances %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'cost:variance_detail' v.pk %}">{{ v.variance_number }}</a></td>
+                    <td class="small">{{ v.production_order }}</td>
+                    <td class="small text-end {% if v.total_variance > 0 %}text-danger{% else %}text-success{% endif %}">{{ v.total_variance|floatformat:2 }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No variances yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Recent COGM Reports <a href="{% url 'cost:cogm_list' %}" class="small">View all &rarr;</a></h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Period</th><th class="text-end">COGM</th></tr></thead>
+            <tbody>
+            {% for c in recent_cogm %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'cost:cogm_detail' c.pk %}">{{ c.report_number }}</a></td>
+                    <td class="small">{{ c.period.name }}</td>
+                    <td class="small text-end">{{ c.cogm|floatformat:2 }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No COGM reports yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+
+{{ cogm_chart|json_script:"cogm-data" }}
+{{ variance_chart|json_script:"variance-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var c = JSON.parse(document.getElementById('cogm-data').textContent);
+    new ApexCharts(document.querySelector('#cogm-chart'), {
+        chart:{type:'bar', stacked:true, height:240, toolbar:{show:false}},
+        series:[
+            {name:'Materials', data:c.materials},
+            {name:'Labor', data:c.labor},
+            {name:'Overhead', data:c.overhead},
+        ],
+        xaxis:{categories: c.labels, labels:{style:{fontSize:'10px'}}},
+        colors:['#3B82F6','#10B981','#F59E0B'],
+        dataLabels:{enabled:false},
+        legend:{position:'top'},
+    }).render();
+    var v = JSON.parse(document.getElementById('variance-data').textContent);
+    new ApexCharts(document.querySelector('#variance-chart'), {
+        chart:{type:'bar', height:240, toolbar:{show:false}},
+        series:[{name:'Total Variance', data: v.totals}],
+        xaxis:{categories: v.labels, labels:{rotate:-45, style:{fontSize:'10px'}}},
+        colors:['#EF4444'], dataLabels:{enabled:false},
+    }).render();
+})();
+</script>
+{% endblock %}
