@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.request_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.request_number }}</h4>
+        <div class="text-muted small">{{ obj.employee.employee_number }} - {{ obj.employee.full_name }} &bull; {{ obj.leave_type.name }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:leave_request_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if obj.status == 'draft' %}
+            <a href="{% url 'labor:leave_request_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+            <form method="post" action="{% url 'labor:leave_request_submit' obj.pk %}">{% csrf_token %}<button class="btn btn-primary"><i class="ri-send-plane-line me-1"></i> Submit</button></form>
+        {% endif %}
+        {% if obj.status == 'submitted' and request.user.is_tenant_admin or request.user.is_superuser %}
+            <form method="post" action="{% url 'labor:leave_request_approve' obj.pk %}">{% csrf_token %}<button class="btn btn-success"><i class="ri-check-line me-1"></i> Approve</button></form>
+            <a href="{% url 'labor:leave_request_reject' obj.pk %}" class="btn btn-outline-danger"><i class="ri-close-line me-1"></i> Reject</a>
+        {% endif %}
+        {% if obj.status == 'draft' or obj.status == 'submitted' or obj.status == 'approved' %}
+            <a href="{% url 'labor:leave_request_cancel' obj.pk %}" class="btn btn-outline-warning"><i class="ri-close-circle-line me-1"></i> Cancel</a>
+        {% endif %}
+        {% if obj.status == 'draft' or obj.status == 'cancelled' or obj.status == 'rejected' %}
+            {% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <form method="post" action="{% url 'labor:leave_request_delete' obj.pk %}" onsubmit="return confirm('Delete leave request?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Details</h5>
+        <dl class="row mb-0 small">
+            <dt class="col-3">Status</dt><dd class="col-9"><span class="badge bg-{% if obj.status == 'approved' %}success-subtle text-success{% elif obj.status == 'rejected' %}danger-subtle text-danger{% elif obj.status == 'submitted' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+            <dt class="col-3">Type</dt><dd class="col-9">{{ obj.leave_type.name }}</dd>
+            <dt class="col-3">Start</dt><dd class="col-9">{{ obj.start_date|date:"Y-m-d" }}</dd>
+            <dt class="col-3">End</dt><dd class="col-9">{{ obj.end_date|date:"Y-m-d" }}</dd>
+            <dt class="col-3">Days</dt><dd class="col-9">{{ obj.days_requested }}</dd>
+            <dt class="col-3">Submitted</dt><dd class="col-9">{{ obj.submitted_at|date:"Y-m-d H:i"|default:"-" }}</dd>
+            <dt class="col-3">Decided By</dt><dd class="col-9">{{ obj.decided_by|default:"-" }}</dd>
+            <dt class="col-3">Decided At</dt><dd class="col-9">{{ obj.decided_at|date:"Y-m-d H:i"|default:"-" }}</dd>
+            <dt class="col-3">Reason</dt><dd class="col-9">{{ obj.reason|linebreaksbr|default:"-" }}</dd>
+            <dt class="col-3">Decision Notes</dt><dd class="col-9">{{ obj.decision_notes|linebreaksbr|default:"-" }}</dd>
+            {% if obj.attachment %}
+            <dt class="col-3">Attachment</dt><dd class="col-9"><a href="{{ obj.attachment.url }}" target="_blank">Download</a></dd>
+            {% endif %}
+        </dl>
+    </div></div></div>
+</div>
+{% endblock %}
