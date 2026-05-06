@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.assessment_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.assessment_number }}</h4>
+        <div class="text-muted small">{{ obj.employee.employee_number }} - {{ obj.employee.full_name }} &bull; vs {{ obj.position.title }} &bull; {{ obj.assessed_at|date:"Y-m-d" }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:assessment_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if obj.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'labor:assessment_complete' obj.pk %}" onsubmit="return confirm('Complete this assessment?');">{% csrf_token %}<button class="btn btn-success"><i class="ri-check-line me-1"></i> Complete</button></form>
+        <a href="{% url 'labor:assessment_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6 class="card-title">Summary</h6>
+        <dl class="row mb-0 small">
+            <dt class="col-5">Status</dt><dd class="col-7"><span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+            <dt class="col-5">Overall Score</dt><dd class="col-7 fw-bold">{{ overall }}</dd>
+            <dt class="col-5">Position</dt><dd class="col-7">{{ obj.position.title }}</dd>
+            <dt class="col-5">Assessed By</dt><dd class="col-7">{{ obj.assessor|default:"-" }}</dd>
+            <dt class="col-5">Notes</dt><dd class="col-7">{{ obj.notes|linebreaksbr|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+
+    <div class="col-md-8"><div class="card"><div class="card-body">
+        <h6 class="card-title">Skill Results</h6>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Skill</th><th>Expected</th><th>Actual</th><th>Gap</th><th></th></tr></thead>
+            <tbody>
+            {% for r in results %}<tr>
+                <td class="small">{{ r.skill.code }} - {{ r.skill.name }}</td>
+                <td class="small text-center">L{{ r.expected_level }}</td>
+                <td class="small text-center">L{{ r.actual_level }}</td>
+                <td><span class="badge bg-{% if r.gap > 0 %}danger-subtle text-danger{% elif r.gap < 0 %}success-subtle text-success{% else %}secondary-subtle text-secondary{% endif %}">{{ r.gap }}</span></td>
+                <td class="text-end">{% if obj.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'labor:assessment_result_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No skill results yet. Add at least one before completing.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+
+        {% if obj.status == 'draft' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <hr><h6 class="card-title">Add Skill Result</h6>
+        <form method="post" action="{% url 'labor:assessment_result_create' obj.pk %}">{% csrf_token %}
+            {{ result_form|crispy }}
+            <button type="submit" class="btn btn-primary btn-sm"><i class="ri-add-line me-1"></i> Add Result</button>
+        </form>
+        {% endif %}
+    </div></div></div>
+</div>
+{% endblock %}
