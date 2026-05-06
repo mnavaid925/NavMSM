@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.entry_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ obj.entry_number }}</h4>
+    <div class="text-muted small">{{ obj.get_entry_type_display }} on {{ obj.job.job_number }}</div></div>
+    <a href="{% url 'cost:job_detail' obj.job.pk %}" class="btn btn-sm btn-outline-secondary">Back to Job</a>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-sm-3">Amount</dt><dd class="col-sm-9">{{ obj.amount|floatformat:2 }}</dd>
+    <dt class="col-sm-3">Quantity</dt><dd class="col-sm-9">{{ obj.quantity|floatformat:4 }} {{ obj.unit_of_measure }}</dd>
+    <dt class="col-sm-3">Date</dt><dd class="col-sm-9">{{ obj.entry_date|date:"Y-m-d H:i" }}</dd>
+    <dt class="col-sm-3">Cost Center</dt><dd class="col-sm-9">{{ obj.cost_center|default:"-" }}</dd>
+    <dt class="col-sm-3">Routing Op</dt><dd class="col-sm-9">{{ obj.routing_operation|default:"-" }}</dd>
+    <dt class="col-sm-3">Source</dt><dd class="col-sm-9">
+        {% if obj.source_movement %}stock movement #{{ obj.source_movement_id }}{% endif %}
+        {% if obj.source_labor_booking %}labor booking {{ obj.source_labor_booking.booking_number }}{% endif %}
+        {% if obj.source_production_report %}production report #{{ obj.source_production_report_id }}{% endif %}
+        {% if obj.source_overhead_allocation %}{{ obj.source_overhead_allocation.allocation_number }}{% endif %}
+        {% if not obj.source_movement and not obj.source_labor_booking and not obj.source_production_report and not obj.source_overhead_allocation %}manual{% endif %}
+    </dd>
+    <dt class="col-sm-3">Reversal?</dt><dd class="col-sm-9">{% if obj.is_reversal %}Yes{% else %}No{% endif %}</dd>
+    <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ obj.notes|default:"-"|linebreaks }}</dd>
+</dl>
+</div></div>
+{% endblock %}
