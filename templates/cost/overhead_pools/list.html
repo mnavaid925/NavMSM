@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Overhead Pools{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Overhead Pools</h4><div class="text-muted small">Indirect cost buckets (rent, utilities, supervision, ...).</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'cost:pool_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Pool</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or name..."></div>
+    <div class="col-md-3"><select name="pool_type" class="form-select"><option value="">All types</option>
+        {% for v,l in pool_type_choices %}<option value="{{ v }}" {% if request.GET.pool_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Method</th><th>Default Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for p in page %}
+        <tr>
+            <td class="small fw-semibold">{{ p.code }}</td><td class="small">{{ p.name }}</td>
+            <td class="small">{{ p.get_pool_type_display }}</td><td class="small">{{ p.get_allocation_method_display }}</td>
+            <td class="small">{{ p.default_driver.code }}</td>
+            <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'cost:pool_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'cost:pool_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete pool?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            {% endif %}</td>
+        </tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No pools yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
