@@ -88,6 +88,11 @@ class Asset(TenantAwareModel, TimeStampedModel):
         max_length=255, blank=True,
         help_text='Free-text location within the warehouse (e.g. "Shop floor bay 3").',
     )
+    cost_center = models.ForeignKey(
+        'labor.CostCenter', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assets',
+        help_text='Drives indirect-labor allocation when MWO labor is logged.',
+    )
     manufacturer = models.CharField(max_length=200, blank=True)
     model_number = models.CharField(max_length=120, blank=True)
     serial_number = models.CharField(max_length=120, blank=True)
