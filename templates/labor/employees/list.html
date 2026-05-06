@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Employees{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Employees</h4><div class="text-muted small">Workforce master records.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:employee_create' %}" class="btn btn-primary"><i class="ri-user-add-line me-1"></i> Add Employee</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number, name, email..."></div>
+    <div class="col-md-2"><select name="department" class="form-select">
+        <option value="">Department (any)</option>
+        {% for d in departments %}<option value="{{ d.pk }}" {% if request.GET.department == d.pk|stringformat:"d" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="position" class="form-select">
+        <option value="">Position (any)</option>
+        {% for p in positions %}<option value="{{ p.pk }}" {% if request.GET.position == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.title }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="status" class="form-select">
+        <option value="">Status (any)</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Name</th><th>Department</th><th>Position</th><th>Type</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for e in page %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'labor:employee_detail' e.pk %}">{{ e.employee_number }}</a></td>
+            <td class="small">{{ e.full_name }}</td>
+            <td class="small">{{ e.department.name }}</td>
+            <td class="small">{{ e.position.title }}</td>
+            <td><span class="badge bg-info-subtle text-info">{{ e.get_employment_type_display }}</span></td>
+            <td><span class="badge bg-{% if e.status == 'active' %}success-subtle text-success{% elif e.status == 'on_leave' %}info-subtle text-info{% elif e.status == 'terminated' %}danger-subtle text-danger{% else %}warning-subtle text-warning{% endif %}">{{ e.get_status_display }}</span></td>
+            <td class="text-end">
+                <a href="{% url 'labor:employee_detail' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'labor:employee_edit' e.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:employee_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete employee {{ e.employee_number }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No employees yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
