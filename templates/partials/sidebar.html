@@ -225,6 +225,41 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarLabor" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-team-line"></i> <span>Labor &amp; Workforce</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarLabor" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'labor:index' %}" class="nav-link">Labor Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:employee_list' %}" class="nav-link">Employees</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:department_list' %}" class="nav-link">Departments</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:position_list' %}" class="nav-link">Positions</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:skill_list' %}" class="nav-link">Skills</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:skills_matrix' %}" class="nav-link">Skills Matrix</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:certification_list' %}" class="nav-link">Certifications</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:shift_list' %}" class="nav-link">Shifts</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:roster_list' %}" class="nav-link">Shift Rosters</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:attendance_list' %}" class="nav-link">Attendance</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:leave_type_list' %}" class="nav-link">Leave Types</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:leave_request_list' %}" class="nav-link">Leave Requests</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:holiday_list' %}" class="nav-link">Holidays</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:cost_center_list' %}" class="nav-link">Cost Centers</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:labor_rate_list' %}" class="nav-link">Labor Rates</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:labor_booking_list' %}" class="nav-link">Labor Bookings</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:program_list' %}" class="nav-link">Training Programs</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:plan_list' %}" class="nav-link">Training Plans</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:session_list' %}" class="nav-link">Training Sessions</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:assessment_list' %}" class="nav-link">Competency Assessments</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:scheme_list' %}" class="nav-link">Incentive Schemes</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:period_list' %}" class="nav-link">Incentive Periods</a></li>
+                            <li class="nav-item"><a href="{% url 'labor:run_list' %}" class="nav-link">Incentive Runs</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'supplier' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
