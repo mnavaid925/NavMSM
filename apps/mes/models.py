@@ -228,6 +228,11 @@ class ShopFloorOperator(TenantAwareModel, TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name='shop_floor_operator',
     )
+    employee = models.OneToOneField(
+        'labor.Employee', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='shop_floor_operator',
+        help_text='Soft link to labor.Employee; enables labor-cost cross-module hooks.',
+    )
     badge_number = models.CharField(max_length=15)
     default_work_center = models.ForeignKey(
         WorkCenter, on_delete=models.SET_NULL, null=True, blank=True,
