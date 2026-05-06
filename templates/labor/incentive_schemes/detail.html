@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.code }} - {{ obj.name }}</h4>
+        <div class="text-muted small">{{ obj.get_scheme_type_display }} &bull; {{ obj.effective_from|date:"Y-m-d" }} -> {{ obj.effective_to|date:"Y-m-d"|default:"open" }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:scheme_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'labor:scheme_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+<h5 class="card-title">Piece Rates</h5>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Product</th><th>Operation</th><th>Rate / Unit</th><th>Min Qty</th><th>Max Qty</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rates %}<tr>
+        <td class="small">{{ r.product.sku|default:"-" }}{% if r.product %} ({{ r.product.name|truncatechars:30 }}){% endif %}</td>
+        <td class="small">{{ r.operation|default:"-" }}</td>
+        <td class="small fw-semibold">{{ r.rate_per_unit }}</td>
+        <td class="small">{{ r.min_quantity }}</td>
+        <td class="small">{{ r.max_quantity|default:"-" }}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'labor:scheme_rate_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No rates yet.</td></tr>{% endfor %}
+    </tbody>
+</table>
+
+{% if request.user.is_tenant_admin or request.user.is_superuser %}
+<hr><h6 class="card-title">Add Piece Rate</h6>
+<form method="post" action="{% url 'labor:scheme_rate_create' obj.pk %}">{% csrf_token %}
+    {{ rate_form|crispy }}
+    <button type="submit" class="btn btn-primary btn-sm"><i class="ri-add-line me-1"></i> Add Rate</button>
+</form>
+{% endif %}
+</div></div>
+{% endblock %}
