@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Standard Costs{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Standard Costs</h4><div class="text-muted small">Per-product frozen costs across versions.</div></div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="version" class="form-select"><option value="">All versions</option>
+        {% for v in versions %}<option value="{{ v.pk }}" {% if request.GET.version == v.pk|stringformat:"d" %}selected{% endif %}>{{ v.version_number }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><select name="product" class="form-select"><option value="">All products</option>
+        {% for p in products %}<option value="{{ p.pk }}" {% if request.GET.product == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.sku }} - {{ p.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Version</th><th>SKU</th><th>Product</th><th class="text-end">Material</th><th class="text-end">Labor</th><th class="text-end">Overhead</th><th class="text-end">Total</th><th>Source</th></tr></thead>
+    <tbody>
+    {% for c in page %}
+        <tr>
+            <td class="small"><a href="{% url 'cost:version_detail' c.version.pk %}">{{ c.version.version_number }}</a></td>
+            <td class="small fw-semibold">{{ c.product.sku }}</td>
+            <td class="small">{{ c.product.name }}</td>
+            <td class="small text-end">{{ c.material_cost|floatformat:4 }}</td>
+            <td class="small text-end">{{ c.labor_cost|floatformat:4 }}</td>
+            <td class="small text-end">{{ c.overhead_cost|floatformat:4 }}</td>
+            <td class="small text-end fw-semibold">{{ c.total_cost|floatformat:4 }}</td>
+            <td class="small">{{ c.get_source_display }}</td>
+        </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No standard costs.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
