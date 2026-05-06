@@ -18,6 +18,7 @@ urlpatterns = [
     path('inventory/', include('apps.inventory.urls')),
     path('procurement/', include('apps.procurement.urls')),
     path('eam/', include('apps.eam.urls')),
+    path('labor/', include('apps.labor.urls')),
 ]
 
 if settings.DEBUG:
