@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Period{% else %}Edit Period{% endif %}{% endblock %}
+{% block content %}
+<div class="page-title"><h4>{% if mode == 'create' %}New Accounting Period{% else %}Edit Accounting Period{% endif %}</h4></div>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex gap-2 mt-3"><button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button><a href="{% url 'cost:period_list' %}" class="btn btn-outline-secondary">Cancel</a></div>
+</form>
+</div></div>
+{% endblock %}
