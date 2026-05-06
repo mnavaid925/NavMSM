@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'reject' %}Reject{% else %}Cancel{% endif %} {{ obj.request_number }}{% endblock %}
+{% block content %}
+<div class="page-title"><h4>{% if mode == 'reject' %}Reject{% else %}Cancel{% endif %} Leave Request {{ obj.request_number }}</h4>
+    <div class="text-muted small">{{ obj.employee.employee_number }} - {{ obj.employee.full_name }} &bull; {{ obj.leave_type.name }} &bull; {{ obj.start_date|date:"M d" }} -> {{ obj.end_date|date:"M d" }}</div>
+</div>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}
+    {{ form|crispy }}
+    <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-{% if mode == 'reject' %}danger{% else %}warning{% endif %}"><i class="ri-{% if mode == 'reject' %}close-line{% else %}close-circle-line{% endif %} me-1"></i> Confirm {% if mode == 'reject' %}Reject{% else %}Cancel{% endif %}</button>
+        <a href="{% url 'labor:leave_request_detail' obj.pk %}" class="btn btn-outline-secondary">Back</a>
+    </div>
+</form>
+</div></div>
+{% endblock %}
