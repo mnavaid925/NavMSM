@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Holidays{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Holiday Calendar</h4><div class="text-muted small">Tenant calendar of paid holidays.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:holiday_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Holiday</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2"><input type="number" name="year" value="{{ request.GET.year }}" class="form-control" placeholder="Year"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Date</th><th>Name</th><th>Recurring</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for h in page %}
+        <tr>
+            <td class="small fw-semibold">{{ h.holiday_date|date:"Y-m-d" }}</td>
+            <td class="small">{{ h.name }}</td>
+            <td class="small">{{ h.is_recurring|yesno:"Yes,No" }}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'labor:holiday_edit' h.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:holiday_delete' h.pk %}" style="display:inline" onsubmit="return confirm('Delete holiday?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No holidays yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
