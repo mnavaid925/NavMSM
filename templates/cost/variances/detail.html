@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.variance_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ obj.variance_number }}</h4>
+    <div class="text-muted small">{{ obj.production_order }} vs. {{ obj.version.version_number }}</div></div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'cost:variance_recompute' obj.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-info"><i class="ri-refresh-line me-1"></i> Recompute</button></form>
+        <a href="{% url 'cost:variance_edit' obj.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+        {% endif %}
+        <a href="{% url 'cost:variance_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+<div class="card"><div class="card-body">
+<table class="table align-middle">
+    <thead><tr><th>Variance Axis</th><th class="text-end">Amount</th></tr></thead>
+    <tbody>
+    <tr><td>Material Price</td><td class="text-end {% if obj.material_price_variance > 0 %}text-danger{% elif obj.material_price_variance < 0 %}text-success{% endif %}">{{ obj.material_price_variance|floatformat:2 }}</td></tr>
+    <tr><td>Material Usage</td><td class="text-end {% if obj.material_usage_variance > 0 %}text-danger{% elif obj.material_usage_variance < 0 %}text-success{% endif %}">{{ obj.material_usage_variance|floatformat:2 }}</td></tr>
+    <tr><td>Labor Rate</td><td class="text-end {% if obj.labor_rate_variance > 0 %}text-danger{% elif obj.labor_rate_variance < 0 %}text-success{% endif %}">{{ obj.labor_rate_variance|floatformat:2 }}</td></tr>
+    <tr><td>Labor Efficiency</td><td class="text-end {% if obj.labor_efficiency_variance > 0 %}text-danger{% elif obj.labor_efficiency_variance < 0 %}text-success{% endif %}">{{ obj.labor_efficiency_variance|floatformat:2 }}</td></tr>
+    <tr><td>Overhead Spending</td><td class="text-end {% if obj.overhead_spending_variance > 0 %}text-danger{% elif obj.overhead_spending_variance < 0 %}text-success{% endif %}">{{ obj.overhead_spending_variance|floatformat:2 }}</td></tr>
+    <tr><td>Overhead Volume</td><td class="text-end {% if obj.overhead_volume_variance > 0 %}text-danger{% elif obj.overhead_volume_variance < 0 %}text-success{% endif %}">{{ obj.overhead_volume_variance|floatformat:2 }}</td></tr>
+    <tr class="table-active"><td class="fw-semibold">Total Variance</td><td class="text-end fw-semibold {% if obj.total_variance > 0 %}text-danger{% elif obj.total_variance < 0 %}text-success{% endif %}">{{ obj.total_variance|floatformat:2 }}</td></tr>
+    </tbody>
+</table>
+{% if obj.analysis_notes %}<div class="mt-3"><strong>Notes:</strong><div class="text-muted">{{ obj.analysis_notes|linebreaks }}</div></div>{% endif %}
+<div class="text-muted small mt-3">Analyzed by {{ obj.analyzed_by|default:"-" }} at {{ obj.analyzed_at|date:"Y-m-d H:i" }}</div>
+</div></div>
+{% endblock %}
