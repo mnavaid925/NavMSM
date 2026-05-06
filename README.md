@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, and **Module 11 — Labor & Workforce Management**. The remaining 11 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, and **Module 12 — Cost Management & Accounting**. The remaining 10 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -30,7 +30,8 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 20. [Module 9 — Procurement & Supplier Portal](#module-9--procurement--supplier-portal)
 21. [Module 10 — Equipment & Asset Management (EAM)](#module-10--equipment--asset-management-eam)
 22. [Module 11 — Labor & Workforce Management](#module-11--labor--workforce-management)
-23. [UI / Theme Customization](#ui--theme-customization)
+23. [Module 12 — Cost Management & Accounting](#module-12--cost-management--accounting)
+24. [UI / Theme Customization](#ui--theme-customization)
 18. [Management Commands](#management-commands)
 19. [Payment Gateway Integration](#payment-gateway-integration)
 20. [Security Notes](#security-notes)
@@ -54,6 +55,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 8 — Inventory & Warehouse Management** — multi-warehouse tree (Warehouse → Zone → Bin) with `is_default` flag for auto-emit routing, ABC velocity classes on bins; goods receipt notes (auto-numbered `GRN-00001`) with line-level lot/serial capture, optional `qms.IncomingInspection` link, and four putaway strategies (`fixed_bin / nearest_empty / abc_zone / directed`); append-only `StockMovement` ledger covering eight movement types written exclusively through `services/movements.post_movement()` so `StockItem` denorms stay consistent; inter-warehouse transfers (auto `TRF-00001`) with `draft → in_transit → received` workflow that posts an issue + receipt pair, plus stock adjustments (auto `ADJ-00001`, admin-only) that emit one variance movement per line; cycle-count plans + sheets (auto `CC-00001`) with FIFO/FEFO allocation services and ABC Pareto classification, variance recount-trigger on >5%; lot/serial traceability with `Product.tracking_mode` enum (`none / lot / serial / lot_and_serial`), expiry tracking with red/yellow row tinting at 30 / 0 days, and per-lot stock + movement history; **automatic `production_in` movement emission** when `mes.ProductionReport` is filed (signal-based, idempotent, silently skipped when no default warehouse is configured) plus `pre_delete` reversal so the ledger never drifts.
 - **Module 10 — Equipment & Asset Management (EAM)** — asset master (auto `ASSET-00001`) with parent-child hierarchy (`CNC-LATHE-01 → SPINDLE-01`), 6-level taxonomy of `AssetCategory` rows, optional `inventory.Warehouse` location FK, criticality / status enums, append-only `AssetMeterReading` ledger (hours / cycles / mileage / kWh) and per-asset `AssetSparePart` linkage to `plm.Product`; preventive maintenance plans with calendar / meter / both triggers, ordered checklist `MaintenanceTask` rows, idempotent `generate_pm_schedules` management command + on-demand `Generate Upcoming` button that materialises future `PMSchedule` rows (auto `PMS-00001`) via the pure `services/pm_scheduler.py`; predictive maintenance with sensor-style `ConditionMonitoringPoint` (vibration / temperature / pressure / current / oil-quality) and append-only `ConditionReading` rows auto-classified `normal / warning / critical` by the heuristic `services/prediction.py`, and a post-save signal that auto-spawns `FailurePrediction` rows on critical readings (with idempotency against existing open predictions); `MaintenanceWorkOrder` (auto `MWO-00001`) with `breakdown / preventive / corrective / predictive / inspection` types, `draft → scheduled → in_progress → on_hold → completed → cancelled` workflow guarded by L-03 view/template parity, race-safe conditional `UPDATE`, append-only `MWOLaborLog` (auto-computed minutes + total cost) + `MWOMaterialLog` (with optional `inventory.StockMovement` FK), and per-asset `DowntimeEvent` ledger that auto-refreshes the parent MWO's `downtime_minutes` denorm; tool & die management with `Tool` (auto `TOOL-00001`, types `mold / die / jig / fixture / cutting_tool / gauge`), append-only `ToolUsageLog` + atomic denorm bump via `services/tool_life.py`, `ToolMaintenanceRecord` for sharpening / cleaning / repair / calibration / inspection (with 25 MB attachment cap, allowlist `.pdf .png .jpg .jpeg`), and per-cavity `MoldCavityHistory` for mold-type tools; cross-module hooks: an `mes.AndonAlert(type='equipment', asset=<asset>)` post-save auto-creates a draft breakdown MWO (idempotent via `source_andon`), and a `mes.ProductionReport` post-save against an op whose work order has `tool=<tool>` set auto-emits a `ToolUsageLog` plus atomic `Tool.current_cycles` bump.
 - **Module 9 — Procurement & Supplier Portal** — supplier master with code/risk/approval flags (8 seeded per tenant); purchase orders (auto `PUR-00001`) with full `draft → submitted → approved → acknowledged → in_progress → received → closed` workflow, line-level tax/discount/total denorms, race-safe conditional UPDATE on every transition, immutable `PurchaseOrderRevision` snapshots on every Revise action, and append-only approval log; multi-round RFQs (auto `RFQ-00001`) with invited-supplier matrix, side-by-side quote comparison view, and one-click Award action that optionally drafts a real PO from the winning quotation; supplier scorecards with weighted overall score (40% OTD + 40% Quality + 10% Responsiveness + 10% Price) computed by a pure-function service from append-only `SupplierMetricEvent` rows; **cross-module event hooks** that auto-emit OTD events when `inventory.GoodsReceiptNote` flips to completed and quality pass/fail events when `qms.IncomingInspection` is accepted/rejected; supplier self-service portal (role=`supplier` user with `supplier_company` FK) for ASN submission (auto `ASN-00001`), invoice upload (auto `SUPINV-00001`, 25 MB attachment cap), and own-PO visibility — every portal queryset is scoped to `request.user.supplier_company`; long-term blanket orders (auto `BPO-00001`) with periodic schedule releases (auto `REL-00001`) that consume the parent commitment via a race-safe conditional UPDATE so concurrent releases can never overdraw.
+- **Module 12 — Cost Management & Accounting** — standard costing with effective-dated `StandardCostVersion` (auto `SCV-00001`) + per-product `StandardCost` rows recomputable from `bom.BOMCostRollup`; actual cost tracking via `ActualCost` rollups per production order + 6-axis `CostVariance` (auto `VAR-00001`: material price/usage, labor rate/efficiency, overhead spending/volume); WIP accounting with one `JobCost` (auto `JC-00001`) per `pps.ProductionOrder` and an append-only `WIPEntry` ledger (auto `WIP-00001`) covering material_issued / labor_applied / overhead_applied / completion / variance / adjustment with operation-wise rollup; ABC overhead allocation via `CostDriver` / `OverheadPool` / `OverheadRate` / `DriverActuals` / `OverheadAllocation` (auto `OHA-00001`) with idempotent `apply_overhead(period)` orchestrator and reverse path; manufacturing financial reports — `AccountingPeriod` (auto `ACP-00001`) with `open → locked → closed` workflow, `COGMReport` (auto `COGM-00001` = opening WIP + DM + DL + OH applied − closing WIP), per-product `GrossMarginReport` (revenue − cogs), and `PlantPnLReport` (revenue − COGM − SG&A − unallocated overhead); cross-module hooks: `labor.LaborBooking(kind=direct)` post_save → `WIPEntry(labor_applied)` (idempotent on `(source_labor_booking, entry_type)`); `labor.LaborBooking(kind=indirect)` → `OverheadActualPool` accumulation; `mes.ProductionReport(good_qty>0)` → `WIPEntry(completion)` at standard cost (with `pre_delete` reversal); ApexCharts dashboard with COGM stacked-bar trend + variance bar.
 - **Module 11 — Labor & Workforce Management** — workforce master with auto-numbered `EMP-00001` employees, departments + positions + skills + certifications with expiry tracking; time & attendance with shifts, rosters, attendance records, leave types, leave requests (auto `LR-00001`) with `draft → submitted → approved / rejected → cancelled` workflow, and a tenant-level holiday calendar; labor cost allocation with cost centers, employee labor rates, and an append-only `LaborBooking` ledger (auto `LB-00001`) auto-emitted from `mes.OperatorTimeLog stop_job` (direct labor) and `eam.MWOLaborLog` (indirect labor) — both idempotent via natural-key dedup; training & competency management with programs, per-employee training plans, sessions (auto `TS-00001`) with attendance tracking, and competency assessments (auto `CA-00001`) with skill-gap analysis; incentive & piece-rate calculation with schemes, per-product / per-operation piece rates, monthly periods (`open → locked → paid`), and runs (auto `INC-00001`) that scan `mes.ProductionReport` rows and accumulate `IncentiveLine` totals with idempotent rerun; cross-module hooks: `mes.ShopFloorOperator.employee → labor.Employee` (soft link), `plm.Product.cost_center → labor.CostCenter`, `eam.Asset.cost_center → labor.CostCenter`. ApexCharts dashboard with attendance % trend (30d) + labor-cost-by-cost-center donut.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
@@ -294,6 +296,33 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/labor/incentive-schemes/` and `<pk>/` | Scheme catalog + detail with inline piece-rate CRUD; M2M to applicable employees / products / positions |
 | `/labor/incentive-periods/` | Calculation-window catalog with `open → locked → paid` workflow |
 | `/labor/incentive-runs/` and `<pk>/` | Per-period batch calculation (auto `INC-00001`) with Run / Discard workflow; Run scans `mes.ProductionReport` rows in the period, applies the matching `PieceRate`, and materializes idempotent `IncentiveLine` rows (M2M back to source reports for traceability) |
+| `/cost/` | Cost & Accounting dashboard — KPI cards (active version, open jobs, closed jobs MTD, open periods, total WIP balance), ApexCharts COGM stacked trend + variance bar, recent allocations / variances / COGM tables |
+| `/cost/standard-versions/` and `<pk>/` | Standard cost version list + detail with per-product `StandardCost` rows and Approve / Activate / Archive / Recompute / Add Cost buttons; auto-archives prior active on activation |
+| `/cost/standard-versions/<pk>/approve/` · `/activate/` · `/archive/` · `/recompute/` | POST — version workflow + recompute_from_bom service action |
+| `/cost/standard-versions/compare/` | Side-by-side diff of two versions (`?v1=&v2=`) sorted by absolute delta descending |
+| `/cost/standard-costs/` | Flat StandardCost list with version + product filters |
+| `/cost/standard-costs/<pk>/edit/` · `/delete/` | StandardCost row edit / delete (gated to draft version) |
+| `/cost/actual-costs/` and `<pk>/` | ActualCost list + detail with live 6-axis variance vs. active standard |
+| `/cost/actual-costs/<po_pk>/recompute/` | POST — re-aggregate actuals from `JobCost` denorms |
+| `/cost/variances/` and `<pk>/` | CostVariance list + detail (auto `VAR-00001`) with Recompute action |
+| `/cost/jobs/` and `<pk>/` | JobCost list + detail with WIP ledger tab + operation-wise rollup tab and Close action (refuses non-zero balance unless `force`) |
+| `/cost/jobs/<pk>/close/` | POST — `wip_svc.close_job` invariant guard |
+| `/cost/wip-entries/` and `<pk>/` | Append-only WIP ledger list + detail (filter by entry type / job) |
+| `/cost/cost-drivers/` and CRUD | Activity driver catalog (machine_hours / direct_labor_hours / units / sq_ft / kwh) |
+| `/cost/overhead-pools/` and CRUD | Indirect cost pools with allocation method (abc / volume / direct_labor_hours / direct_labor_cost / machine_hours) |
+| `/cost/overhead-rates/` and CRUD | Period-scoped budgeted rate per pool (computed `rate_per_driver_unit = budget / qty`) |
+| `/cost/driver-actuals/` and CRUD | Driver consumption per period (XOR cost-center / production-order target) |
+| `/cost/overhead-allocations/` and `<pk>/` | Materialized allocations + Apply Overhead form |
+| `/cost/overhead-allocations/apply/` | POST — `apply_overhead(period)` (idempotent: clears prior + emits matching WIP entries for PO targets) |
+| `/cost/overhead-allocations/<pk>/reverse/` | POST — single-allocation reversal with required reason |
+| `/cost/periods/` and `<pk>/` | AccountingPeriod list + detail showing COGM / margin / P&L tiles |
+| `/cost/periods/<pk>/lock/` · `/close/` | POST — `open → locked → closed` workflow (close auto-generates COGM / margin / P&L reports) |
+| `/cost/cogm/` and `<pk>/` | COGMReport list + detail with horizontal bar chart of buckets and Print / PDF action |
+| `/cost/cogm/<period_pk>/generate/` | POST — `generate_cogm(period)` |
+| `/cost/gross-margin/` and `<pk>/` | Per-product per-period gross-margin rows |
+| `/cost/gross-margin/<period_pk>/generate/` | POST — `generate_gross_margin(period)` (scans `mes.ProductionReport.good_qty` × `ActualCost`) |
+| `/cost/plant-pnl/` and `<pk>/` | PlantPnLReport list + detail with Income Statement table + waterfall-style chart |
+| `/cost/plant-pnl/generate/` | POST — generate P&L with manual SG&A inputs |
 
 ---
 
@@ -607,6 +636,55 @@ NavMSM/
 │   │                                # ASNs, invoices, blanket + releases,
 │   │                                # scorecards) + 1 supplier-portal demo user
 │   │
+│   ├── cost/                     # MODULE 12 — Cost Management & Accounting
+│   │   ├── models.py             # StandardCostVersion, StandardCost,
+│   │   │                         # StandardCostHistory, CostDriver,
+│   │   │                         # OverheadPool, AccountingPeriod,
+│   │   │                         # OverheadRate, OverheadActualPool,
+│   │   │                         # DriverActuals, OverheadAllocation,
+│   │   │                         # JobCost, WIPEntry, ActualCost,
+│   │   │                         # CostVariance, COGMReport,
+│   │   │                         # GrossMarginReport, PlantPnLReport
+│   │   ├── services/
+│   │   │   ├── standard_costing.py # recompute_from_bom, compare_versions
+│   │   │   ├── actual_costing.py   # compute_actual, compute_variances
+│   │   │   ├── wip.py              # post_wip_entry, reverse_wip_entry,
+│   │   │   │                       # close_job, compute_operation_rollup
+│   │   │   ├── overhead.py         # apply_overhead, reverse_overhead,
+│   │   │   │                       # accumulate_indirect_labor, compute_rate
+│   │   │   └── reporting.py        # generate_cogm, generate_gross_margin,
+│   │   │                           # generate_plant_pnl
+│   │   ├── signals.py            # Audit factory (L-18 weak=False) for
+│   │   │                         # StandardCostVersion / AccountingPeriod /
+│   │   │                         # JobCost; cross-module hooks:
+│   │   │                         #   labor.LaborBooking(direct).post_save ->
+│   │   │                         #     WIPEntry(labor_applied),
+│   │   │                         #   labor.LaborBooking(indirect).post_save ->
+│   │   │                         #     OverheadActualPool accum,
+│   │   │                         #   mes.ProductionReport(good_qty>0).post_save ->
+│   │   │                         #     WIPEntry(completion) at standard cost
+│   │   │                         #   plus pre_delete reversal counterparts;
+│   │   │                         #   internal WIPEntry.pre_delete keeps
+│   │   │                         #   JobCost denorms consistent
+│   │   ├── forms.py              # ModelForms with L-01 unique_together,
+│   │   │                         # L-02 decimal validators (-1e10 floor for
+│   │   │                         # signed amounts, 0 for non-negative),
+│   │   │                         # L-14 per-workflow forms (approve / lock /
+│   │   │                         # reverse / close)
+│   │   ├── views.py              # Full CRUD + workflow + RBAC mixins +
+│   │   │                         # dashboard with ApexCharts
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   └── management/commands/
+│   │       └── seed_cost.py      # Idempotent demo data per tenant
+│   │                             # (3 periods, 5 drivers, 5 pools, 5 rates,
+│   │                             # 1 active std cost version with rows for
+│   │                             # all finished/sub-assembly products,
+│   │                             # JobCost per released/in-progress/completed
+│   │                             # PO with seeded WIP entries, applied
+│   │                             # overhead for the prior closed period,
+│   │                             # 1 COGM + per-product margin rows + P&L)
+│   │
 │   └── qms/                      # MODULE 7 — Quality Management (QMS)
 │       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
 │       │                         # IncomingInspection, InspectionMeasurement,
@@ -659,7 +737,8 @@ NavMSM/
 │   ├── inventory/                # index, warehouses/, zones/, bins/, stock_items/, grn/, movements/, transfers/, adjustments/, cycle_count_plans/, cycle_count_sheets/, lots/, serials/
 │   ├── procurement/              # index, suppliers/, po/, rfq/, quotations/, scorecards/, asn/, supplier_invoices/, blanket/, releases/, portal/
 │   ├── eam/                      # index, categories/, assets/, meter_readings/, pm_plans/, pm_schedules/, condition_points/, condition_readings/, failure_predictions/, mwo/, downtime/, tools/, tool_maintenance/
-│   └── labor/                    # index, departments/, positions/, employees/, skills/, skills_matrix/, certifications/, employee_certifications/, employee_documents/, employee_skills/, shifts/, shift_rosters/, attendance/, leave_types/, leave_requests/, holidays/, cost_centers/, labor_rates/, labor_bookings/, training_programs/, training_plans/, training_sessions/, training_attendance/, competency_assessments/, incentive_schemes/, piece_rates/, incentive_periods/, incentive_runs/
+│   ├── labor/                    # index, departments/, positions/, employees/, skills/, skills_matrix/, certifications/, employee_certifications/, employee_documents/, employee_skills/, shifts/, shift_rosters/, attendance/, leave_types/, leave_requests/, holidays/, cost_centers/, labor_rates/, labor_bookings/, training_programs/, training_plans/, training_sessions/, training_attendance/, competency_assessments/, incentive_schemes/, piece_rates/, incentive_periods/, incentive_runs/
+│   └── cost/                     # index, standard_versions/, standard_costs/, actual_costs/, variances/, jobs/, wip_entries/, cost_drivers/, overhead_pools/, overhead_rates/, driver_actuals/, overhead_allocations/, periods/, cogm/, gross_margin/, plant_pnl/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -805,6 +884,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 9 — Procurement)** — 8 `Supplier` rows (mix of approved/unapproved, mix of low/medium/high risk) each with 1 contact; 1 supplier-portal user (`supplier_<slug>_demo` / `Welcome@123`) attached to the first supplier; 4 `RequestForQuotation` rows (statuses: draft / issued / closed / awarded), the awarded one carries 3 `SupplierQuotation` rows + a `QuotationAward` pointing at the lowest bidder; 6 `PurchaseOrder` rows spanning every workflow status (draft / submitted / approved / acknowledged / in_progress / received), one of them carries 2 immutable `PurchaseOrderRevision` snapshots; 2 `SupplierASN` rows (1 in_transit, 1 received); 2 `SupplierInvoice` rows (1 under_review, 1 approved with payment ref); 1 `BlanketOrder` (active, 3 lines, 12-month horizon) with 2 `ScheduleRelease` rows (1 received with the per-line consumption denorm bumped, 1 currently released); ~80 `SupplierMetricEvent` rows back-filled across the previous calendar month (mix of OTD pass/fail + quality pass/fail); 1 `SupplierScorecard` per active supplier for the previous month with computed weighted overall score and rank.
 - **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
 - **Per tenant (Module 10 — EAM)** — 6 `AssetCategory` rows (Pumps, Motors, CNC Machines, Conveyor Systems, HVAC Equipment, Tooling); 10 `Asset` rows (auto `ASSET-00001`+) across 5 categories with mixed criticality (`PUMP-01`, `PUMP-02`, `MOTOR-01`, `MOTOR-02`, `CNC-LATHE-01` with `SPINDLE-01` as a sub-asset, `CNC-MILL-01`, `CONV-01`, `HVAC-01`, `COMP-01`); ~12 `AssetSparePart` rows linking critical/high assets to seeded `plm.Product` rows; 180 `AssetMeterReading` rows (30 days × 6 metered assets); 4 `MaintenancePlan`s (calendar / meter / both triggers) with 13 total `MaintenanceTask` rows + 3 future `PMSchedule` rows per plan via `generate_upcoming_pm`; 6 `ConditionMonitoringPoint`s on critical assets with 25 normal `ConditionReading` rows each, plus 1 deliberately critical reading on the first point so the post-save signal **auto-spawns a `FailurePrediction(status='open')`** (1 prediction per tenant); 3 `MaintenanceWorkOrder`s — 1 completed breakdown on a pump with full `MWOLaborLog` + `MWOMaterialLog` + `DowntimeEvent` (240 min unplanned downtime), 1 scheduled corrective on a motor, 1 in-progress preventive on a CNC; 2 `Tool` rows — 1 cutting tool (`TOOL-00001`) with 1 sharpening `ToolMaintenanceRecord` + 1 `ToolUsageLog`, plus 1 mold (`TOOL-00002`) with 4 `MoldCavityHistory` rows (one repaired, three active) + 1 cleaning `ToolMaintenanceRecord`.
+- **Per tenant (Module 12 — Cost)** — 3 `AccountingPeriod` rows (prev month closed, current month open, next month open), 5 `CostDriver` rows (machine_hours / direct_labor_hours / units / sq_ft / kwh), 5 `OverheadPool` rows (Factory Rent / Utilities / Supervision / Indirect Materials / Plant Insurance), `OverheadRate` rows for both prior and current period (10 total), 1 active `StandardCostVersion` (`SCV-00001`) with one `StandardCost` row per finished_good / sub_assembly product (~13 per tenant — pulled from `bom.BOMCostRollup` where present, else fallback Decimals); `JobCost` rows for every released / in-progress / completed `pps.ProductionOrder` (~4 per tenant) with seeded `WIPEntry` chains (material_issued + labor_applied + overhead_applied + completion on closed jobs); `apply_overhead(prev_period)` invoked to materialize ~11 `OverheadAllocation` rows; 1 `CostVariance` (`VAR-00001`) per closed-period job; `ActualCost` rollups for every job; 1 `COGMReport` (`COGM-00001`) for the prior period; 1 `PlantPnLReport` with seeded SG&A inputs (selling=800, G&A=1200, unallocated=200).
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -1768,6 +1848,113 @@ Run the Labor test suite with `pytest apps/labor/tests/` — uses [`config/setti
 
 ---
 
+## Module 12 — Cost Management & Accounting
+
+Module 12 is implemented in [`apps/cost/`](apps/cost/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` and every query is scoped via `request.tenant`. Cross-module hooks read from `labor.LaborBooking` + `mes.ProductionReport` (additive — Module 12 owns no schema changes outside its own app, except for one nullable `standard_sale_price` field on `plm.Product` for the gross-margin revenue placeholder).
+
+### Sub-module 12.1 — Standard Costing
+
+- **`StandardCostVersion`** — auto-numbered **`SCV-00001`** per tenant, effective-dated container with workflow `draft → approved → active → archived`. Activating a version auto-archives any prior `active` version on the same tenant.
+- **`StandardCost`** — per-product frozen cost row inside a version with `material_cost / labor_cost / overhead_cost / tooling_cost / subassembly_cost / total_cost` (denorm computed in `save()`). Source enum: `bom_rollup / manual / imported`. Unique per `(version, product)`.
+- **`StandardCostHistory`** — immutable revision log of changes to active versions.
+- [`services/standard_costing.recompute_from_bom(version)`](apps/cost/services/standard_costing.py) — pure-ish: reads `bom.BOMCostRollup` for each finished_good / sub_assembly product on the tenant and upserts `StandardCost` rows. Idempotent. Exposed as **Recompute from BOM** button on the version detail page.
+- [`services/standard_costing.compare_versions(v1, v2)`](apps/cost/services/standard_costing.py) — pure dict diff sorted by absolute delta descending. Used by the `/cost/standard-versions/compare/` view.
+
+### Sub-module 12.2 — Actual Cost Tracking & Variance
+
+- **`ActualCost`** — computed actual-cost rollup snapshot per `(production_order, as_of_date)`. Aggregates from the parent `JobCost` denorms when present, falling back to direct labor-booking + overhead-allocation aggregation otherwise. `total_cost` denorm.
+- **`CostVariance`** — auto-numbered **`VAR-00001`** with the canonical 6-axis breakdown: material price/usage, labor rate/efficiency, overhead spending/volume. `total_variance` denorm. Convention: positive = unfavorable (actual > standard); negative = favorable.
+- [`services/actual_costing.compute_actual(po, as_of_date)`](apps/cost/services/actual_costing.py) — idempotent upsert.
+- [`services/actual_costing.compute_variances(po, version)`](apps/cost/services/actual_costing.py) — uses a 60/40 split between price/usage and rate/efficiency in v1 (per-component qty + per-op minutes tracking deferred). Returns `None` when no `StandardCost` row exists for the version + product pair.
+
+### Sub-module 12.3 — Work in Process (WIP) Accounting
+
+- **`JobCost`** — auto-numbered **`JC-00001`**, one-to-one with `pps.ProductionOrder`. Status workflow: `open → closed`. Denorms `total_material / total_labor / total_overhead / total_completion_credit / wip_balance` are bumped atomically by `WIPEntry.save()` and rolled back by the internal `WIPEntry.pre_delete` signal.
+- **`WIPEntry`** — auto-numbered **`WIP-00001`**, append-only ledger with entry types `material_issued / labor_applied / overhead_applied / completion / variance / adjustment`. Optional `cost_center` + `routing_operation` FKs enable operation-wise rollup. Optional source FKs (`source_movement`, `source_labor_booking`, `source_production_report`, `source_overhead_allocation`) enable idempotent cross-module emission, with **partial unique constraints** on `(source_*, entry_type)` (Postgres only — MariaDB silently drops these per its `W036` warning, but the application-level guard in each signal handler is already idempotent).
+- [`services/wip.post_wip_entry(...)`](apps/cost/services/wip.py) — atomic ledger writer (mirrors `inventory.services.movements.post_movement`). Bumps the matching `JobCost` denorm under `select_for_update`.
+- [`services/wip.close_job(job, force=False)`](apps/cost/services/wip.py) — refuses non-zero balance unless `force=True` (admin must post an explicit `adjustment` entry first to balance).
+- [`services/wip.compute_operation_rollup(job)`](apps/cost/services/wip.py) — pure aggregation: `WIPEntry` rows grouped by `routing_operation` for the operation-wise cost report rendered on the job detail page.
+
+### Sub-module 12.4 — Overhead Allocation
+
+- **`CostDriver`** — tenant catalog of activity drivers (machine_hours, direct_labor_hours, units, sq_ft, kwh).
+- **`OverheadPool`** — indirect cost pool (Factory Rent, Utilities, Supervision, Indirect Materials, Plant Insurance) with `pool_type` (`fixed / variable / semi_variable`) and `allocation_method` (`abc / volume / direct_labor_hours / direct_labor_cost / machine_hours`).
+- **`OverheadRate`** — per-period budgeted rate per pool. Computed `rate_per_driver_unit = budgeted_amount / budgeted_driver_qty` on `save()`.
+- **`OverheadActualPool`** — period rollup of actual indirect spend per pool. Fed by `labor.LaborBooking(kind='indirect')` accumulation via the `accumulate_indirect_labor` service.
+- **`DriverActuals`** — recorded driver consumption per period (XOR `cost_center` / `production_order` target — form-level guard).
+- **`OverheadAllocation`** — auto-numbered **`OHA-00001`** materialized allocation. Computed `applied_amount = driver_qty × rate_applied`.
+- [`services/overhead.apply_overhead(period)`](apps/cost/services/overhead.py) — orchestrator: scans `DriverActuals` for the period, applies the matching `OverheadRate`, materializes `OverheadAllocation` rows, and auto-emits matching `WIPEntry(overhead_applied)` rows for production-order targets. **Idempotent** — re-running clears prior allocations + WIP entries for the period and re-emits. Refuses on `closed` periods.
+- [`services/overhead.reverse_overhead(period, reason)`](apps/cost/services/overhead.py) — admin-only: marks all active allocations as reversed and emits offsetting WIP entries. Refused on closed periods.
+
+### Sub-module 12.5 — Manufacturing Financial Reports
+
+- **`AccountingPeriod`** — auto-numbered **`ACP-00001`** monthly (or quarterly) period with workflow `open → locked → closed`. Lock refuses new posts; close is irreversible and auto-generates the period's COGM / margin / P&L reports.
+- **`COGMReport`** — auto-numbered **`COGM-00001`** with computed `cogm = opening_wip + direct_materials + direct_labor + overhead_applied − closing_wip`.
+- **`GrossMarginReport`** — per-product per-period row with `revenue = units × sale_price`, `cogs = units × actual_cost_per_unit`, `gross_margin = revenue − cogs`, `margin_percent = gross_margin / revenue × 100`. Uses `plm.Product.standard_sale_price` (added by [`apps/plm/migrations/0004_product_standard_sale_price.py`](apps/plm/migrations/) as a **placeholder until Module 17 — Sales** lands).
+- **`PlantPnLReport`** — period-level P&L with `gross_profit = revenue − cogm`, `operating_income = gross_profit − selling − general_admin − unallocated_overhead`. SG&A and unallocated-overhead inputs are manual (no SG&A schema in v1).
+- All three reports render on the period detail page as compact tiles. The COGM detail page renders an ApexCharts horizontal bar of buckets; the P&L detail page renders a waterfall-style bar; both expose a **Print / PDF** action that uses the browser's print dialog (mirrors QMS CoA pattern).
+
+### Cross-module integration
+
+| Touched | Bridge | Migration |
+|---|---|---|
+| `apps.plm.Product` | Added nullable `standard_sale_price` (Decimal 14,4) for gross-margin revenue placeholder. | [`apps/plm/migrations/0004_product_standard_sale_price.py`](apps/plm/migrations/) |
+| `apps.bom.BOMCostRollup` | **Read-only consumer** — `recompute_from_bom` reads it; no schema change. | — |
+| `apps.pps.ProductionOrder` | **Read-only consumer** — `JobCost` references via one-to-one. | — |
+| `apps.labor.LaborBooking` | **Read-only consumer** — `WIPEntry.source_labor_booking` lives in cost app. | — |
+| `apps.mes.ProductionReport` | **Read-only consumer** — `WIPEntry.source_production_report` lives in cost app. | — |
+| Cross-module signal: `labor.LaborBooking.post_save (kind='direct')` | Resolves `source_time_log → work_order_operation → work_order → production_order`, get-or-creates the `JobCost`, posts `WIPEntry(labor_applied)`. Idempotent via the `(source_labor_booking, entry_type)` constraint + application-level existence check. | (signal in `apps/cost/signals.py`) |
+| Cross-module signal: `labor.LaborBooking.post_save (kind='indirect')` | Bumps `OverheadActualPool` for the matching open period + first active overhead pool. | (signal) |
+| Cross-module signal: `labor.LaborBooking.pre_delete` | Reverses the matching `WIPEntry`. | (signal) |
+| Cross-module signal: `mes.ProductionReport.post_save (good_qty > 0)` | Walks `work_order_operation → work_order → production_order`, looks up the active `StandardCost` for the product, posts `WIPEntry(completion)` at `good_qty × std_total`. Silently skipped when no active standard exists. | (signal) |
+| Cross-module signal: `mes.ProductionReport.pre_delete` | Reverses the matching completion entry. | (signal) |
+| Internal signal: `cost.WIPEntry.pre_delete` | Rolls back the parent `JobCost` denorm so manual deletes never drift. | (signal) |
+
+All cross-module hooks live in [`apps/cost/signals.py`](apps/cost/signals.py) so removing the cost app cleanly disables the events without orphan code in other apps.
+
+### Audit signals
+
+[`apps/cost/signals.py`](apps/cost/signals.py) wires `pre_save` + `post_save` audit emissions via the same `_mk_status_signals(model, action_prefix)` factory used by procurement / EAM / labor. **All factory-registered handlers connect with `weak=False`** (Lesson L-18). Audited models: `StandardCostVersion`, `AccountingPeriod`, `JobCost`. Audit actions follow `cost.<resource>.<status>` (e.g. `cost.std_version.approved`, `cost.period.closed`, `cost.job.closed`).
+
+### Validation guards (apply Lessons L-01, L-02, L-14)
+
+- Every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, …)` `unique_together` check (Lesson L-01): `CostDriverForm`, `OverheadPoolForm`, `AccountingPeriodForm` (on `(start_date, end_date)`), `StandardCostVersionForm`, `StandardCostForm` (on `(version, product)`), `OverheadRateForm` (on `(pool, period)`), `CostVarianceForm` (on `(production_order, version)`).
+- Every Decimal field carries explicit validators (Lesson L-02): `MinValueValidator(Decimal('0'))` on costs / amounts that cannot be negative; `MinValueValidator(Decimal('-99999999.9999'))` (effective `SIGNED` floor) on variance / signed-amount fields. `OverheadRate.budgeted_driver_qty` carries `MinValueValidator(Decimal('0.0001'))` so divide-by-zero is a form error rather than a runtime crash.
+- Per-workflow forms enforce per-transition required fields (Lesson L-14): `StandardCostVersionApproveForm.clean_notes()` requires non-empty notes; `OverheadReverseForm.clean_reversal_reason()` requires non-empty reason; `AccountingPeriodLockForm` requires `confirm=True`; `DriverActualsForm.clean()` enforces XOR of `cost_center` / `production_order`.
+
+### RBAC (L-10)
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, all list pages, detail pages, compare view, COGM / margin / P&L read | Authenticated tenant user | `TenantRequiredMixin` |
+| StandardCostVersion CRUD + approve / activate / archive / recompute; StandardCost CRUD; CostVariance CRUD + recompute; ActualCost recompute; JobCost CRUD + close; WIPEntry CRUD; CostDriver / OverheadPool / OverheadRate / DriverActuals CRUD; apply / reverse overhead; AccountingPeriod CRUD + lock / close; COGM / margin / P&L generate | Tenant admin | `TenantAdminRequiredMixin` |
+
+### Test suite
+
+Run the Cost test suite with `pytest apps/cost/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory). The suite covers:
+
+- **Model invariants + auto-numbering** (`SCV-`, `JC-`, `WIP-`, `OHA-`, `VAR-`, `ACP-`, `COGM-`) and denorm computations (`StandardCost.total_cost`, `OverheadRate.rate_per_driver_unit`, `OverheadAllocation.applied_amount`, `JobCost.wip_balance`, `COGMReport.cogm`, `GrossMarginReport.gross_margin / margin_percent`, `PlantPnLReport.gross_profit / operating_income`, `CostVariance.total_variance`).
+- **Form validation** — L-01 unique_together for every tenant-scoped form, L-02 bounds (zero `budgeted_driver_qty` rejected), L-14 per-workflow required (approve / lock / reverse), `DriverActualsForm` XOR (cost-center XOR production-order), date range validation on `StandardCostVersionForm` and `AccountingPeriodForm`.
+- **Pure-function services** — `recompute_from_bom`, `compare_versions`, `compute_actual`, `compute_variances`, `post_wip_entry` + denorm bump, `close_job` (zero / non-zero / force / already-closed paths), `reverse_wip_entry`, `compute_operation_rollup`, `compute_rate`, `apply_overhead` (idempotent rerun + closed-period refusal), `reverse_overhead`, `accumulate_indirect_labor`, `generate_cogm`, `generate_plant_pnl`.
+- **Cross-module signals** — `labor.LaborBooking(direct).post_save → WIPEntry(labor_applied)`, idempotent on double-save, with full chain `OperatorTimeLog → WorkOrderOperation → ProductionOrder → JobCost`; `mes.ProductionReport(good_qty>0).post_save → WIPEntry(completion)` at standard cost; `WIPEntry.pre_delete` rolls back `JobCost` denorms.
+- **Audit factory** — L-18 `dispatch_uid` presence guard; module-load smoke test.
+- **Security** — `TestRBACMatrix` (~9 admin-only POST/GET endpoints redirect for staff), `TestMultiTenantIDOR` (cross-tenant 404 on every detail / edit / delete URL), `TestAnonymousRedirect` (login redirect on every list URL — 17 URLs), workflow gating on edit-after-approve and close-only-from-locked.
+- **Views** — Full CRUD + workflow happy paths (create cost driver / period / version / pool + rate; version approve / activate auto-archives prior; period lock + close; create WIP entry via view; close job zero balance; recompute version; compare view; COGM / P&L generate views).
+
+**129 tests, ~50 s runtime.**
+
+### Out of scope (deferred)
+
+- **Double-entry GL integration** — single-sided typed entries in v1; double-entry deferred to Module 21 (API & Integration Gateway).
+- **Multi-currency** — single tenant currency in v1.
+- **Real revenue feed** — `GrossMarginReport.unit_sale_price` reads `plm.Product.standard_sale_price` placeholder; replaced with `SalesOrderLine` aggregates when Module 17 (Sales) ships.
+- **FIFO / Average / LIFO costing methods** — standard costing only in v1.
+- **Variance math precision** — v1 uses a 60/40 heuristic split between price/usage and rate/efficiency; full variance math requires per-component qty + per-op minutes tracking on `ActualCost`, deferred.
+- **Capex / Opex budgeting** — out of scope; deferred to Module 16 (BI & Analytics).
+- **Period-end audit roll-forward** — `WIPEntry` is append-only; once a period is closed, `WIPEntry` writes against that period's date range are still allowed on `JobCost` rows (no period-aware write guard yet). Tighten when audit-trail tampering becomes a risk.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -1805,8 +1992,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_procurement [--flush]` | Seed Procurement demo data (8 suppliers + 1 supplier-portal user, 4 RFQs incl. 1 awarded with 3 quotations, 6 POs across all statuses + 2 revisions, 2 ASNs, 2 invoices, 1 active blanket + 2 releases, ~80 metric events, 1 scorecard per supplier) per tenant |
 | `python manage.py seed_eam [--flush]` | Seed EAM demo data (6 asset categories, 10 assets incl. 1 parent-child pair, spare parts linked to plm.Product, 30 days of meter readings per metered asset, 4 PM plans with 13 tasks + 3 schedules each, 6 monitoring points with 25 readings + 1 deliberately critical that auto-spawns a FailurePrediction, 3 MWOs incl. 1 completed breakdown with labor + material + downtime, 2 tools incl. 1 mold with 4 cavities) per tenant |
 | `python manage.py seed_labor [--flush] [--tenant <slug>]` | Seed Labor & Workforce demo data per tenant (4 departments + Assembly sub-dept, 8 positions, 12 skills, 5 certifications, 20 employees with first 6 linked to mes.ShopFloorOperator, 3 shifts + 14-day roster + attendance, 5 leave types + 6 leave requests across statuses, 4 holidays, 5 cost centers, 20 labor rates, 30 labor bookings, 4 training programs + 8 plans + 2 sessions, 1 competency assessment with 5 results, 2 incentive schemes + 5 piece rates each + 1 open period + 1 completed run with 6 lines) |
+| `python manage.py seed_cost [--flush] [--tenant <slug>]` | Seed Cost Management & Accounting demo data per tenant (3 accounting periods, 5 cost drivers, 5 overhead pools + 10 rates, 1 active `StandardCostVersion` with ~13 cost rows pulled from BOM rollups, JobCost + WIPEntry chains for every released/in-progress/completed PO, applied overhead allocations for the prior period, 1 CostVariance per closed job, ActualCost rollups, 1 COGMReport + 1 PlantPnLReport for the prior period) |
 | `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -1818,6 +2006,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/inventory/tests/` | Run the Inventory test suite (101 tests, ~23 s; covers model invariants, services (post_movement, allocation, cycle_count math, putaway), audit + MES auto-emit signals, form validation, full CRUD + workflow smoke, RBAC matrix, multi-tenant IDOR) |
 | `pytest apps/procurement/tests/` | Run the Procurement test suite (70 tests, ~27 s; covers model invariants + decimal validators, form validation (L-01 unique_together, L-02 bounds, L-14 per-workflow required, blanket cumulative-consumption cap), pure-function services (snapshot_po, weighted compute_scorecard, consume_release with overdraw protection), audit + cross-module signals (GRN→SupplierMetricEvent, IQC→SupplierMetricEvent), CRUD smoke + workflow happy paths, RBAC matrix, multi-tenant IDOR, supplier-portal IDOR, anonymous-redirect) |
 | `pytest apps/labor/tests/` | Run the Labor & Workforce test suite (145 tests, ~36 s; covers model invariants + auto-numbering (EMP / LR / LB / TS / CA / INC) + decimal validators (L-02), denorm computations (worked_minutes, total_cost, amount, gap, cert status), form validation (L-01 unique_together, L-02 bounds, L-14 per-workflow required), pure-function services (attendance / cost_allocation / competency / piece_rate / scheduling), audit + L-18 dispatch_uid presence guard, cross-module hooks (eam.MWOLaborLog -> indirect LaborBooking with idempotency), CRUD smoke + LeaveRequest workflow + Employee terminate/reactivate, RBAC matrix on 20 admin-only endpoints, multi-tenant IDOR, anonymous-redirect) |
+| `pytest apps/cost/tests/` | Run the Cost Management & Accounting test suite (129 tests, ~50 s; covers model invariants + auto-numbering (SCV / JC / WIP / OHA / VAR / ACP / COGM) + denorm computations (StandardCost.total_cost / OverheadRate.rate_per_driver_unit / OverheadAllocation.applied_amount / JobCost.wip_balance / COGMReport.cogm / GrossMarginReport.gross_margin/margin_percent / PlantPnLReport.gross_profit/operating_income / CostVariance.total_variance), form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required, DriverActuals XOR, date range), pure-function services (recompute_from_bom, compare_versions, compute_actual, compute_variances, post_wip_entry, close_job, reverse_wip_entry, compute_operation_rollup, compute_rate, apply_overhead idempotent rerun + closed-period refusal, reverse_overhead, accumulate_indirect_labor, generate_cogm, generate_plant_pnl), cross-module hooks (labor.LaborBooking(direct) -> WIPEntry(labor_applied) with idempotency, mes.ProductionReport(good_qty) -> WIPEntry(completion) at standard cost), audit factory + L-18 dispatch_uid presence guard, RBAC matrix, multi-tenant IDOR, anonymous-redirect on 17 list URLs) |
 | `pytest apps/eam/tests/` | Run the EAM test suite (119 tests, ~58 s; covers model invariants + auto-numbering + decimal validators, form validation (L-01 unique_together for category / spare part / plan / point / cavity, L-02 decimal bounds, L-14 per-workflow required for MWO complete + prediction resolve + PM completion), pure-function services (`generate_upcoming_pm`, `classify_reading`, `compute_downtime`, `bump_tool_life`), audit signals + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, cross-module hooks (`mes.AndonAlert` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, anonymous-redirect) |
 
 ---
@@ -1863,7 +2052,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), **Module 8** (Inventory & Warehouse Management), and **Module 9** (Procurement & Supplier Portal). The 13 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), **Module 8** (Inventory & Warehouse Management), **Module 9** (Procurement & Supplier Portal), **Module 10** (Equipment & Asset Management / EAM), **Module 11** (Labor & Workforce Management), and **Module 12** (Cost Management & Accounting). The 10 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -1875,7 +2064,7 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 9. ~~Procurement & Supplier Portal~~ ✅ shipped
 10. ~~Equipment & Asset Management (EAM)~~ ✅ shipped
 11. ~~Labor & Workforce Management~~ ✅ shipped
-12. Cost Management & Accounting
+12. ~~Cost Management & Accounting~~ ✅ shipped
 13. Compliance & Regulatory
 14. Energy & Utility Management
 15. IoT & SCADA Integration
