@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Gross Margin {{ obj.product.sku }} / {{ obj.period.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Gross Margin: {{ obj.product.sku }} &mdash; {{ obj.period.name }}</h4></div>
+    <a href="{% url 'cost:margin_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-sm-4">Units Completed</dt><dd class="col-sm-8">{{ obj.units_completed|floatformat:2 }}</dd>
+    <dt class="col-sm-4">Standard Cost / Unit</dt><dd class="col-sm-8">{{ obj.standard_cost_per_unit|floatformat:4 }}</dd>
+    <dt class="col-sm-4">Actual Cost / Unit</dt><dd class="col-sm-8">{{ obj.actual_cost_per_unit|floatformat:4 }}</dd>
+    <dt class="col-sm-4">Sale Price / Unit</dt><dd class="col-sm-8">{{ obj.unit_sale_price|floatformat:4 }}</dd>
+    <dt class="col-sm-4">Revenue</dt><dd class="col-sm-8">{{ obj.revenue|floatformat:2 }}</dd>
+    <dt class="col-sm-4">COGS</dt><dd class="col-sm-8">{{ obj.cogs|floatformat:2 }}</dd>
+    <dt class="col-sm-4 fw-semibold">Gross Margin</dt><dd class="col-sm-8 fw-semibold {% if obj.gross_margin > 0 %}text-success{% else %}text-danger{% endif %}">{{ obj.gross_margin|floatformat:2 }} ({{ obj.margin_percent|floatformat:1 }}%)</dd>
+</dl>
+<p class="text-muted small mt-2">Generated {{ obj.generated_at|date:"Y-m-d H:i" }}</p>
+</div></div>
+{% endblock %}
