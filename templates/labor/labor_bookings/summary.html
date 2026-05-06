@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Labor Cost Summary{% endblock %}
+{% block content %}
+<div class="page-title"><h4 class="mb-1">Labor Cost Summary by Cost Center</h4>
+    <div class="text-muted small">Sum of bookings within the date window grouped by cost center and kind.</div>
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><label class="form-label small">Start</label><input type="date" name="start" value="{{ start|date:'Y-m-d' }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label small">End</label><input type="date" name="end" value="{{ end|date:'Y-m-d' }}" class="form-control"></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Recalculate</button></div>
+</form>
+
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Cost Center</th><th>Kind</th><th class="text-end">Minutes</th><th class="text-end">Total Cost</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td class="small">{% if r.cost_center__id %}{{ r.cost_center__code }} - {{ r.cost_center__name }}{% else %}<em class="text-muted">(unallocated)</em>{% endif %}</td>
+            <td class="small"><span class="badge bg-secondary-subtle text-secondary">{{ r.kind }}</span></td>
+            <td class="small text-end">{{ r.total_minutes|default:0 }}</td>
+            <td class="small text-end fw-semibold">{{ r.total_cost|default:0 }}</td>
+        </tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No bookings in range.</td></tr>{% endfor %}
+    </tbody>
+    {% if rows %}<tfoot><tr class="table-light fw-bold"><td colspan="2">Grand Total</td><td class="text-end">{{ grand_minutes }}</td><td class="text-end">{{ grand_cost }}</td></tr></tfoot>{% endif %}
+</table></div>
+</div></div>
+{% endblock %}
