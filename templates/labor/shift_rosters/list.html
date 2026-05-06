@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Shift Rosters{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Shift Rosters</h4><div class="text-muted small">Per-employee shift assignments over date ranges.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:roster_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Roster</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="employee" class="form-select">
+        <option value="">Employee (any)</option>
+        {% for e in employees %}<option value="{{ e.pk }}" {% if request.GET.employee == e.pk|stringformat:"d" %}selected{% endif %}>{{ e.employee_number }} - {{ e.full_name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><select name="shift" class="form-select">
+        <option value="">Shift (any)</option>
+        {% for s in shifts %}<option value="{{ s.pk }}" {% if request.GET.shift == s.pk|stringformat:"d" %}selected{% endif %}>{{ s.code }} - {{ s.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Employee</th><th>Shift</th><th>Start</th><th>End</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for r in page %}
+        <tr>
+            <td class="small">{{ r.employee.employee_number }} - {{ r.employee.full_name }}</td>
+            <td class="small">{{ r.shift.code }}</td>
+            <td class="small">{{ r.start_date|date:"Y-m-d" }}</td>
+            <td class="small">{{ r.end_date|date:"Y-m-d" }}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'labor:roster_edit' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:roster_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete roster?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No rosters yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
