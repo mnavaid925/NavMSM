@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Incentive Periods{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Incentive Periods</h4><div class="text-muted small">Calculation windows (typically monthly).</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:period_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Period</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2"><select name="status" class="form-select">
+        <option value="">Status (any)</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Name</th><th>Start</th><th>End</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for p in page %}
+        <tr>
+            <td class="small fw-semibold">{{ p.name }}</td>
+            <td class="small">{{ p.start_date|date:"Y-m-d" }}</td>
+            <td class="small">{{ p.end_date|date:"Y-m-d" }}</td>
+            <td><span class="badge bg-{% if p.status == 'paid' %}success-subtle text-success{% elif p.status == 'locked' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ p.get_status_display }}</span></td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                {% if p.status == 'open' %}
+                <a href="{% url 'labor:period_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:period_lock' p.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-warning" title="Lock"><i class="ri-lock-line"></i></button></form>
+                <form method="post" action="{% url 'labor:period_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete period?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% elif p.status == 'locked' %}
+                <form method="post" action="{% url 'labor:period_pay' p.pk %}" style="display:inline" onsubmit="return confirm('Mark period as paid?');">{% csrf_token %}<button class="btn btn-sm btn-success" title="Mark Paid"><i class="ri-money-dollar-circle-line"></i></button></form>
+                {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No periods yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
