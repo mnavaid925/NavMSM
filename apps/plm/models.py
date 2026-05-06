@@ -94,6 +94,11 @@ class Product(TenantAwareModel, TimeStampedModel):
         related_name='+',
     )
     image = models.ImageField(upload_to='plm/products/', blank=True, null=True)
+    cost_center = models.ForeignKey(
+        'labor.CostCenter', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='products',
+        help_text='Drives direct-labor allocation when MES production is reported.',
+    )
 
     class Meta:
         ordering = ['sku']
