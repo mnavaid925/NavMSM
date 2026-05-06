@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.version_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.version_number }} &mdash; {{ obj.name }}</h4>
+        <span class="badge bg-{% if obj.status == 'active' %}success-subtle text-success{% elif obj.status == 'archived' %}secondary-subtle text-secondary{% elif obj.status == 'approved' %}info-subtle text-info{% else %}warning-subtle text-warning{% endif %}">{{ obj.get_status_display }}</span>
+        <span class="text-muted small ms-2">Effective {{ obj.effective_from|date:"Y-m-d" }}{% if obj.effective_to %} &rarr; {{ obj.effective_to|date:"Y-m-d" }}{% endif %}</span>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if obj.is_editable %}
+            <a href="{% url 'cost:version_edit' obj.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+            <a href="{% url 'cost:standard_cost_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Cost</a>
+            <form method="post" action="{% url 'cost:version_recompute' obj.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-info"><i class="ri-refresh-line me-1"></i> Recompute from BOM</button></form>
+        {% endif %}
+        {% if obj.is_approvable %}
+            <button class="btn btn-sm btn-success" data-bs-toggle="collapse" data-bs-target="#approveCard"><i class="ri-checkbox-circle-line me-1"></i> Approve</button>
+        {% endif %}
+        {% if obj.is_activatable %}
+            <form method="post" action="{% url 'cost:version_activate' obj.pk %}" style="display:inline" onsubmit="return confirm('Activate version (auto-archives prior active)?');">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="ri-play-line me-1"></i> Activate</button></form>
+        {% endif %}
+        {% if obj.is_archivable %}
+            <form method="post" action="{% url 'cost:version_archive' obj.pk %}" style="display:inline" onsubmit="return confirm('Archive this version?');">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="ri-archive-line me-1"></i> Archive</button></form>
+        {% endif %}
+        {% endif %}
+        <a href="{% url 'cost:version_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+{% if obj.is_approvable %}
+<div class="collapse mb-3" id="approveCard"><div class="card border-success"><div class="card-body">
+    <h6>Approve Version</h6>
+    <form method="post" action="{% url 'cost:version_approve' obj.pk %}">{% csrf_token %}
+        {{ approve_form|crispy }}
+        <button class="btn btn-success btn-sm">Confirm Approval</button>
+    </form>
+</div></div></div>
+{% endif %}
+
+<div class="card mb-3"><div class="card-body">
+<h5 class="card-title">Standard Costs ({{ costs.count }})</h5>
+<div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>SKU</th><th>Name</th><th class="text-end">Material</th><th class="text-end">Labor</th><th class="text-end">Overhead</th><th class="text-end">Tooling</th><th class="text-end">Total</th><th>Source</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for c in costs %}
+        <tr>
+            <td class="small fw-semibold">{{ c.product.sku }}</td>
+            <td class="small">{{ c.product.name }}</td>
+            <td class="small text-end">{{ c.material_cost|floatformat:4 }}</td>
+            <td class="small text-end">{{ c.labor_cost|floatformat:4 }}</td>
+            <td class="small text-end">{{ c.overhead_cost|floatformat:4 }}</td>
+            <td class="small text-end">{{ c.tooling_cost|floatformat:4 }}</td>
+            <td class="small text-end fw-semibold">{{ c.total_cost|floatformat:4 }}</td>
+            <td class="small">{{ c.get_source_display }}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                {% if obj.is_editable %}
+                <a href="{% url 'cost:standard_cost_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'cost:standard_cost_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="9" class="text-center text-muted py-3">No costs in this version yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+</div></div>
+
+{% if obj.notes %}<div class="card mb-3"><div class="card-body"><h6>Notes</h6><div class="text-muted">{{ obj.notes|linebreaks }}</div></div></div>{% endif %}
+{% endblock %}
