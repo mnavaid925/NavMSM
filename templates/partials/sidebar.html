@@ -258,6 +258,32 @@
                         </ul>
                     </div>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarCost" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-money-dollar-circle-line"></i> <span>Cost &amp; Accounting</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarCost" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'cost:index' %}" class="nav-link">Cost Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:version_list' %}" class="nav-link">Standard Cost Versions</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:standard_cost_list' %}" class="nav-link">Standard Costs</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:version_compare' %}" class="nav-link">Compare Versions</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:actual_cost_list' %}" class="nav-link">Actual Costs</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:variance_list' %}" class="nav-link">Variances</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:job_list' %}" class="nav-link">Jobs (WIP)</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:wip_list' %}" class="nav-link">WIP Entries</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:driver_list' %}" class="nav-link">Cost Drivers</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:pool_list' %}" class="nav-link">Overhead Pools</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:rate_list' %}" class="nav-link">Overhead Rates</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:driver_actuals_list' %}" class="nav-link">Driver Actuals</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:allocation_list' %}" class="nav-link">Overhead Allocations</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:period_list' %}" class="nav-link">Accounting Periods</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:cogm_list' %}" class="nav-link">COGM Reports</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:margin_list' %}" class="nav-link">Gross Margin</a></li>
+                            <li class="nav-item"><a href="{% url 'cost:pnl_list' %}" class="nav-link">Plant P&amp;L</a></li>
+                        </ul>
+                    </div>
+                </li>
                 {% endif %}
 
                 {% if request.user.role == 'supplier' %}
