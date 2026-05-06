@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Plant P&L &mdash; {{ obj.period.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Plant P&amp;L &mdash; {{ obj.period.name }}</h4>
+        <div class="text-muted small">Generated {{ obj.generated_at|date:"Y-m-d H:i" }}</div></div>
+    <div class="d-flex gap-2">
+        <button onclick="window.print();" class="btn btn-sm btn-outline-secondary"><i class="ri-printer-line me-1"></i> Print / PDF</button>
+        <a href="{% url 'cost:pnl_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Income Statement</h5>
+        <table class="table align-middle">
+            <tbody>
+            <tr><td>Revenue</td><td class="text-end">{{ obj.revenue|floatformat:2 }}</td></tr>
+            <tr><td>- COGM</td><td class="text-end">{{ obj.cogm|floatformat:2 }}</td></tr>
+            <tr><td class="fw-semibold">= Gross Profit</td><td class="text-end fw-semibold">{{ obj.gross_profit|floatformat:2 }}</td></tr>
+            <tr><td>- Selling Expense</td><td class="text-end">{{ obj.selling_expense|floatformat:2 }}</td></tr>
+            <tr><td>- General &amp; Admin</td><td class="text-end">{{ obj.general_admin_expense|floatformat:2 }}</td></tr>
+            <tr><td>- Unallocated Overhead</td><td class="text-end">{{ obj.unallocated_overhead|floatformat:2 }}</td></tr>
+            <tr class="table-active"><td class="fw-semibold">= Operating Income</td><td class="text-end fw-semibold fs-5 {% if obj.operating_income > 0 %}text-success{% else %}text-danger{% endif %}">{{ obj.operating_income|floatformat:2 }}</td></tr>
+            </tbody>
+        </table>
+    </div></div></div>
+
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">P&amp;L Waterfall</h5>
+        <div id="pnl-chart" style="height:280px"></div>
+    </div></div></div>
+</div>
+
+{{ chart|json_script:"pnl-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var c = JSON.parse(document.getElementById('pnl-chart-data').textContent);
+    new ApexCharts(document.querySelector('#pnl-chart'), {
+        chart:{type:'bar', height:280, toolbar:{show:false}},
+        series:[{name:'Amount', data:c.values}],
+        xaxis:{categories: c.labels},
+        colors:['#3B82F6'], dataLabels:{enabled:true, formatter:v=>v.toFixed(2)},
+    }).render();
+})();
+</script>
+{% endblock %}
