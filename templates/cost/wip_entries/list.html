@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}WIP Entries{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>WIP Entries</h4><div class="text-muted small">Append-only ledger of WIP transactions.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'cost:wip_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Entry</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="entry_type" class="form-select"><option value="">All types</option>
+        {% for v,l in entry_type_choices %}<option value="{{ v }}" {% if request.GET.entry_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-3"><select name="job" class="form-select"><option value="">All jobs</option>
+        {% for j in jobs %}<option value="{{ j.pk }}" {% if request.GET.job == j.pk|stringformat:"d" %}selected{% endif %}>{{ j.job_number }} ({{ j.production_order }})</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Job</th><th>Type</th><th>Date</th><th class="text-end">Amount</th><th>Cost Center</th><th></th></tr></thead>
+    <tbody>
+    {% for e in page %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'cost:wip_detail' e.pk %}">{{ e.entry_number }}</a></td>
+            <td class="small">{{ e.job.job_number }}</td>
+            <td class="small">{{ e.get_entry_type_display }}{% if e.is_reversal %} <span class="badge bg-warning-subtle text-warning small">reversal</span>{% endif %}</td>
+            <td class="small">{{ e.entry_date|date:"Y-m-d H:i" }}</td>
+            <td class="small text-end">{{ e.amount|floatformat:2 }}</td>
+            <td class="small">{{ e.cost_center|default:"-" }}</td>
+            <td>{% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'cost:wip_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete entry?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+        </tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No WIP entries yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
