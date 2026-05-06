@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Overhead Rates{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Overhead Rates</h4><div class="text-muted small">Period-scoped budgeted rate per pool.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'cost:rate_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Rate</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Period</th><th>Pool</th><th>Driver</th><th class="text-end">Budget</th><th class="text-end">Driver Qty</th><th class="text-end">Rate / Unit</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for r in page %}
+        <tr>
+            <td class="small">{{ r.period.name }}</td>
+            <td class="small fw-semibold">{{ r.pool.code }}</td>
+            <td class="small">{{ r.driver.code }}</td>
+            <td class="small text-end">{{ r.budgeted_amount|floatformat:2 }}</td>
+            <td class="small text-end">{{ r.budgeted_driver_qty|floatformat:4 }}</td>
+            <td class="small text-end fw-semibold">{{ r.rate_per_driver_unit|floatformat:6 }}</td>
+            <td>{% if r.is_active %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+            <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'cost:rate_edit' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'cost:rate_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            {% endif %}</td>
+        </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No rates yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
