@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.booking_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.booking_number }}</h4>
+        <div class="text-muted small">{{ obj.employee.employee_number }} - {{ obj.employee.full_name }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:labor_booking_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if obj.source_type == 'manual' and request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'labor:labor_booking_delete' obj.pk %}" onsubmit="return confirm('Delete booking?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+<dl class="row mb-0 small">
+    <dt class="col-3">Worked At</dt><dd class="col-9">{{ obj.worked_at|date:"Y-m-d H:i" }}</dd>
+    <dt class="col-3">Kind</dt><dd class="col-9"><span class="badge bg-secondary-subtle">{{ obj.get_kind_display }}</span></dd>
+    <dt class="col-3">Cost Center</dt><dd class="col-9">{{ obj.cost_center|default:"(unallocated)" }}</dd>
+    <dt class="col-3">Minutes</dt><dd class="col-9">{{ obj.minutes }}</dd>
+    <dt class="col-3">Hourly Rate</dt><dd class="col-9">{{ obj.hourly_rate_snapshot }}</dd>
+    <dt class="col-3">Total Cost</dt><dd class="col-9 fw-semibold">{{ obj.total_cost }}</dd>
+    <dt class="col-3">Source</dt><dd class="col-9">{{ obj.get_source_type_display }}{% if obj.source_time_log %} (MES log #{{ obj.source_time_log_id }}){% endif %}{% if obj.source_mwo_labor %} (EAM MWO labor #{{ obj.source_mwo_labor_id }}){% endif %}</dd>
+    <dt class="col-3">Notes</dt><dd class="col-9">{{ obj.notes|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div>
+{% endblock %}
