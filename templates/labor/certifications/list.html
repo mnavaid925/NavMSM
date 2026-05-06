@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Certifications{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Certifications Catalog</h4><div class="text-muted small">Reusable certification definitions issued to employees.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <a href="{% url 'labor:certification_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Certification</a>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or name..."></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Code</th><th>Name</th><th>Authority</th><th>Validity (days)</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for c in page %}
+        <tr>
+            <td class="small fw-semibold">{{ c.code }}</td>
+            <td class="small">{{ c.name }}</td>
+            <td class="small">{{ c.issuing_authority|default:"-" }}</td>
+            <td class="small">{{ c.valid_period_days }}</td>
+            <td>{% if c.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+            <td class="text-end">
+                {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                <a href="{% url 'labor:certification_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'labor:certification_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete certification?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No certifications yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
