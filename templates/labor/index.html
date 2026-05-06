@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block title %}Labor & Workforce Management{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Labor & Workforce Management</h4>
+        <div class="text-muted small">Employees, time & attendance, labor cost allocation, training, incentives.</div></div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'labor:employee_create' %}" class="btn btn-primary"><i class="ri-user-add-line me-1"></i> New Employee</a>
+        <a href="{% url 'labor:leave_request_create' %}" class="btn btn-outline-primary"><i class="ri-calendar-event-line me-1"></i> New Leave</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Active Employees</div><h3>{{ employee_count }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card border-info"><div class="card-body"><div class="text-muted small">On Leave Today</div><h3 class="text-info">{{ on_leave_today }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card border-warning"><div class="card-body"><div class="text-muted small">Certs Expiring &le;30d</div><h3 class="text-warning">{{ expiring_certs }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card border-danger"><div class="card-body"><div class="text-muted small">Expired Certs</div><h3 class="text-danger">{{ expired_certs }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Pending Leaves</div><h3>{{ pending_leaves }}</h3></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Open Runs</div><h3>{{ open_runs }}</h3></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Attendance % (last 30 days)</h5>
+        <div id="attendance-chart" style="height:240px"></div>
+    </div></div></div>
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Labor Cost by Cost Center (this month)</h5>
+        <div id="cost-center-chart" style="height:240px"></div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Recent Leave Requests <a href="{% url 'labor:leave_request_list' %}" class="small">View all &rarr;</a></h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Employee</th><th>Type</th><th>Dates</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for l in recent_leaves %}
+                <tr><td class="small fw-semibold"><a href="{% url 'labor:leave_request_detail' l.pk %}">{{ l.request_number }}</a></td>
+                <td class="small">{{ l.employee.full_name }}</td>
+                <td class="small">{{ l.leave_type.name }}</td>
+                <td class="small">{{ l.start_date|date:"M d" }} &rarr; {{ l.end_date|date:"M d" }}</td>
+                <td><span class="badge bg-{% if l.status == 'approved' %}success-subtle text-success{% elif l.status == 'rejected' %}danger-subtle text-danger{% elif l.status == 'submitted' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ l.get_status_display }}</span></td></tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No leave requests yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title d-flex justify-content-between">Expiring Certifications <a href="{% url 'labor:certification_list' %}" class="small">View all &rarr;</a></h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Employee</th><th>Certification</th><th>Expires</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for c in expiring_cert_rows %}
+                <tr><td class="small"><a href="{% url 'labor:employee_detail' c.employee.pk %}">{{ c.employee.full_name }}</a></td>
+                <td class="small">{{ c.certification.name }}</td>
+                <td class="small">{{ c.expires_at|date:"Y-m-d" }}</td>
+                <td><span class="badge bg-{% if c.status == 'expired' %}danger-subtle text-danger{% elif c.status == 'expiring_soon' %}warning-subtle text-warning{% else %}success-subtle text-success{% endif %}">{{ c.get_status_display }}</span></td></tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No expiring certifications.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+
+{{ attendance_chart|json_script:"attendance-data" }}
+{{ cost_center_chart|json_script:"cc-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var att = JSON.parse(document.getElementById('attendance-data').textContent);
+    new ApexCharts(document.querySelector('#attendance-chart'), {
+        chart:{type:'area', height:240, toolbar:{show:false}},
+        series:[{name:'Attendance %', data: att.pct}],
+        xaxis:{categories: att.dates, labels:{rotate:-45, style:{fontSize:'10px'}}},
+        yaxis:{min:0, max:100, labels:{formatter:v=>v+'%'}},
+        colors:['#3B82F6'], dataLabels:{enabled:false},
+        stroke:{curve:'smooth', width:2},
+    }).render();
+    var cc = JSON.parse(document.getElementById('cc-data').textContent);
+    new ApexCharts(document.querySelector('#cost-center-chart'), {
+        chart:{type:'donut', height:240},
+        series: cc.values, labels: cc.labels,
+        colors:['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#6366F1'],
+        legend:{position:'bottom', fontSize:'11px'},
+    }).render();
+})();
+</script>
+{% endblock %}
