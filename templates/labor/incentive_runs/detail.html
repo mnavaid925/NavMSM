@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.run_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.run_number }}</h4>
+        <div class="text-muted small">{{ obj.scheme.name }} &bull; {{ obj.period.name }} ({{ obj.period.start_date|date:"M d" }} -> {{ obj.period.end_date|date:"M d" }})</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:run_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if obj.status == 'draft' %}
+            <form method="post" action="{% url 'labor:run_run' obj.pk %}" onsubmit="return confirm('Execute this run?');">{% csrf_token %}<button class="btn btn-success"><i class="ri-play-line me-1"></i> Run</button></form>
+        {% endif %}
+        {% if obj.status == 'draft' or obj.status == 'completed' %}
+            <form method="post" action="{% url 'labor:run_discard' obj.pk %}" onsubmit="return confirm('Discard this run? Lines will be removed.');">{% csrf_token %}<button class="btn btn-outline-warning"><i class="ri-close-circle-line me-1"></i> Discard</button></form>
+        {% endif %}
+        {% if obj.status == 'draft' or obj.status == 'discarded' %}
+            <form method="post" action="{% url 'labor:run_delete' obj.pk %}" onsubmit="return confirm('Delete run?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <h6 class="card-title">Summary</h6>
+        <dl class="row mb-0 small">
+            <dt class="col-5">Status</dt><dd class="col-7"><span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% elif obj.status == 'discarded' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+            <dt class="col-5">Lines</dt><dd class="col-7">{{ lines|length }}</dd>
+            <dt class="col-5">Total</dt><dd class="col-7 fw-bold">{{ obj.total_amount }}</dd>
+            <dt class="col-5">Started</dt><dd class="col-7">{{ obj.started_at|date:"Y-m-d H:i"|default:"-" }}</dd>
+            <dt class="col-5">Completed</dt><dd class="col-7">{{ obj.completed_at|date:"Y-m-d H:i"|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+
+    <div class="col-md-9"><div class="card"><div class="card-body">
+        <h6 class="card-title">Per-Employee Lines</h6>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Employee</th><th class="text-end">Units</th><th class="text-end">Rate</th><th class="text-end">Amount</th><th class="text-end">Reports</th></tr></thead>
+            <tbody>
+            {% for l in lines %}<tr>
+                <td class="small">{{ l.employee.employee_number }} - {{ l.employee.full_name }}</td>
+                <td class="small text-end">{{ l.qualifying_units }}</td>
+                <td class="small text-end">{{ l.rate_applied }}</td>
+                <td class="small text-end fw-semibold">{{ l.amount }}</td>
+                <td class="small text-end">{{ l.production_reports.count }}</td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No lines computed yet. Run the calculation.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+</div>
+{% endblock %}
