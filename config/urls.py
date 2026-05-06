@@ -19,6 +19,7 @@ urlpatterns = [
     path('procurement/', include('apps.procurement.urls')),
     path('eam/', include('apps.eam.urls')),
     path('labor/', include('apps.labor.urls')),
+    path('cost/', include('apps.cost.urls')),
 ]
 
 if settings.DEBUG:
