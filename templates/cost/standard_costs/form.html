@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Standard Cost{% else %}Edit Standard Cost{% endif %}{% endblock %}
+{% block content %}
+<div class="page-title"><h4>{% if mode == 'create' %}Add Standard Cost to {{ version.version_number }}{% else %}Edit Standard Cost{% endif %}</h4></div>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}
+    {{ form|crispy }}
+    <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'cost:version_detail' version.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+</div></div>
+{% endblock %}
