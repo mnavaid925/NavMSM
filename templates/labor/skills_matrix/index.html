@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Skills Matrix{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Skills Matrix</h4><div class="text-muted small">Active employees × active skills, color-coded by proficiency (L1 lightest, L5 darkest).</div></div>
+    <a href="{% url 'labor:skill_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Skills</a>
+</div>
+<style>
+.matrix th, .matrix td { white-space: nowrap; padding: 4px 8px; font-size: 0.8em; text-align: center; }
+.matrix th.sticky { position: sticky; left: 0; background: #fff; z-index: 2; text-align: left; }
+.lvl-0 { background: #f8fafc; color: #cbd5e1; }
+.lvl-1 { background: #dbeafe; color: #1e40af; }
+.lvl-2 { background: #93c5fd; color: #1e3a8a; }
+.lvl-3 { background: #3b82f6; color: #fff; }
+.lvl-4 { background: #1d4ed8; color: #fff; }
+.lvl-5 { background: #1e3a8a; color: #fff; font-weight:bold; }
+</style>
+<div class="card"><div class="card-body">
+<div class="table-responsive" style="max-height:70vh">
+<table class="table matrix table-bordered">
+    <thead><tr>
+        <th class="sticky">Employee</th>
+        {% for s in skills %}<th title="{{ s.name }}">{{ s.code }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td class="sticky"><a href="{% url 'labor:employee_detail' r.employee.pk %}">{{ r.employee.employee_number }}</a> &mdash; {{ r.employee.full_name }}</td>
+            {% for c in r.cells %}<td class="lvl-{{ c }}">{% if c %}{{ c }}{% else %}&middot;{% endif %}</td>{% endfor %}
+        </tr>
+    {% empty %}<tr><td colspan="{{ skills|length|add:1 }}" class="text-center text-muted py-4">No active employees.</td></tr>{% endfor %}
+    </tbody>
+</table>
+</div>
+</div></div>
+{% endblock %}
