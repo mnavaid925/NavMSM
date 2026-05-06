@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Labor Bookings{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Labor Bookings</h4><div class="text-muted small">Append-only labor cost ledger. Auto-emitted from MES time logs and EAM MWO labor logs.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'labor:labor_booking_summary' %}" class="btn btn-outline-primary"><i class="ri-pie-chart-line me-1"></i> Summary</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'labor:labor_booking_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Manual Booking</a>
+        {% endif %}
+    </div>
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="employee" class="form-select">
+        <option value="">Employee (any)</option>
+        {% for e in employees %}<option value="{{ e.pk }}" {% if request.GET.employee == e.pk|stringformat:"d" %}selected{% endif %}>{{ e.employee_number }} - {{ e.full_name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="cost_center" class="form-select">
+        <option value="">Cost Center (any)</option>
+        {% for c in cost_centers %}<option value="{{ c.pk }}" {% if request.GET.cost_center == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="kind" class="form-select">
+        <option value="">Kind (any)</option>
+        {% for v,l in kind_choices %}<option value="{{ v }}" {% if request.GET.kind == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2"><select name="source_type" class="form-select">
+        <option value="">Source (any)</option>
+        {% for v,l in source_choices %}<option value="{{ v }}" {% if request.GET.source_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Worked At</th><th>Employee</th><th>Kind</th><th>Cost Center</th><th>Minutes</th><th>Rate</th><th>Cost</th><th>Source</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for b in page %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'labor:labor_booking_detail' b.pk %}">{{ b.booking_number }}</a></td>
+            <td class="small">{{ b.worked_at|date:"Y-m-d H:i" }}</td>
+            <td class="small">{{ b.employee.employee_number }}</td>
+            <td><span class="badge bg-{% if b.kind == 'direct' %}success-subtle text-success{% elif b.kind == 'indirect' %}info-subtle text-info{% elif b.kind == 'overtime' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ b.get_kind_display }}</span></td>
+            <td class="small">{{ b.cost_center.code|default:"-" }}</td>
+            <td class="small">{{ b.minutes }}</td>
+            <td class="small">{{ b.hourly_rate_snapshot }}</td>
+            <td class="small fw-semibold">{{ b.total_cost }}</td>
+            <td><span class="badge bg-secondary-subtle text-secondary">{{ b.get_source_type_display }}</span></td>
+            <td class="text-end">
+                <a href="{% url 'labor:labor_booking_detail' b.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                {% if b.source_type == 'manual' and request.user.is_tenant_admin or request.user.is_superuser %}
+                <form method="post" action="{% url 'labor:labor_booking_delete' b.pk %}" style="display:inline" onsubmit="return confirm('Delete booking?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No labor bookings yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'labor/_pagination.html' %}
+</div></div>
+{% endblock %}
