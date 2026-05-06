@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}COGM Reports{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Cost of Goods Manufactured</h4><div class="text-muted small">Per-period COGM report. Generate from a period's detail page.</div></div>
+<div class="card"><div class="card-body">
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Period</th><th class="text-end">Opening WIP</th><th class="text-end">DM</th><th class="text-end">DL</th><th class="text-end">OH Applied</th><th class="text-end">Closing WIP</th><th class="text-end">COGM</th></tr></thead>
+    <tbody>
+    {% for c in page %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'cost:cogm_detail' c.pk %}">{{ c.report_number }}</a></td>
+            <td class="small">{{ c.period.name }}</td>
+            <td class="small text-end">{{ c.opening_wip|floatformat:2 }}</td>
+            <td class="small text-end">{{ c.direct_materials|floatformat:2 }}</td>
+            <td class="small text-end">{{ c.direct_labor|floatformat:2 }}</td>
+            <td class="small text-end">{{ c.overhead_applied|floatformat:2 }}</td>
+            <td class="small text-end">{{ c.closing_wip|floatformat:2 }}</td>
+            <td class="small text-end fw-semibold">{{ c.cogm|floatformat:2 }}</td>
+        </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No COGM reports yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
