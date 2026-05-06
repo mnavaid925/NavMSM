@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.allocation_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ obj.allocation_number }}</h4>
+    <div class="text-muted small">{{ obj.pool.code }} - {{ obj.period.name }}</div></div>
+    <a href="{% url 'cost:allocation_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-sm-3">Driver Qty</dt><dd class="col-sm-9">{{ obj.driver_qty|floatformat:4 }}</dd>
+    <dt class="col-sm-3">Rate Applied</dt><dd class="col-sm-9">{{ obj.rate_applied|floatformat:6 }}</dd>
+    <dt class="col-sm-3">Applied Amount</dt><dd class="col-sm-9 fw-semibold">{{ obj.applied_amount|floatformat:2 }}</dd>
+    <dt class="col-sm-3">Target</dt><dd class="col-sm-9">{% if obj.target_production_order %}PO {{ obj.target_production_order }}{% elif obj.target_cost_center %}CC {{ obj.target_cost_center }}{% else %}-{% endif %}</dd>
+    <dt class="col-sm-3">Posted</dt><dd class="col-sm-9">{{ obj.posted_at|date:"Y-m-d H:i" }} by {{ obj.posted_by|default:"-" }}</dd>
+    <dt class="col-sm-3">Reversed?</dt><dd class="col-sm-9">{% if obj.is_reversed %}Yes &mdash; {{ obj.reversal_reason }}{% else %}No{% endif %}</dd>
+</dl>
+</div></div>
+
+{% if not obj.is_reversed and obj.period.status != 'closed' and request.user.is_tenant_admin or request.user.is_superuser %}
+<div class="card border-warning"><div class="card-body">
+    <h6>Reverse This Allocation</h6>
+    <form method="post" action="{% url 'cost:allocation_reverse' obj.pk %}">{% csrf_token %}
+        {{ reverse_form|crispy }}
+        <button class="btn btn-warning btn-sm" onclick="return confirm('Reverse allocation?');">Reverse</button>
+    </form>
+</div></div>
+{% endif %}
+{% endblock %}
