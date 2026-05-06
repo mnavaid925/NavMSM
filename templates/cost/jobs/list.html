@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Job Costs (WIP){% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Job Costs (WIP)</h4><div class="text-muted small">One job per production order. WIP balance updates as entries post.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'cost:job_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Job</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2"><select name="status" class="form-select"><option value="">All</option>
+        {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Production Order</th><th>Status</th><th class="text-end">Material</th><th class="text-end">Labor</th><th class="text-end">Overhead</th><th class="text-end">Completion</th><th class="text-end">WIP Balance</th></tr></thead>
+    <tbody>
+    {% for j in page %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'cost:job_detail' j.pk %}">{{ j.job_number }}</a></td>
+            <td class="small">{{ j.production_order }}</td>
+            <td><span class="badge bg-{% if j.status == 'open' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ j.get_status_display }}</span></td>
+            <td class="small text-end">{{ j.total_material|floatformat:2 }}</td>
+            <td class="small text-end">{{ j.total_labor|floatformat:2 }}</td>
+            <td class="small text-end">{{ j.total_overhead|floatformat:2 }}</td>
+            <td class="small text-end">{{ j.total_completion_credit|floatformat:2 }}</td>
+            <td class="small text-end fw-semibold">{{ j.wip_balance|floatformat:2 }}</td>
+        </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No jobs yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
