@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Compare Cost Versions{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Compare Standard Cost Versions</h4></div>
+<div class="card mb-3"><div class="card-body">
+<form method="get" class="row g-2">
+    <div class="col-md-5"><label class="form-label small">Version 1 (baseline)</label>
+    <select name="v1" class="form-select">
+        <option value="">--</option>
+        {% for v in versions %}<option value="{{ v.pk }}" {% if v1 and v.pk == v1.pk %}selected{% endif %}>{{ v.version_number }} - {{ v.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-5"><label class="form-label small">Version 2 (compare)</label>
+    <select name="v2" class="form-select">
+        <option value="">--</option>
+        {% for v in versions %}<option value="{{ v.pk }}" {% if v2 and v.pk == v2.pk %}selected{% endif %}>{{ v.version_number }} - {{ v.name }}</option>{% endfor %}
+    </select></div>
+    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100">Compare</button></div>
+</form>
+</div></div>
+
+{% if rows %}
+<div class="card"><div class="card-body">
+<h5 class="card-title">{{ v1.version_number }} vs. {{ v2.version_number }}</h5>
+<div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>SKU</th><th>Name</th><th class="text-end">{{ v1.version_number }}</th><th class="text-end">{{ v2.version_number }}</th><th class="text-end">Delta</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td class="small fw-semibold">{{ r.product_sku }}</td>
+            <td class="small">{{ r.product_name }}</td>
+            <td class="small text-end">{{ r.v1_total|floatformat:4 }}</td>
+            <td class="small text-end">{{ r.v2_total|floatformat:4 }}</td>
+            <td class="small text-end {% if r.delta > 0 %}text-danger{% elif r.delta < 0 %}text-success{% endif %}">{{ r.delta|floatformat:4 }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table></div>
+</div></div>
+{% endif %}
+{% endblock %}
