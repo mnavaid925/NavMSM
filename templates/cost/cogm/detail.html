@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.report_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ obj.report_number }} &mdash; {{ obj.period.name }}</h4>
+        <div class="text-muted small">Generated {{ obj.generated_at|date:"Y-m-d H:i" }} by {{ obj.generated_by|default:"-" }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <button onclick="window.print();" class="btn btn-sm btn-outline-secondary"><i class="ri-printer-line me-1"></i> Print / PDF</button>
+        <a href="{% url 'cost:cogm_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Cost of Goods Manufactured</h5>
+        <table class="table align-middle">
+            <tbody>
+            <tr><td>Opening WIP</td><td class="text-end">{{ obj.opening_wip|floatformat:2 }}</td></tr>
+            <tr><td>+ Direct Materials</td><td class="text-end">{{ obj.direct_materials|floatformat:2 }}</td></tr>
+            <tr><td>+ Direct Labor</td><td class="text-end">{{ obj.direct_labor|floatformat:2 }}</td></tr>
+            <tr><td>+ Overhead Applied</td><td class="text-end">{{ obj.overhead_applied|floatformat:2 }}</td></tr>
+            <tr><td>- Closing WIP</td><td class="text-end">{{ obj.closing_wip|floatformat:2 }}</td></tr>
+            <tr class="table-active"><td class="fw-semibold">= COGM</td><td class="text-end fw-semibold fs-5">{{ obj.cogm|floatformat:2 }}</td></tr>
+            </tbody>
+        </table>
+    </div></div></div>
+
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">COGM Composition</h5>
+        <div id="cogm-chart" style="height:280px"></div>
+    </div></div></div>
+</div>
+
+{{ chart|json_script:"cogm-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var c = JSON.parse(document.getElementById('cogm-chart-data').textContent);
+    new ApexCharts(document.querySelector('#cogm-chart'), {
+        chart:{type:'bar', height:280, toolbar:{show:false}},
+        series:[{name:'Amount', data:c.values}],
+        xaxis:{categories: c.labels},
+        colors:['#3B82F6'], dataLabels:{enabled:true, formatter:v=>v.toFixed(2)},
+        plotOptions:{bar:{horizontal:true}},
+    }).render();
+})();
+</script>
+{% endblock %}
