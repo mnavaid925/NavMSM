@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.inventory',
     'apps.procurement',
     'apps.eam',
+    'apps.labor',
 ]
 
 MIDDLEWARE = [
