@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Actual Cost &mdash; {{ obj.production_order }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Actual Cost &mdash; {{ obj.production_order }}</h4>
+        <div class="text-muted small">As of {{ obj.as_of_date|date:"Y-m-d" }} (computed {{ obj.computed_at|date:"Y-m-d H:i" }})</div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <form method="post" action="{% url 'cost:actual_cost_recompute' obj.production_order.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-info"><i class="ri-refresh-line me-1"></i> Recompute</button></form>
+        {% endif %}
+        <a href="{% url 'cost:actual_cost_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Material</div><h4>{{ obj.material_cost|floatformat:2 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Labor</div><h4>{{ obj.labor_cost|floatformat:2 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Overhead</div><h4>{{ obj.overhead_cost|floatformat:2 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card border-primary"><div class="card-body"><div class="text-muted small">Total</div><h4 class="text-primary">{{ obj.total_cost|floatformat:2 }}</h4></div></div></div>
+</div>
+
+{% if variances %}
+<div class="card"><div class="card-body">
+<h5 class="card-title">Live Variance vs. Active Standard</h5>
+<table class="table table-sm align-middle">
+    <thead><tr><th>Axis</th><th class="text-end">Variance</th></tr></thead>
+    <tbody>
+    {% for k, v in variances.items %}
+    <tr><td class="small">{{ k }}</td><td class="small text-end {% if v > 0 %}text-danger{% elif v < 0 %}text-success{% endif %}">{{ v|floatformat:2 }}</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div>
+{% else %}
+<div class="alert alert-info">No active standard cost for this product yet.</div>
+{% endif %}
+
+{% endblock %}
