@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.job_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.job_number }} &mdash; {{ obj.production_order }}</h4>
+        <span class="badge bg-{% if obj.status == 'open' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span>
+        <span class="text-muted small ms-2">Opened {{ obj.opened_at|date:"Y-m-d" }}{% if obj.closed_at %} | Closed {{ obj.closed_at|date:"Y-m-d" }}{% endif %}</span>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if obj.is_closable %}
+            <button class="btn btn-sm btn-outline-success" data-bs-toggle="collapse" data-bs-target="#closeCard"><i class="ri-checkbox-circle-line me-1"></i> Close Job</button>
+        {% endif %}
+        <form method="post" action="{% url 'cost:job_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete job?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}
+        <a href="{% url 'cost:job_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Material</div><h5>{{ obj.total_material|floatformat:2 }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Labor</div><h5>{{ obj.total_labor|floatformat:2 }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Overhead</div><h5>{{ obj.total_overhead|floatformat:2 }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card"><div class="card-body"><div class="text-muted small">Completion Credit</div><h5>{{ obj.total_completion_credit|floatformat:2 }}</h5></div></div></div>
+    <div class="col-md-2"><div class="card border-primary"><div class="card-body"><div class="text-muted small">WIP Balance</div><h4 class="text-primary mb-0">{{ obj.wip_balance|floatformat:2 }}</h4></div></div></div>
+</div>
+
+{% if obj.is_closable %}
+<div class="collapse mb-3" id="closeCard"><div class="card border-success"><div class="card-body">
+    <h6>Close Job</h6>
+    <form method="post" action="{% url 'cost:job_close' obj.pk %}">{% csrf_token %}
+        {{ close_form|crispy }}
+        <button class="btn btn-success btn-sm">Confirm Close</button>
+        <p class="text-muted small mt-2">Refuses non-zero WIP balance unless <strong>force</strong> is checked.</p>
+    </form>
+</div></div></div>
+{% endif %}
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#entriesTab">Recent Entries</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#opsTab">Operation-Wise Rollup</a></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="entriesTab"><div class="card"><div class="card-body">
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Type</th><th>Date</th><th class="text-end">Amount</th><th>Cost Center</th><th>Operation</th></tr></thead>
+            <tbody>
+            {% for e in entries %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'cost:wip_detail' e.pk %}">{{ e.entry_number }}</a></td>
+                    <td class="small">{{ e.get_entry_type_display }}{% if e.is_reversal %} <span class="badge bg-warning-subtle text-warning small">reversal</span>{% endif %}</td>
+                    <td class="small">{{ e.entry_date|date:"Y-m-d H:i" }}</td>
+                    <td class="small text-end">{{ e.amount|floatformat:2 }}</td>
+                    <td class="small">{{ e.cost_center|default:"-" }}</td>
+                    <td class="small">{{ e.routing_operation|default:"-" }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No entries yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="tab-pane fade" id="opsTab"><div class="card"><div class="card-body">
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Operation</th><th class="text-end">Material</th><th class="text-end">Labor</th><th class="text-end">Overhead</th><th class="text-end">Completion</th><th class="text-end">Net</th></tr></thead>
+            <tbody>
+            {% for r in op_rollup %}
+                <tr>
+                    <td class="small">{{ r.operation|default:"(unassigned)" }}</td>
+                    <td class="small text-end">{{ r.material|floatformat:2 }}</td>
+                    <td class="small text-end">{{ r.labor|floatformat:2 }}</td>
+                    <td class="small text-end">{{ r.overhead|floatformat:2 }}</td>
+                    <td class="small text-end">{{ r.completion|floatformat:2 }}</td>
+                    <td class="small text-end fw-semibold">{{ r.net|floatformat:2 }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No entries grouped yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
