@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Actual Costs{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Actual Costs</h4><div class="text-muted small">Per-PO actual cost rollups.</div></div>
+<div class="card"><div class="card-body">
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Production Order</th><th>Product</th><th>As Of</th><th class="text-end">Material</th><th class="text-end">Labor</th><th class="text-end">Overhead</th><th class="text-end">Total</th><th></th></tr></thead>
+    <tbody>
+    {% for a in page %}
+        <tr>
+            <td class="small fw-semibold">{{ a.production_order }}</td>
+            <td class="small">{{ a.production_order.product.sku }}</td>
+            <td class="small">{{ a.as_of_date|date:"Y-m-d" }}</td>
+            <td class="small text-end">{{ a.material_cost|floatformat:2 }}</td>
+            <td class="small text-end">{{ a.labor_cost|floatformat:2 }}</td>
+            <td class="small text-end">{{ a.overhead_cost|floatformat:2 }}</td>
+            <td class="small text-end fw-semibold">{{ a.total_cost|floatformat:2 }}</td>
+            <td><a href="{% url 'cost:actual_cost_detail' a.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a></td>
+        </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No actual costs computed yet.</td></tr>{% endfor %}
+    </tbody>
+</table></div>
+{% include 'cost/_pagination.html' %}
+</div></div>
+{% endblock %}
