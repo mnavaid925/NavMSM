@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.code }} <span class="text-muted small">— {{ obj.name }}</span></h4>{% if obj.description %}<div class="text-muted small">{{ obj.description }}</div>{% endif %}</div>
+    <a href="{% url 'compliance:checklist_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+<h6 class="mb-3">Items ({{ obj.item_count }})</h6>
+<ol class="list-group list-group-numbered mb-3">
+    {% for item in obj.items %}<li class="list-group-item">{{ item.question }}</li>
+    {% empty %}<li class="list-group-item text-muted">No items yet — add one below.</li>{% endfor %}
+</ol>
+
+{% if request.user.is_tenant_admin %}
+<form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-9"><label class="form-label small">Add a question</label><input type="text" name="question" class="form-control" placeholder="e.g. All emergency exits clear?" required></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100">Append</button></div>
+</form>
+{% endif %}
+</div></div>
+{% endblock %}
