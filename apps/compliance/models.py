@@ -138,6 +138,11 @@ class IncidentReport(TenantAwareModel, TimeStampedModel):
         'mes.AndonAlert', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='compliance_incidents',
     )
+    source_ncr = models.ForeignKey(
+        'qms.NonConformanceReport', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='compliance_incidents',
+        help_text='Auto-populated when a critical NCR triggers an incident report.',
+    )
 
     class Meta:
         ordering = ['-occurred_at']
@@ -151,6 +156,11 @@ class IncidentReport(TenantAwareModel, TimeStampedModel):
                 fields=['source_andon'],
                 condition=models.Q(source_andon__isnull=False),
                 name='compliance_incident_unique_andon',
+            ),
+            models.UniqueConstraint(
+                fields=['source_ncr'],
+                condition=models.Q(source_ncr__isnull=False),
+                name='compliance_incident_unique_ncr',
             ),
         ]
 
