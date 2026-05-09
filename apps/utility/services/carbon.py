@@ -143,8 +143,8 @@ def generate_sustainability_kpi(period, *, generated_by=None):
 
     units = ProductionReport.all_objects.filter(
         tenant=period.tenant,
-        recorded_at__date__gte=period.start_date,
-        recorded_at__date__lte=period.end_date,
+        reported_at__date__gte=period.start_date,
+        reported_at__date__lte=period.end_date,
     ).aggregate(t=Sum('good_qty')).get('t') or Decimal('0')
 
     obj, _ = models.SustainabilityKPI.all_objects.update_or_create(
