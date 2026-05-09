@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, and **Module 12 — Cost Management & Accounting**. **Module 13 (Compliance & Regulatory) is being skipped for now**, with **Module 14 — Energy & Utility Management** built next. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, and **Module 14 — Energy & Utility Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -31,14 +31,15 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 21. [Module 10 — Equipment & Asset Management (EAM)](#module-10--equipment--asset-management-eam)
 22. [Module 11 — Labor & Workforce Management](#module-11--labor--workforce-management)
 23. [Module 12 — Cost Management & Accounting](#module-12--cost-management--accounting)
-24. [Module 14 — Energy & Utility Management](#module-14--energy--utility-management)
-25. [UI / Theme Customization](#ui--theme-customization)
-26. [Management Commands](#management-commands)
-27. [Payment Gateway Integration](#payment-gateway-integration)
-28. [Security Notes](#security-notes)
-29. [Roadmap](#roadmap)
-30. [Troubleshooting](#troubleshooting)
-31. [License](#license)
+24. [Module 13 — Compliance & Regulatory Management](#module-13--compliance--regulatory-management)
+25. [Module 14 — Energy & Utility Management](#module-14--energy--utility-management)
+26. [UI / Theme Customization](#ui--theme-customization)
+27. [Management Commands](#management-commands)
+28. [Payment Gateway Integration](#payment-gateway-integration)
+29. [Security Notes](#security-notes)
+30. [Roadmap](#roadmap)
+31. [Troubleshooting](#troubleshooting)
+32. [License](#license)
 
 ---
 
@@ -2040,9 +2041,61 @@ Run the Cost test suite with `pytest apps/cost/tests/` — uses [`config/setting
 
 ---
 
+## Module 13 — Compliance & Regulatory Management
+
+Module 13 is implemented in [`apps/compliance/`](apps/compliance/) with full CRUD across all 5 sub-modules of [MSM.md §13](./MSM.md). Every model is `TenantAwareModel`, every query is scoped via `request.tenant`, and every workflow transition runs inside an atomic conditional `UPDATE` (lesson L-13). The complementary **PLM compliance subset** (`ComplianceStandard`, `ProductCompliance`, `ComplianceAuditLog` at [apps/plm/models.py:369](apps/plm/models.py#L369)) remains where it lives — Module 13 augments it with EHS, electronic document control, recall workflows, hazardous waste manifests, and an immutable cross-cutting audit trail.
+
+| Sub-module | Models | URL prefix |
+|---|---|---|
+| **13.1 Environmental Health & Safety (EHS)** | `IncidentType`, `IncidentReport` (auto `INC-NNNNN`), `RiskAssessment` (auto `RA-NNNNN`, computed risk_score + risk_band), `SafetyAuditChecklist`, `SafetyAudit`, `SafetyAuditItem` | `/compliance/incidents/`, `/compliance/risks/`, `/compliance/checklists/`, `/compliance/audits/` |
+| **13.2 Regulatory Document Control & e-Signatures** | `ComplianceDocument` (auto `DOC-NNNNN`, `draft → in_review → approved → effective → superseded` workflow, optional file attachment), `DocumentApproval`, `ElectronicSignature` (typed-name + reason + role; **immutable** — instance + queryset `save()`/`update()`/`delete()` raise `PermissionDenied`, FDA 21 CFR Part 11 alignment) | `/compliance/documents/` |
+| **13.3 Audit Trail & Data Integrity** | `AuditLogArchive` (auto `ALA-NNNNN`, append-only snapshots of `tenants.TenantAuditLog` + `plm.ComplianceAuditLog` filtered by date range, sealed with SHA-256) — feeds the `Audit Trail` viewer that aggregates both audit feeds across the tenant | `/compliance/audit-trail/`, `/compliance/audit-trail/archives/` |
+| **13.4 Waste & Emission Tracking** | `WasteCategory` (hazard_class enum), `WasteManifest` (auto `WM-NNNNN`, `draft → in_transit → disposed → reconciled` workflow with cancel guard), `WasteDisposalRecord` line items | `/compliance/waste-categories/`, `/compliance/waste-manifests/` |
+| **13.5 Recall & Traceability Management** | `ProductRecall` (auto `REC-NNNNN`, `draft → in_progress → completed → closed` + cancel; severity = `class_i / class_ii / class_iii`; computed `recovery_pct` denorm), `RecallAffectedLot` (FK to `inventory.Lot`, recompute parent `affected_quantity / recovered_quantity`), `RecallNotice` (auto `RN-NNNNN`, `draft → sent → acknowledged`) | `/compliance/recalls/` |
+
+**Cross-module hooks** (signal-driven, all idempotent):
+- `mes.AndonAlert(alert_type='safety').post_save` → auto-creates a draft `IncidentReport` linked back via `source_andon` (idempotent on `source_andon=<alert>`).
+- Status-change audit factory in [`apps/compliance/signals.py`](apps/compliance/signals.py) emits `tenants.TenantAuditLog` rows for every `IncidentReport`, `RiskAssessment`, `SafetyAudit`, `ComplianceDocument`, `WasteManifest`, `ProductRecall`, and `RecallNotice` create / status-transition (lesson L-18 — closure receivers connected with `weak=False` + `dispatch_uid`).
+- `ElectronicSignature` rows are physically appended only — the model overrides `save()` to raise `ValidationError` after pk is set; admin registration sets all `has_*_permission` to `False`.
+
+**Workflows** (all atomic + race-safe via conditional `QuerySet.update()` per lesson L-13):
+- IncidentReport: `reported → investigating → corrective_action → closed | cancelled`.
+- RiskAssessment: `draft → in_review → approved → archived`.
+- SafetyAudit: `scheduled → in_progress → completed | cancelled`.
+- ComplianceDocument: `draft → in_review → approved → effective → superseded`; one-shot Sign action emits an `ElectronicSignature` with the signer's typed-name + reason + role.
+- WasteManifest: `draft → in_transit → disposed → reconciled` (+ `cancelled`); per-line `WasteDisposalRecord` CRUD.
+- ProductRecall: `draft → in_progress → completed → closed` (+ `cancelled` with required reason); affected-lot add/remove triggers `recompute_affected_quantity` service that re-aggregates `affected_quantity / recovered_quantity` denorms.
+- RecallNotice: `draft → sent → acknowledged`.
+
+**Lessons applied** (cross-referenced in [.claude/tasks/lessons.md](.claude/tasks/lessons.md)):
+- **L-01** — `unique_together` form `clean()` for tenant-scoped models with hidden tenant field (e.g., `IncidentTypeForm`, `WasteCategoryForm`).
+- **L-02** — `MinValueValidator` on every Decimal quantity (recall `affected_quantity`, manifest line `quantity`, etc.).
+- **L-03** — view + template status-gate parity via `is_*` model helpers (`is_investigatable`, `is_actionable`, `is_closeable`, `is_sendable`, `is_acknowledgable`, etc.).
+- **L-04** — loud `messages.warning(...)` on workflow guard rejection.
+- **L-12** — auto-numbered models retry on `IntegrityError` under contention.
+- **L-13** — workflow status writes via `QuerySet.update()` inside `transaction.atomic()` for race-safety.
+- **L-17** — `PROTECT` on every audit-trail child FK (`ElectronicSignature.document`, `RecallNotice.recall`, `WasteDisposalRecord.manifest`).
+- **L-18** — status-audit signal factory connects with `weak=False` + unique `dispatch_uid`.
+- **L-20** — `ElectronicSignature` immutability enforced at save / delete (the same pattern as `plm.ComplianceAuditLog` — see PLM Module 2).
+
+**Service layer** ([apps/compliance/services/](apps/compliance/services/)):
+- [`audit.py`](apps/compliance/services/audit.py) — `generate_archive(tenant, start, end)` collects matching audit rows, JSON-serializes, hashes (SHA-256), writes one `AuditLogArchive` row.
+- [`document.py`](apps/compliance/services/document.py) — workflow transitions (`submit_document`, `approve_document`, `publish_document`, `supersede_document`) + e-sig writer.
+- [`incident.py`](apps/compliance/services/incident.py) — workflow transitions for `IncidentReport`.
+- [`recall.py`](apps/compliance/services/recall.py) — `recompute_affected_quantity(recall)`, add/remove affected lots, workflow transitions for `ProductRecall` + `RecallNotice`.
+
+**Tests** ([apps/compliance/tests/](apps/compliance/tests/)) — **112 tests, ~87 s**: model invariants + auto-numbering + risk-score math + e-sig immutability (test_models, 20 tests), workflow status guards + lesson L-01 unique-trap regression (test_forms), CRUD + filter + pagination + tenant scoping (test_views, 29 tests), cross-tenant IDOR + e-sig admin readonly (test_security), status-audit signals + cross-module `mes.AndonAlert(safety)` → `IncidentReport` hook (test_signals, 9 tests).
+
+**Out-of-scope notes (Phase 1):**
+- **SHA-256 hash chain on every audit row** — the `AuditLogArchive` model seals an entire date-range snapshot with one hash; per-row `prev_hash`/`this_hash` chaining (D-GAP-05 from the SQA review) requires schema additions to `tenants.TenantAuditLog` and `plm.ComplianceAuditLog` — deferred to Phase 2.
+- **EHS dashboards / TRIR / LTIR** — KPI surfaces beyond the index page are deferred to Module 16 (BI & Analytics).
+- **Customer notification automation** — `RecallNotice.send` only flips status + stamps `sent_at`; outbound email / SMS integration deferred to Module 19 (Document & Knowledge Management).
+
+---
+
 ## Module 14 — Energy & Utility Management
 
-Module 14 is implemented in [`apps/utility/`](apps/utility/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` (except the `BenchmarkSnapshot` industry-average row which is intentionally tenant-`NULL`) and every query is scoped via `request.tenant`. **Module 13 (Compliance & Regulatory) is skipped for now** and **Module 17 (Sales & Customer Order Management) is still deferred**, so utility cost flows reach the GL via the existing `cost.DriverActuals` → `cost.OverheadAllocation` pipeline rather than through revenue. All cross-module integration is additive — Module 14 owns no schema changes outside its own app.
+Module 14 is implemented in [`apps/utility/`](apps/utility/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` (except the `BenchmarkSnapshot` industry-average row which is intentionally tenant-`NULL`) and every query is scoped via `request.tenant`. **Module 17 (Sales & Customer Order Management) is still deferred**, so utility cost flows reach the GL via the existing `cost.DriverActuals` → `cost.OverheadAllocation` pipeline rather than through revenue. All cross-module integration is additive — Module 14 owns no schema changes outside its own app.
 
 ### Sub-module 14.1 — Utility Meter Integration
 
@@ -2170,6 +2223,8 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_plans` | Seed/update the 4 default plans |
 | `python manage.py seed_tenants [--flush]` | Seed 3 demo tenants with users, invoices, health snapshots |
 | `python manage.py seed_plm [--flush]` | Seed PLM demo data (categories, products, ECOs, CAD, compliance, NPI) per tenant |
+| `python manage.py expire_compliance [--tenant <slug>] [--dry-run]` | Flip `ProductCompliance` rows from `compliant` to `expired` when their `expiry_date < today`; idempotent; emits one immutable `ComplianceAuditLog(event='expired')` per flip + a cross-cutting `tenants.TenantAuditLog` row. Schedule daily via cron / Task Scheduler. |
+| `python manage.py seed_compliance [--flush]` | Seed Module 13 demo data per tenant (4 IncidentType rows, 3 IncidentReports, 2 RiskAssessments, 2 SafetyAuditChecklists + 1 scheduled SafetyAudit, 5 ComplianceDocuments incl. 1 effective with an ElectronicSignature, 4 WasteCategory + 1 in-transit WasteManifest with 2 disposal lines, 1 Class III ProductRecall in_progress on the first plm.Product). Idempotent — skips per-tenant if data exists. |
 | `python manage.py seed_bom [--flush]` | Seed BOM demo data (BOMs, lines, alternates, substitution rules, cost elements, sync maps) per tenant |
 | `python manage.py seed_pps [--flush]` | Seed PPS demo data (work centers, calendars, routings, MPS, production orders + scheduled operations, capacity load, scenario, optimizer run) per tenant |
 | `python manage.py seed_mrp [--flush]` | Seed MRP demo data (forecast models + seasonality + completed forecast run, inventory snapshots, scheduled receipts, completed MRP run with planned orders / PRs / exceptions) per tenant |
@@ -2185,7 +2240,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
-| `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
+| `pytest apps/plm/tests/` | Run the PLM test suite (106 tests, ~63 s; uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 compliance regression tests covering D-CR-01 (audit-log immutability), D-CR-02 (auto-expire), D-CR-04 (date inversion guard), D-CR-05 (unique_together duplicate guard), D-CR-07 (expiring-soon banner scoping), D-CR-08 (template doc) |
 | `pytest apps/pps/tests/` | Run the PPS test suite (58 tests, ~6 s; covers model bounds, form validation, RBAC, workflow, scheduler/optimizer, audit-log emission, query budgets) |
 | `pytest apps/mes/tests/` | Run the MES test suite (142 tests, ~9 s; covers model invariants, dispatcher / time-logging / reporting services, forms, workflow, audit-log emission, multi-tenant IDOR, CSRF, plus 8 seeder-regression tests for the 6 BUGs found during the manual-test walkthrough) |
 | `pytest --cov=apps/plm` | Run with coverage report |
@@ -2254,7 +2309,7 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 10. ~~Equipment & Asset Management (EAM)~~ ✅ shipped
 11. ~~Labor & Workforce Management~~ ✅ shipped
 12. ~~Cost Management & Accounting~~ ✅ shipped
-13. Compliance & Regulatory (skipped for now — Module 14 built next)
+13. ~~Compliance & Regulatory Management~~ ✅ shipped
 14. ~~Energy & Utility Management~~ ✅ shipped
 15. IoT & SCADA Integration
 16. Business Intelligence & Analytics
