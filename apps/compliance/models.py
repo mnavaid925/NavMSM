@@ -32,8 +32,8 @@ Lessons applied (all proven in Module 12 / 14):
     * L-17 PROTECT on audit-trail children (ElectronicSignature.document,
             RecallAffectedLot.recall, WasteDisposalRecord.manifest)
     * L-18 weak=False + dispatch_uid on every closure receiver
-    * L-19 (introduced for compliance): file uploads validate extension +
-            content_type + size cap (mirrors utility.UtilityConsumptionImportForm).
+    * L-22 — file uploads validate extension + content_type + size cap +
+            magic-byte sniff (mirrors utility.UtilityConsumptionImportForm).
 """
 from decimal import Decimal
 
@@ -455,7 +455,7 @@ class ComplianceDocument(TenantAwareModel, TimeStampedModel):
         - Immutable once approved (effective_from is set on first approval).
         - Approvals + e-signatures are kept in sibling tables for audit.
 
-    File upload caps + extension allow-list per L-19.
+    File upload caps + extension allow-list per L-22.
     """
 
     DOC_TYPE_CHOICES = [
