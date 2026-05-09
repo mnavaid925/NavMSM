@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.recall_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.recall_number }} <span class="badge bg-{% if obj.severity == 'class_i' %}danger{% elif obj.severity == 'class_ii' %}warning{% else %}info{% endif %}-subtle text-{% if obj.severity == 'class_i' %}danger{% elif obj.severity == 'class_ii' %}warning{% else %}info{% endif %}">{{ obj.get_severity_display|truncatechars:30 }}</span> <span class="badge bg-{% if obj.status == 'closed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}-subtle text-{% if obj.status == 'closed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}">{{ obj.get_status_display }}</span></h4>
+        <span class="text-muted small">{{ obj.title }} · Product: {{ obj.product.sku }}</span></div>
+    <a href="{% url 'compliance:recall_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="row g-3"><div class="col-md-8">
+<div class="card mb-3"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Product</th><td>{{ obj.product.sku }} — {{ obj.product.name|default:"" }}</td></tr>
+    <tr><th class="text-muted small">Initiated</th><td>{{ obj.initiated_at|date:"Y-m-d H:i" }}{% if obj.initiated_by %} by {{ obj.initiated_by.username }}{% endif %}</td></tr>
+    {% if obj.root_cause %}<tr><th class="text-muted small">Root Cause</th><td>{{ obj.root_cause|linebreaks }}</td></tr>{% endif %}
+    {% if obj.corrective_action %}<tr><th class="text-muted small">Corrective Action</th><td>{{ obj.corrective_action|linebreaks }}</td></tr>{% endif %}
+    <tr><th class="text-muted small">Affected / Recovered</th><td><strong>{{ obj.affected_quantity|floatformat:2 }}</strong> units affected · <strong>{{ obj.recovered_quantity|floatformat:2 }}</strong> recovered ({{ obj.recovery_pct }}%)</td></tr>
+    {% if obj.closed_at %}<tr><th class="text-muted small">Closed</th><td>{{ obj.closed_at|date:"Y-m-d H:i" }}</td></tr>{% endif %}
+    {% if obj.cancellation_reason %}<tr><th class="text-muted small">Cancellation Reason</th><td>{{ obj.cancellation_reason }}</td></tr>{% endif %}
+</table>
+</div></div>
+
+<div class="card mb-3"><div class="card-body">
+<h6 class="mb-2">Affected Lots <small class="text-muted">— linked to <code>inventory.Lot</code></small></h6>
+<table class="table table-sm">
+    <thead><tr><th>Lot</th><th class="text-end">Affected Qty</th><th class="text-end">Recovered Qty</th><th></th></tr></thead>
+    <tbody>{% for link in affected_lots %}<tr>
+        <td class="small">{{ link.lot }}</td>
+        <td class="small text-end">{{ link.affected_quantity|floatformat:2 }}</td>
+        <td class="small text-end">{{ link.recovered_quantity|floatformat:2 }}</td>
+        <td class="text-end">{% if obj.is_editable and request.user.is_tenant_admin %}<form method="post" action="{% url 'compliance:affected_lot_remove' link.pk %}" style="display:inline" onsubmit="return confirm('Unlink?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-2">No lots linked yet.</td></tr>{% endfor %}</tbody>
+</table>
+{% if obj.is_editable and request.user.is_tenant_admin %}
+<hr>
+<form method="post" action="{% url 'compliance:affected_lot_add' obj.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-7">{{ lot_form.lot }}</div>
+    <div class="col-md-3">{{ lot_form.affected_quantity }}</div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Link Lot</button></div>
+</form>
+{% endif %}
+</div></div>
+
+<div class="card"><div class="card-body">
+<h6 class="d-flex justify-content-between mb-2">Customer Notices {% if request.user.is_tenant_admin %}<a class="btn btn-sm btn-outline-primary" href="{% url 'compliance:notice_create' obj.pk %}"><i class="ri-add-line"></i> Draft Notice</a>{% endif %}</h6>
+<table class="table table-sm">
+    <thead><tr><th>Number</th><th>Channel</th><th>Audience</th><th>Status</th><th>Sent</th></tr></thead>
+    <tbody>{% for n in notices %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'compliance:notice_detail' n.pk %}">{{ n.notice_number }}</a></td>
+        <td class="small">{{ n.get_channel_display }}</td>
+        <td class="small">{{ n.audience|truncatechars:30 }}</td>
+        <td><span class="badge bg-{% if n.status == 'acknowledged' %}success{% elif n.status == 'sent' %}info{% else %}secondary{% endif %}-subtle text-{% if n.status == 'acknowledged' %}success{% elif n.status == 'sent' %}info{% else %}secondary{% endif %}">{{ n.get_status_display }}</span></td>
+        <td class="small">{% if n.sent_at %}{{ n.sent_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No notices yet.</td></tr>{% endfor %}</tbody>
+</table>
+</div></div>
+</div>
+
+<div class="col-md-4">
+{% if request.user.is_tenant_admin %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="card-title">Workflow</h6>
+    {% if obj.is_progressable %}<form method="post" action="{% url 'compliance:recall_progress' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-info w-100">Progress (in progress)</button></form>{% endif %}
+    {% if obj.is_completable %}<form method="post" action="{% url 'compliance:recall_complete' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-warning w-100">Complete</button></form>{% endif %}
+    {% if obj.is_closeable %}<form method="post" action="{% url 'compliance:recall_close' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-success w-100">Close</button></form>{% endif %}
+    {% if obj.is_cancellable %}<form method="post" action="{% url 'compliance:recall_cancel' obj.pk %}">{% csrf_token %}<textarea name="cancellation_reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Cancellation reason..." required></textarea><button class="btn btn-sm btn-outline-secondary w-100" onclick="return confirm('Cancel recall?');">Cancel</button></form>{% endif %}
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
