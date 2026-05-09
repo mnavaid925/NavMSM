@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.eam',
     'apps.labor',
     'apps.cost',
+    'apps.utility',
 ]
 
 MIDDLEWARE = [
