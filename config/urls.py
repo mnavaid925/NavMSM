@@ -21,6 +21,8 @@ urlpatterns = [
     path('labor/', include('apps.labor.urls')),
     path('cost/', include('apps.cost.urls')),
     path('utility/', include('apps.utility.urls')),
+    path('compliance/', include('apps.compliance.urls')),
+    path('iot/', include('apps.iot.urls')),
 ]
 
 if settings.DEBUG:
