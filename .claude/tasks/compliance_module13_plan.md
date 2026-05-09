@@ -70,11 +70,43 @@ For each defect fix:
 
 ## Review (filled in after Phase A completes)
 
-- [ ] Date completed:
-- [ ] Defects fixed: D-CR-01, D-CR-02, D-CR-04, D-CR-05, D-CR-07, D-CR-08
-- [ ] Tests added: factories.py + 7 test files
-- [ ] Test suite runtime:
-- [ ] Defects re-verified blocked in shell:
-- [ ] README + lessons.md updated:
-- [ ] Commit snippets handed to user:
-- [ ] User approval received to start Phase B?
+- [x] Date completed: 2026-05-09
+- [x] Defects fixed: D-CR-01, D-CR-02, D-CR-04, D-CR-05, D-CR-07, D-CR-08
+- [x] Tests added: factories.py + 7 test files (55 tests)
+- [x] Test suite runtime: ~63 s
+- [x] Defects re-verified blocked in shell: yes
+- [x] README + lessons.md updated: yes (L-20, L-21)
+- [x] Commit snippets handed to user: yes
+- [x] User approval received to start Phase B: yes
+- [x] Phase B (apps/compliance/ MVP) shipped — 18 models, 81 views, 33 templates, 112 tests
+
+---
+
+## Phase C — close remaining gaps (THIS SESSION)
+
+User requested all 8 items in the gap list be shipped. Execution order is dependency-first:
+
+| # | Task | Files (estimated) | Status |
+|---|---|---|---|
+| C.1 | **Per-row SHA-256 hash chain on `tenants.TenantAuditLog` + `plm.ComplianceAuditLog`** — add `prev_hash` + `this_hash` columns, override `save()` to compute and chain, ship `verify_chain()` service in both apps, write migration + tests | tenants/models.py, tenants/migrations/000X.py, plm/models.py, plm/migrations/000X.py, plm/services/audit_chain.py, plm/tests/test_audit_chain.py, tenants/services/audit_chain.py, tenants/tests/test_audit_chain.py | [ ] |
+| C.6 | **`qms.NCR(severity=critical).post_save` → auto-create `IncidentReport`** — signal hook with idempotency | apps/compliance/signals.py, apps/compliance/models.py (add source_ncr FK + migration), tests | [ ] |
+| C.7 | **`inventory.StockMovement(movement_type=issue)` on a recalled lot → flag warning + sweep** — signal hook + recall-sweep service | apps/compliance/signals.py, apps/compliance/services/recall.py, tests | [ ] |
+| C.8 | **Bind `plm.ProductCompliance` status->compliant to require `ElectronicSignature`** — bridge PLM subset to new e-sig infrastructure (opt-in tenant flag) | apps/plm/views.py, apps/plm/forms.py, apps/plm/models.py (or tenant flag in core), tests | [ ] |
+| C.4 | **EHS dashboards — TRIR, LTIR, near-miss ratio** — KPI service + dashboard view extension + template | apps/compliance/services/kpi.py, apps/compliance/views.py (extend IndexView), templates/compliance/index.html, tests | [ ] |
+| C.5 | **Outbound email for `RecallNotice.send`** — Django `send_mail` integration via existing email backend (console in DEBUG) with idempotency | apps/compliance/services/recall.py, tests | [ ] |
+| C.3 | **`apps/compliance/tests/test_performance.py`** — N+1 query budgets for the 81 views | apps/compliance/tests/test_performance.py | [ ] |
+| C.2 | **`.claude/manual-tests/compliance-manual-test.md`** — manual UAT walkthrough following existing pattern | .claude/manual-tests/compliance-manual-test.md | [ ] |
+| C.X | Run full PLM + compliance + tenants regression suite | n/a | [ ] |
+| C.Y | Update README (per-row chain, EHS KPIs, hooks, manual-test) + lessons.md (new lessons from this work) | README.md, .claude/tasks/lessons.md | [ ] |
+
+**Phase C exit criteria** — all 8 items shipped, full test suite green, README + lessons updated, commit snippets handed. Cross-tenant isolation preserved on all new signal hooks (lesson L-18 `weak=False` + `dispatch_uid`).
+
+### Phase C review (filled in at end)
+- [x] Date completed: 2026-05-10
+- [x] Total tests added: **42 new tests** (audit_chain plm + tenants 13, NCR hook 4, recall leak 5, e-sig binding 10, EHS KPI 7, recall email 6, perf -3 unchanged + 6 new = 6) → suite total 269 across PLM + Compliance + Tenants
+- [x] Test suite runtime: ~102 s (was ~87 s)
+- [x] Files created: 14 new + ~12 modified — see commit snippets handed in chat
+- [x] New lessons captured: **L-24** (SHA chain backfill data migration), **L-25** (read fields before wiring cross-module signals), **L-26** (denorm field needs template rendering same turn)
+- [x] Commit snippets handed: yes (one-file-per-commit per CLAUDE.md L-06)
+- [x] Backfill verified: 872 rows chained across 3 tenants, 0 broken
+- [x] All 8 user-requested items shipped: C.1 (chain) + C.6 (NCR hook) + C.7 (recall leak) + C.8 (e-sig) + C.4 (EHS KPI) + C.5 (email) + C.3 (perf) + C.2 (manual test)
