@@ -5,13 +5,28 @@ Honors:
     - Lesson L-02: every Decimal field carries explicit MinValueValidator
       (declared on the model; ModelForm picks them up).
     - Lesson L-14: per-workflow forms enforce per-transition required fields.
+    - L-19 (this module): file uploads validate extension + content_type +
+      size cap so the importer can't be abused as a file-storage primitive.
 """
+import re
 from decimal import Decimal
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 
 from . import models
+
+
+_CSV_MAX_BYTES = 5 * 1024 * 1024  # 5 MiB cap on bulk CSV imports.
+_CSV_ALLOWED_CONTENT_TYPES = {
+    'text/csv',
+    'application/csv',
+    'application/vnd.ms-excel',
+    'text/plain',  # some browsers send this for .csv
+    'application/octet-stream',  # fallback some browsers send
+}
+_CURRENCY_RE = re.compile(r'^[A-Z]{3}$')
 
 
 class TenantForm(forms.ModelForm):
@@ -134,10 +149,23 @@ class UtilityConsumptionForm(TenantForm):
 
 
 class UtilityConsumptionImportForm(forms.Form):
-    """CSV bulk import (admin-only)."""
+    """CSV bulk import (admin-only).
+
+    D-03 hardening:
+        * Extension allow-list (.csv) via FileExtensionValidator.
+        * 5 MiB hard size cap (independent of Django's
+          DATA_UPLOAD_MAX_MEMORY_SIZE which only governs in-memory parse).
+        * Content-type sniff against a small allow-list — browsers send a
+          handful of legal types for CSV; we reject everything else.
+        * First-line shape check: reject obvious non-CSV (PE / ELF / ZIP
+          magic bytes) before handing the file to ``csv.DictReader``.
+    """
 
     meter = forms.ModelChoiceField(queryset=models.UtilityMeter.all_objects.none())
-    csv_file = forms.FileField(help_text='CSV columns: period_start,period_end,start_reading,end_reading,unit_cost')
+    csv_file = forms.FileField(
+        help_text='CSV columns: period_start,period_end,start_reading,end_reading,unit_cost (max 5 MB)',
+        validators=[FileExtensionValidator(allowed_extensions=['csv'])],
+    )
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -146,6 +174,41 @@ class UtilityConsumptionImportForm(forms.Form):
             self.fields['meter'].queryset = (
                 models.UtilityMeter.all_objects.filter(tenant=tenant, is_active=True)
             )
+
+    def clean_csv_file(self):
+        f = self.cleaned_data.get('csv_file')
+        if f is None:
+            return f
+        if f.size > _CSV_MAX_BYTES:
+            raise ValidationError(
+                f'File too large: {f.size} bytes > {_CSV_MAX_BYTES} bytes (5 MiB cap).',
+            )
+        ctype = (getattr(f, 'content_type', '') or '').lower()
+        if ctype and ctype not in _CSV_ALLOWED_CONTENT_TYPES:
+            raise ValidationError(
+                f'Unsupported content-type: {ctype}. Expected text/csv.',
+            )
+        # Magic-byte / binary sniff: read the first chunk, peek for known
+        # binary signatures, then rewind. csv.DictReader needs the cursor
+        # at the beginning.
+        f.seek(0)
+        head = f.read(8)
+        f.seek(0)
+        bad_signatures = (
+            b'MZ',          # PE / DOS executable
+            b'\x7fELF',     # Linux ELF
+            b'PK\x03\x04',  # ZIP / Office Open XML
+            b'\x89PNG',     # PNG image
+            b'%PDF',        # PDF
+            b'\xff\xd8\xff',  # JPEG
+        )
+        for sig in bad_signatures:
+            if head.startswith(sig):
+                raise ValidationError(
+                    'File contents do not look like a CSV (binary signature '
+                    'detected).',
+                )
+        return f
 
 
 # ============================================================================
@@ -176,14 +239,25 @@ class UtilityTariffForm(TenantForm):
         eff_from, eff_to = data.get('effective_from'), data.get('effective_to')
         if eff_from and eff_to and eff_to < eff_from:
             self.add_error('effective_to', 'Must be on or after Effective From.')
+        # D-05: ISO-4217 shape (3 upper-case letters). Length-only check
+        # let strings like "ZZZ" / "999" / lower-case pass through.
         currency = data.get('currency', '')
-        if currency and len(currency) != 3:
-            self.add_error('currency', 'Must be a 3-character ISO currency code.')
+        if currency and not _CURRENCY_RE.match(currency):
+            self.add_error(
+                'currency',
+                'Must be a 3-letter upper-case ISO 4217 code (e.g. USD, EUR).',
+            )
         return data
 
 
 class TOURateBandForm(forms.ModelForm):
-    """No tenant scoping — band is owned by tariff (which is tenant-scoped)."""
+    """No tenant scoping — band is owned by tariff (which is tenant-scoped).
+
+    The view passes ``tariff=<UtilityTariff>`` via the form ``initial`` so
+    ``clean()`` can pre-check the (tariff, band_type, day_of_week, start_time)
+    unique_together (D-04) — duplicate POST otherwise reaches the DB and the
+    raw IntegrityError text is surfaced to the user.
+    """
 
     class Meta:
         model = models.TOURateBand
@@ -193,11 +267,35 @@ class TOURateBandForm(forms.ModelForm):
             'end_time': forms.TimeInput(attrs={'type': 'time'}),
         }
 
+    def __init__(self, *args, tariff=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._tariff = tariff
+
     def clean(self):
         data = super().clean()
         st, et = data.get('start_time'), data.get('end_time')
         if st and et and et <= st:
             self.add_error('end_time', 'Must be after start time.')
+        # D-04: pre-check the unique_together so we don't echo a raw
+        # IntegrityError. The view passes the parent tariff into __init__.
+        if self._tariff is not None:
+            band_type = data.get('band_type')
+            day_of_week = data.get('day_of_week')
+            if band_type and day_of_week and st:
+                qs = models.TOURateBand.all_objects.filter(
+                    tariff=self._tariff,
+                    band_type=band_type,
+                    day_of_week=day_of_week,
+                    start_time=st,
+                )
+                if self.instance.pk:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    self.add_error(
+                        'start_time',
+                        'A band of this type already exists for this day at '
+                        'this start time.',
+                    )
         return data
 
 
@@ -342,6 +440,25 @@ class PeakShavingDismissForm(forms.Form):
 # ============================================================================
 # 14.4  Carbon & Sustainability Reporting
 # ============================================================================
+
+class CarbonEmissionReverseForm(forms.Form):
+    """L-14: a reversal needs a typed reason.
+
+    Mirrors ``UtilityAllocationReverseForm``. D-08: gives admins a UI path to
+    null-out a manual or mis-emitted CarbonEmission row without dropping to
+    ``manage.py shell``.
+    """
+
+    reversal_reason = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 3}), required=True,
+    )
+
+    def clean_reversal_reason(self):
+        v = self.cleaned_data.get('reversal_reason', '').strip()
+        if not v:
+            raise ValidationError('Reversal reason is required.')
+        return v
+
 
 class EmissionFactorForm(TenantForm):
     class Meta:
