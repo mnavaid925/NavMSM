@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Utility Allocations{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Utility Cost Allocations</h4><div class="text-muted small">Distribute metered cost into cost centers / products / production orders. Idempotent post writes downstream <code>cost.DriverActuals</code>.</div></div>
+</div>
+{% if request.user.is_tenant_admin or request.user.is_superuser %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="mb-2">Post Allocation</h6>
+    <form method="post" action="{% url 'utility:allocation_post' %}" class="row g-2">{% csrf_token %}
+        <div class="col-md-4">{{ post_form.period|as_crispy_field }}</div>
+        <div class="col-md-4">{{ post_form.meter|as_crispy_field }}</div>
+        <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100"><i class="ri-send-plane-line me-1"></i> Post</button></div>
+    </form>
+    <div class="text-muted small mt-2">Re-running the post is safe: it wipes prior un-reversed rows + cost.DriverActuals first, then re-emits.</div>
+</div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number or meter..."></div>
+    <div class="col-md-3"><select name="period" class="form-select"><option value="">All periods</option>{% for p in periods %}<option value="{{ p.pk }}" {% if request.GET.period == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select name="meter" class="form-select"><option value="">All meters</option>{% for m in meters %}<option value="{{ m.pk }}" {% if request.GET.meter == m.pk|stringformat:"d" %}selected{% endif %}>{{ m.meter_number }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="state" class="form-select"><option value="">All states</option><option value="open" {% if request.GET.state == 'open' %}selected{% endif %}>Open</option><option value="posted" {% if request.GET.state == 'posted' %}selected{% endif %}>Posted</option><option value="reversed" {% if request.GET.state == 'reversed' %}selected{% endif %}>Reversed</option></select></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Period</th><th>Meter</th><th>Target</th><th>Method</th><th class="text-end">Share %</th><th class="text-end">Cost</th><th>State</th><th></th></tr></thead>
+    <tbody>{% for a in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'utility:allocation_detail' a.pk %}">{{ a.allocation_number }}</a></td>
+        <td class="small">{{ a.period.name }}</td>
+        <td class="small">{{ a.meter.meter_number }}</td>
+        <td class="small">{% if a.target_production_order %}PO {{ a.target_production_order }}{% elif a.target_product %}{{ a.target_product }}{% elif a.target_cost_center %}{{ a.target_cost_center }}{% else %}<span class="text-muted">unallocated</span>{% endif %}</td>
+        <td class="small">{{ a.get_allocation_method_display }}</td>
+        <td class="small text-end">{{ a.share_pct|floatformat:2 }}</td>
+        <td class="small text-end">{{ a.allocated_cost|floatformat:2 }}</td>
+        <td>{% if a.is_reversed %}<span class="badge bg-warning-subtle text-warning">Reversed</span>{% elif a.is_posted_to_cost %}<span class="badge bg-success-subtle text-success">Posted</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Open</span>{% endif %}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'utility:allocation_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete allocation? Posted allocations must be reversed first.');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No allocations posted yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'utility/_pagination.html' %}
+</div></div>
+{% endblock %}
