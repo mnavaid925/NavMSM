@@ -40,6 +40,16 @@ class Tenant(models.Model):
     industry = models.CharField(max_length=100, blank=True)
     timezone = models.CharField(max_length=50, default='UTC')
     is_active = models.BooleanField(default=True)
+    require_compliance_e_signature = models.BooleanField(
+        default=False,
+        help_text=(
+            'When True, every transition of a `plm.ProductCompliance` record '
+            'INTO status=`compliant` must be accompanied by an electronic '
+            'signature (FDA 21 CFR Part 11). Off by default to preserve '
+            'backward-compatibility with seed data and the existing test '
+            'suite; turn on per regulated-industry tenant.'
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
