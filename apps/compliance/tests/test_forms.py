@@ -119,7 +119,7 @@ def test_waste_manifest_delivery_after_pickup(acme, waste_category):
     assert 'delivered_at' in f.errors
 
 
-# ---------- File-upload safety on ComplianceDocumentForm (L-19) ----------
+# ---------- File-upload safety on ComplianceDocumentForm (L-22) ----------
 
 def _file(content, name='doc.pdf', ctype='application/pdf'):
     from django.core.files.uploadedfile import SimpleUploadedFile
