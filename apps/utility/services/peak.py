@@ -25,10 +25,10 @@ def scan_for_peak_overlap(tenant, *, horizon_days=14):
         .select_related('production_order')
         .filter(
             tenant=tenant,
-            scheduled_start__gte=now,
-            scheduled_start__lte=end,
+            planned_start__gte=now,
+            planned_start__lte=end,
         )
-        .order_by('scheduled_start')
+        .order_by('planned_start')
     )
 
     # 1) Active DR events overlapping the horizon
@@ -48,8 +48,8 @@ def scan_for_peak_overlap(tenant, *, horizon_days=14):
 
     created = 0
     for op in ops:
-        op_start = op.scheduled_start
-        op_end = op.scheduled_end or op_start
+        op_start = op.planned_start
+        op_end = op.planned_end or op_start
         # DR event overlap
         for ev in dr_events:
             if op_end <= ev.start_at or op_start >= ev.end_at:
@@ -166,8 +166,8 @@ def compute_estimated_savings(op, *, current_band=None, target_band=None):
     The model holds asset/cost-center linkage so a future revision can pull
     the actual avg_kwh_per_hour from EAM telemetry.
     """
-    op_start = op.scheduled_start
-    op_end = op.scheduled_end or op_start
+    op_start = op.planned_start
+    op_end = op.planned_end or op_start
     duration_hours = Decimal((op_end - op_start).total_seconds()) / Decimal('3600')
     assumed_kwh_per_hour = Decimal('50')
     if current_band is None or target_band is None:
