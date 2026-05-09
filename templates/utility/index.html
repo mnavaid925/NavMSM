@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}Energy & Utility Management{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Energy & Utility Management</h4><div class="text-muted small">Module 14 — meters, tariffs, peak demand, carbon, benchmarking.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'utility:meter_list' %}" class="btn btn-sm btn-outline-primary"><i class="ri-dashboard-3-line me-1"></i> Meters</a>
+        <a href="{% url 'utility:emission_list' %}" class="btn btn-sm btn-outline-success"><i class="ri-leaf-line me-1"></i> Emissions</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Active Meters</div><h4 class="mb-0">{{ kpi.meter_count|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Open DR Events</div><h4 class="mb-0">{{ kpi.open_dr_events|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">New Suggestions</div><h4 class="mb-0">{{ kpi.open_suggestions|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">kWh (MTD)</div><h4 class="mb-0">{{ kpi.period_kwh|default:0|floatformat:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">CO2e kg (MTD)</div><h4 class="mb-0">{{ kpi.period_co2e|default:0|floatformat:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Posted Allocations</div><h4 class="mb-0">{{ kpi.posted_allocations|default:0 }}</h4></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Consumption Trend (KPI snapshots)</h6>
+        <div id="consumption-chart" style="height:280px"></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-2">CO2e by Scope</h6>
+        <div id="co2e-chart" style="height:280px"></div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Consumption</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Entry</th><th>Meter</th><th>Type</th><th class="text-end">Consumption</th><th class="text-end">Cost</th></tr></thead>
+            <tbody>{% for c in recent_consumption %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'utility:consumption_detail' c.pk %}">{{ c.entry_number }}</a></td>
+                <td class="small">{{ c.meter.meter_number }}</td>
+                <td class="small">{{ c.meter.utility_type.code }}</td>
+                <td class="small text-end">{{ c.consumption|floatformat:2 }}</td>
+                <td class="small text-end">{{ c.total_cost|floatformat:2 }}</td>
+            </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No consumption recorded.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Emissions</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Entry</th><th>Scope</th><th>Source</th><th class="text-end">CO2e kg</th></tr></thead>
+            <tbody>{% for e in recent_emissions %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'utility:emission_detail' e.pk %}">{{ e.entry_number }}</a></td>
+                <td class="small">{{ e.get_scope_display }}</td>
+                <td class="small">{{ e.get_source_type_display }}</td>
+                <td class="small text-end">{{ e.co2e_kg|floatformat:2 }}</td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No emissions yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Open DR Events</h6>
+        <ul class="list-group list-group-flush">{% for ev in open_dr_events %}<li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'utility:dr_event_detail' ev.pk %}" class="fw-semibold">{{ ev.event_number }}</a> <span class="text-muted small">{{ ev.utility_type.code }}</span></span><span class="badge bg-info-subtle text-info">{{ ev.get_status_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">No open DR events.</li>{% endfor %}</ul>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">New Peak-Shaving Suggestions</h6>
+        <ul class="list-group list-group-flush">{% for s in open_suggestions %}<li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'utility:peak_detail' s.pk %}" class="fw-semibold">{{ s.suggestion_number }}</a> <span class="text-muted small">{{ s.production_order }}</span></span><span class="badge bg-warning-subtle text-warning">${{ s.estimated_savings|floatformat:2 }}</span></li>{% empty %}<li class="list-group-item text-muted small">No new suggestions. <a href="{% url 'utility:peak_list' %}">Run a scan.</a></li>{% endfor %}</ul>
+    </div></div></div>
+</div>
+
+{{ consumption_chart|json_script:"consumption-chart-data" }}
+{{ co2e_chart|json_script:"co2e-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var cdata = JSON.parse(document.getElementById('consumption-chart-data').textContent);
+    var labels = cdata.map(function(r){return r.period;});
+    new ApexCharts(document.getElementById('consumption-chart'), {
+        chart: {type:'bar', height:280, stacked:true, toolbar:{show:false}},
+        series: [
+            {name:'kWh', data: cdata.map(function(r){return r.kwh;})},
+            {name:'Water m3', data: cdata.map(function(r){return r.water;})},
+            {name:'Gas m3', data: cdata.map(function(r){return r.gas;})}
+        ],
+        xaxis: {categories: labels},
+        colors: ['#2563eb','#06b6d4','#f59e0b']
+    }).render();
+    var ddata = JSON.parse(document.getElementById('co2e-chart-data').textContent);
+    new ApexCharts(document.getElementById('co2e-chart'), {
+        chart: {type:'bar', height:280, stacked:true, toolbar:{show:false}},
+        series: [
+            {name:'Scope 1', data: ddata.map(function(r){return r.scope_1;})},
+            {name:'Scope 2', data: ddata.map(function(r){return r.scope_2;})},
+            {name:'Scope 3', data: ddata.map(function(r){return r.scope_3;})}
+        ],
+        xaxis: {categories: ddata.map(function(r){return r.period;})},
+        colors: ['#dc2626','#f97316','#10b981']
+    }).render();
+})();
+</script>
+{% endblock %}
