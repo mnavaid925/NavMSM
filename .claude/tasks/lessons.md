@@ -268,3 +268,54 @@ grep -rn "\.get_full_name|default:.*\.username" templates/
 Every match needs to be wrapped. Also add a regression test that creates the parent row with the FK explicitly set to `None` and asserts the relevant page renders 200 — see [apps/eam/tests/test_views.py — TestNullableFKRendersGracefully](../../apps/eam/tests/test_views.py).
 
 **Concrete example in repo:** Fixed 2026-05-06 in [.claude/manual-tests/eam-manual-test.md — BUG-01](../manual-tests/eam-manual-test.md) walkthrough. 9 EAM templates updated (`pm_schedules/list.html`, `pm_schedules/detail.html`, `mwo/detail.html`, `assets/detail.html`, `condition_points/detail.html`, `tools/detail.html`, `failure_predictions/detail.html`). Regression coverage in `TestNullableFKRendersGracefully` (4 tests). The same anti-pattern exists in `templates/mes/operators/detail.html:7` and `templates/mes/terminal/index.html:8` but is safe there because `operator.user` is a non-nullable FK — the Operator profile cannot exist without a user. Anywhere the FK is *nullable*, the chained-default pattern is unsafe.
+
+---
+
+## L-20 — A model that calls itself "immutable" in its docstring is NOT immutable until you write a manager + admin guard
+
+**Rule:** If a model represents an audit trail or a regulated record (`ComplianceAuditLog`, `tenants.TenantAuditLog`, any `*Record` / `*Log` / `*History` table) and the docstring says "immutable" or "append-only", that's a wish, not a constraint. To enforce it, FOUR things must all happen:
+1. **QuerySet override** — both `update()` and `delete()` raise `PermissionDenied` (so `.objects.filter(...).update()` and `.objects.all().delete()` both fail).
+2. **Instance `delete()`** — raise `PermissionDenied` so `entry.delete()` fails.
+3. **Instance `save()`** — raise `PermissionDenied` if `self.pk is not None` (allow the first insert, block every subsequent edit).
+4. **Custom `ModelAdmin`** — override `has_add_permission = has_change_permission = has_delete_permission = lambda *a, **k: False`. Without this a Django superuser bypasses the model layer entirely from the admin UI.
+
+If you forget step 4, the audit log is fully editable from `/admin/<app>/<model>/`. If you forget step 1, `QuerySet.update()` succeeds because Django bypasses `save()`. If you forget step 2, the parent CASCADE works but a stray `instance.delete()` in a view still wipes the row. If you forget step 3, anyone can mutate `meta`, `event`, or `performed_by` to rewrite history.
+
+**Why:** `ComplianceAuditLog` shipped with the docstring "Immutable audit trail for compliance changes — no UI edit/delete." That comment was true *for the UI* (no edit/delete URL was wired) but false at every other layer: instance delete worked, queryset delete worked, queryset update worked, instance save with mutated fields worked, and the model was registered in admin with `admin.site.register(ComplianceAuditLog)` (default `ModelAdmin`, full edit + delete). Verified in shell: `entry.delete()` succeeded silently. For any tenant in a regulated industry (FDA 21 CFR Part 11, ISO 9001, GMP, GDP), this is a finding the auditor flags as non-compliant — the audit trail must be tamper-evident.
+
+**How to apply:** for any new model whose role is to be a permanent record:
+1. Subclass the parent's `Manager` and override `get_queryset()` to return a custom `QuerySet` whose `update()` and `delete()` raise `PermissionDenied`.
+2. Add an `_ImmutableQuerySet` so `.objects` AND `.all_objects` (if you have one — `TenantAwareModel` does) both inherit the immutability.
+3. Override the model's `save(*args, **kwargs)` to `raise PermissionDenied` if `self.pk is not None`; override `delete(*args, **kwargs)` to always raise.
+4. Register in admin with a custom `ModelAdmin` that sets all three `has_*_permission` methods to return `False` and lists every field in `readonly_fields` for good measure.
+5. Pin the contract with regression tests: instance.delete(), queryset.delete(), queryset.update(), instance.save() after pk — all four must raise `PermissionDenied`. Plus a positive test that the parent CASCADE still cleans up cleanly.
+
+The CASCADE-from-parent path stays open by design: when the parent record is legitimately deleted (record-lifecycle, not tampering), the children go too. Django's cascade machinery bypasses the QuerySet you customised, so this Just Works without extra care.
+
+**Concrete example in repo:** [apps/plm/models.py — `ComplianceAuditLog` + `_ImmutableTenantAuditManager` + `_ImmutableAllAuditManager` + `_ImmutableAuditQuerySet`](../../apps/plm/models.py), admin override at [apps/plm/admin.py — `ComplianceAuditLogAdmin`](../../apps/plm/admin.py), regression tests in [apps/plm/tests/test_compliance_audit_immutable.py](../../apps/plm/tests/test_compliance_audit_immutable.py) (6 tests including the parent-CASCADE positive case). Fixed 2026-05-09 (defect D-CR-01 from the SQA review of Module 13 / PLM compliance subset).
+
+---
+
+## L-21 — Status enums with a "stale" terminal state need an automatic transition, or they silently rot
+
+**Rule:** When a model has a `status` enum that includes a terminal state representing the *passage of time* (e.g. `'expired'`, `'overdue'`, `'lapsed'`, `'late'`), there MUST be either a `post_save` signal or a periodic management command that flips affected rows when the trigger date passes. The choice is just "expired" / "compliant" — leaving it as a manual edit means the state never updates and the dashboard lies indefinitely. Worse: the regulator looking at the screen sees `Compliant ✓` for a record whose certificate expired 18 months ago.
+
+The pattern that works:
+1. Write a `manage.py <verb>_<noun>` command (`expire_compliance`, `mark_overdue_pms`, `lapse_certifications`).
+2. Use `QuerySet.update()` with a conditional filter (`status='compliant', expiry_date__lt=today`) for race-safe atomic transitions; `update()` bypasses `pre_save`/`post_save`, so manually emit any audit-log row from inside the same `transaction.atomic()` block.
+3. Idempotent — second run is a no-op because the conditional filter excludes already-flipped rows. Add an explicit "audit row already exists" check before creating the audit row to handle the case where someone manually re-set `status='compliant'` after the first run.
+4. Support `--dry-run` so an operator can see what would change before committing.
+5. Support `--tenant <slug>` for surgical re-runs after a partial failure.
+6. Schedule daily via cron (Linux) / Task Scheduler (Windows) — and document the cadence in the README's Management Commands table.
+
+**Why:** `ProductCompliance` shipped with `STATUS_CHOICES` including `'expired'`, but nothing wrote it. The shell-verifying call `ProductCompliance.objects.filter(status='compliant', expiry_date__lt=today).count()` returned 1 against the `acme` seed — and would return more for any tenant that's been in production a few months. The compliance dashboard's "Compliant" count and the per-record `Compliant ✓` badge both lied. The fix is the `expire_compliance` management command described above, not a UI button (which only fires on demand and gets forgotten).
+
+A subtle related rule: any KPI or banner that shows "X expiring within N days" MUST also filter on `status='compliant'`. A record with `status='non_compliant'` whose expiry_date is in the next 30 days is not "expiring" — it's already broken; counting it inflates the banner and trains the user to ignore it. Defect D-CR-07 in the same review caught this on `expiring_soon_count`.
+
+**How to apply:** when you add a `status` enum:
+1. Identify which states are time-driven (`expired`, `overdue`, `lapsed`).
+2. For each, write the matching scheduled command + tests at the same time as the model — not as "we'll add a cron later".
+3. Add it to the README's Management Commands table with the recommended cadence.
+4. Audit any KPI count that sums by date window — make sure it's status-scoped.
+
+**Concrete example in repo:** [apps/plm/management/commands/expire_compliance.py](../../apps/plm/management/commands/expire_compliance.py) + [apps/plm/views.py — ComplianceListView (D-CR-07 fix)](../../apps/plm/views.py) + 7 regression tests in [apps/plm/tests/test_compliance_workflow.py](../../apps/plm/tests/test_compliance_workflow.py). Fixed 2026-05-09 (defects D-CR-02 + D-CR-07 from the SQA review of Module 13 / PLM compliance subset). Same pattern already exists in `apps/eam/management/commands/generate_pm_schedules.py` for the `'overdue'` state on `PMSchedule` — that one was right from the start.
