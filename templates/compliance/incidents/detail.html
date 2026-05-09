@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.incident_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.incident_number }} <span class="badge bg-{% if obj.status == 'closed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}-subtle text-{% if obj.status == 'closed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}">{{ obj.get_status_display }}</span> <span class="badge bg-{% if obj.severity == 'critical' %}danger{% elif obj.severity == 'high' %}warning{% else %}info{% endif %}-subtle text-{% if obj.severity == 'critical' %}danger{% elif obj.severity == 'high' %}warning{% else %}info{% endif %}">{{ obj.get_severity_display }}</span></h4>
+        <span class="text-muted small">{{ obj.title }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        {% if obj.is_editable and request.user.is_tenant_admin %}<a href="{% url 'compliance:incident_edit' obj.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+        <a href="{% url 'compliance:incident_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+<div class="col-md-8"><div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Type</th><td>{{ obj.incident_type }}</td></tr>
+    <tr><th class="text-muted small">Occurred</th><td>{{ obj.occurred_at|date:"Y-m-d H:i" }}</td></tr>
+    <tr><th class="text-muted small">Location</th><td>{% if obj.location %}{{ obj.location }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Reporter</th><td>{% if obj.reporter %}{{ obj.reporter.get_full_name|default:obj.reporter.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Description</th><td>{{ obj.description|linebreaks }}</td></tr>
+    {% if obj.witnesses %}<tr><th class="text-muted small">Witnesses</th><td>{{ obj.witnesses }}</td></tr>{% endif %}
+    {% if obj.immediate_actions %}<tr><th class="text-muted small">Immediate Actions</th><td>{{ obj.immediate_actions|linebreaks }}</td></tr>{% endif %}
+    {% if obj.root_cause %}<tr><th class="text-muted small">Root Cause</th><td>{{ obj.root_cause|linebreaks }}</td></tr>{% endif %}
+    {% if obj.corrective_actions %}<tr><th class="text-muted small">Corrective Actions</th><td>{{ obj.corrective_actions|linebreaks }}</td></tr>{% endif %}
+    {% if obj.closed_at %}<tr><th class="text-muted small">Closed</th><td>{{ obj.closed_at|date:"Y-m-d H:i" }}{% if obj.closed_by %} by {{ obj.closed_by.get_full_name|default:obj.closed_by.username }}{% endif %}</td></tr>{% endif %}
+    {% if obj.cancellation_reason %}<tr><th class="text-muted small">Cancellation Reason</th><td>{{ obj.cancellation_reason }}</td></tr>{% endif %}
+    {% if obj.source_andon %}<tr><th class="text-muted small">Source Andon</th><td><a href="#">{{ obj.source_andon }}</a> <span class="text-muted small">(auto-created from MES)</span></td></tr>{% endif %}
+</table>
+</div></div></div>
+
+<div class="col-md-4">
+{% if obj.is_investigatable and request.user.is_tenant_admin %}
+<div class="card border-info mb-3"><div class="card-body">
+    <h6 class="card-title text-info">Record Investigation</h6>
+    <form method="post" action="{% url 'compliance:incident_investigate' obj.pk %}">{% csrf_token %}
+        <textarea name="root_cause" class="form-control mb-2" rows="3" placeholder="Root cause analysis..." required></textarea>
+        <button class="btn btn-sm btn-info">Submit Investigation</button>
+    </form>
+</div></div>
+{% endif %}
+
+{% if obj.is_actionable and request.user.is_tenant_admin %}
+<div class="card border-warning mb-3"><div class="card-body">
+    <h6 class="card-title text-warning">Record Corrective Action</h6>
+    <form method="post" action="{% url 'compliance:incident_action' obj.pk %}">{% csrf_token %}
+        <textarea name="corrective_actions" class="form-control mb-2" rows="3" placeholder="Corrective actions..." required></textarea>
+        <button class="btn btn-sm btn-warning">Submit Corrective Action</button>
+    </form>
+</div></div>
+{% endif %}
+
+{% if obj.is_closeable and request.user.is_tenant_admin %}
+<div class="card border-success mb-3"><div class="card-body">
+    <h6 class="card-title text-success">Close Incident</h6>
+    <form method="post" action="{% url 'compliance:incident_close' obj.pk %}">{% csrf_token %}
+        <button class="btn btn-sm btn-success">Close Incident</button>
+    </form>
+</div></div>
+{% endif %}
+
+{% if obj.is_cancellable and request.user.is_tenant_admin %}
+<div class="card border-secondary mb-3"><div class="card-body">
+    <h6 class="card-title text-secondary">Cancel</h6>
+    <form method="post" action="{% url 'compliance:incident_cancel' obj.pk %}">{% csrf_token %}
+        <textarea name="cancellation_reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Cancellation reason..." required></textarea>
+        <button class="btn btn-sm btn-outline-secondary" onclick="return confirm('Cancel incident?');">Cancel Incident</button>
+    </form>
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
