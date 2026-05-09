@@ -6,7 +6,7 @@ recompute_emissions() lets admins re-snapshot all rows after a factor update.
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.utility import models
@@ -33,16 +33,22 @@ def _classify_consumption(consumption):
 def _resolve_factor(tenant, source_type, scope, when):
     """Find the active EmissionFactor for a (source_type, scope) at ``when``.
 
-    Returns None if no active factor matches; caller should silently skip.
+    Honors ``effective_to`` (D-02): an expired factor still flagged
+    ``is_active=True`` is correctly skipped. ``effective_to=NULL`` means
+    open-ended. Returns None if no factor matches; caller silently skips.
     """
     when_date = when.date() if hasattr(when, 'date') else when
-    qs = models.EmissionFactor.all_objects.filter(
-        tenant=tenant,
-        source_type=source_type,
-        scope=scope,
-        is_active=True,
-        effective_from__lte=when_date,
-    ).order_by('-effective_from')
+    qs = (
+        models.EmissionFactor.all_objects.filter(
+            tenant=tenant,
+            source_type=source_type,
+            scope=scope,
+            is_active=True,
+            effective_from__lte=when_date,
+        )
+        .filter(Q(effective_to__isnull=True) | Q(effective_to__gte=when_date))
+        .order_by('-effective_from')
+    )
     return qs.first()
 
 
