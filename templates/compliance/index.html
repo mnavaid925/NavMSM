@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Compliance & Regulatory{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Compliance & Regulatory Management</h4><div class="text-muted small">Module 13 — EHS, regulatory documents, audit trail, waste, recalls.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'compliance:incident_list' %}" class="btn btn-sm btn-outline-warning"><i class="ri-alarm-warning-line me-1"></i> Incidents</a>
+        <a href="{% url 'compliance:document_list' %}" class="btn btn-sm btn-outline-primary"><i class="ri-file-list-3-line me-1"></i> Documents</a>
+        <a href="{% url 'compliance:recall_list' %}" class="btn btn-sm btn-outline-danger"><i class="ri-alert-line me-1"></i> Recalls</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Open Incidents</div><h4 class="mb-0">{{ kpi.open_incidents|default:0 }}</h4>{% if kpi.critical_incidents %}<span class="badge bg-danger-subtle text-danger small">{{ kpi.critical_incidents }} critical</span>{% endif %}</div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Open Risks</div><h4 class="mb-0">{{ kpi.open_risks|default:0 }}</h4>{% if kpi.high_risk_count %}<span class="badge bg-warning-subtle text-warning small">{{ kpi.high_risk_count }} high+</span>{% endif %}</div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Effective Documents</div><h4 class="mb-0">{{ kpi.effective_docs|default:0 }}</h4>{% if kpi.pending_reviews %}<span class="badge bg-info-subtle text-info small">{{ kpi.pending_reviews }} pending review</span>{% endif %}</div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Active Recalls</div><h4 class="mb-0">{{ kpi.active_recalls|default:0 }}</h4>{% if kpi.open_manifests %}<span class="badge bg-secondary-subtle text-secondary small">{{ kpi.open_manifests }} open manifests</span>{% endif %}</div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Incidents</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Title</th><th>Severity</th><th>Status</th></tr></thead>
+            <tbody>{% for i in recent_incidents %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'compliance:incident_detail' i.pk %}">{{ i.incident_number }}</a></td>
+                <td class="small">{{ i.title|truncatechars:40 }}</td>
+                <td class="small"><span class="badge bg-{% if i.severity == 'critical' %}danger{% elif i.severity == 'high' %}warning{% else %}info{% endif %}-subtle text-{% if i.severity == 'critical' %}danger{% elif i.severity == 'high' %}warning{% else %}info{% endif %}">{{ i.get_severity_display }}</span></td>
+                <td class="small">{{ i.get_status_display }}</td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No incidents yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Active Recalls</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Number</th><th>Product</th><th>Severity</th><th>Status</th></tr></thead>
+            <tbody>{% for r in recent_recalls %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'compliance:recall_detail' r.pk %}">{{ r.recall_number }}</a></td>
+                <td class="small">{{ r.product.sku }}</td>
+                <td class="small">{{ r.get_severity_display }}</td>
+                <td class="small">{{ r.get_status_display }}</td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No recalls yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
