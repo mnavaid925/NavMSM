@@ -165,6 +165,12 @@ def compute_estimated_savings(op, *, current_band=None, target_band=None):
     v1 heuristic: op duration in hours x assumed avg load of 50 kWh/hr x rate diff.
     The model holds asset/cost-center linkage so a future revision can pull
     the actual avg_kwh_per_hour from EAM telemetry.
+
+    TODO (D-07, tracked separately): when ``op.work_center`` exposes an
+    ``eam.Asset`` chain that has a kWh ``UtilityMeter`` linked, weight by
+    the trailing-30-day average of consumption.consumption / hour. Until
+    then, the 50 kWh/hr constant deliberately yields conservative savings
+    estimates so downstream prioritization isn't over-stated.
     """
     op_start = op.planned_start
     op_end = op.planned_end or op_start
