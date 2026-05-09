@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Product Recalls{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Product Recalls</h4><div class="text-muted small">FDA Class I/II/III recalls with lot-level traceability and customer notices.</div></div>
+    {% if request.user.is_tenant_admin %}<a href="{% url 'compliance:recall_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Recall</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number or title..."></div>
+    <div class="col-md-3"><select name="status" class="form-select"><option value="">All statuses</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select name="severity" class="form-select"><option value="">All severities</option>{% for v, l in severity_choices %}<option value="{{ v }}" {% if request.GET.severity == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Initiated</th><th>Product</th><th>Title</th><th>Severity</th><th>Recovery</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for r in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'compliance:recall_detail' r.pk %}">{{ r.recall_number }}</a></td>
+        <td class="small">{{ r.initiated_at|date:"Y-m-d" }}</td>
+        <td class="small">{{ r.product.sku }}</td>
+        <td class="small">{{ r.title|truncatechars:40 }}</td>
+        <td><span class="badge bg-{% if r.severity == 'class_i' %}danger{% elif r.severity == 'class_ii' %}warning{% else %}info{% endif %}-subtle text-{% if r.severity == 'class_i' %}danger{% elif r.severity == 'class_ii' %}warning{% else %}info{% endif %}">{{ r.get_severity_display|truncatechars:25 }}</span></td>
+        <td class="small">{{ r.recovery_pct }}%</td>
+        <td><span class="badge bg-{% if r.status == 'closed' %}success{% elif r.status == 'cancelled' %}secondary{% else %}primary{% endif %}-subtle text-{% if r.status == 'closed' %}success{% elif r.status == 'cancelled' %}secondary{% else %}primary{% endif %}">{{ r.get_status_display }}</span></td>
+        <td class="text-end">
+            <a href="{% url 'compliance:recall_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            {% if r.is_editable and request.user.is_tenant_admin %}<a href="{% url 'compliance:recall_edit' r.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-line"></i></a>{% endif %}
+            {% if r.status == 'initiated' and request.user.is_tenant_admin %}<form method="post" action="{% url 'compliance:recall_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
+        </td>
+    </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No recalls yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
