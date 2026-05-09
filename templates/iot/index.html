@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}IoT & SCADA Integration{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>IoT &amp; SCADA Integration</h4><div class="text-muted small">Module 15 - device connectivity, real-time data, digital twin, OEE, anomaly detection.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'iot:device_list' %}" class="btn btn-sm btn-outline-primary"><i class="ri-cpu-line me-1"></i> Devices</a>
+        <a href="{% url 'iot:oee_dashboard' %}" class="btn btn-sm btn-outline-success"><i class="ri-line-chart-line me-1"></i> OEE</a>
+        <a href="{% url 'iot:detection_list' %}" class="btn btn-sm btn-outline-warning"><i class="ri-alarm-warning-line me-1"></i> Anomalies</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Active Devices</div><h4 class="mb-0">{{ kpi.device_count|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Brokers</div><h4 class="mb-0">{{ kpi.broker_count|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Readings (24h)</div><h4 class="mb-0">{{ kpi.readings_24h|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Open Anomalies</div><h4 class="mb-0">{{ kpi.open_anomalies|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Active Twins</div><h4 class="mb-0">{{ kpi.twin_count|default:0 }}</h4></div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body"><div class="text-muted small">OEE % (today)</div><h4 class="mb-0">{{ kpi.oee_today|default:0|floatformat:1 }}</h4></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-2">OEE Trend (last 14 days)</h6>
+        <div id="oee-chart" style="height:280px"></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Anomalies by Severity (30 days)</h6>
+        <div id="anomaly-chart" style="height:280px"></div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Readings</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Entry</th><th>Tag</th><th class="text-end">Value</th><th>Quality</th></tr></thead>
+            <tbody>{% for r in recent_readings %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'iot:reading_detail' r.pk %}">{{ r.entry_number }}</a></td>
+                <td class="small">{{ r.device_tag.name }}</td>
+                <td class="small text-end">{{ r.value_numeric|default:r.value_text|default:r.value_bool|default:"-" }}</td>
+                <td class="small">{{ r.get_quality_display }}</td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No readings recorded.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Open Anomalies</h6>
+        <ul class="list-group list-group-flush">{% for a in open_anomalies %}<li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'iot:detection_detail' a.pk %}" class="fw-semibold">{{ a.detection_number }}</a> <span class="text-muted small">{{ a.rule.name }}</span></span><span class="badge bg-{% if a.severity == 'critical' %}danger{% elif a.severity == 'high' %}warning{% else %}info{% endif %}-subtle text-{% if a.severity == 'critical' %}danger{% elif a.severity == 'high' %}warning{% else %}info{% endif %}">{{ a.get_severity_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">No open anomalies.</li>{% endfor %}</ul>
+    </div></div></div>
+</div>
+
+{{ oee_chart|json_script:"oee-chart-data" }}
+{{ anomaly_chart|json_script:"anomaly-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var oeeData = JSON.parse(document.getElementById('oee-chart-data').textContent);
+    new ApexCharts(document.getElementById('oee-chart'), {
+        chart: {type:'line', height:280, toolbar:{show:false}},
+        series: [
+            {name:'Availability %', data: oeeData.map(function(r){return r.availability;})},
+            {name:'Performance %', data: oeeData.map(function(r){return r.performance;})},
+            {name:'Quality %', data: oeeData.map(function(r){return r.quality;})},
+            {name:'OEE %', data: oeeData.map(function(r){return r.oee;})}
+        ],
+        xaxis: {categories: oeeData.map(function(r){return r.day;})},
+        colors: ['#06b6d4','#f59e0b','#10b981','#2563eb'],
+        stroke: {curve:'smooth', width:[2,2,2,3]}
+    }).render();
+    var anomalyData = JSON.parse(document.getElementById('anomaly-chart-data').textContent);
+    new ApexCharts(document.getElementById('anomaly-chart'), {
+        chart: {type:'bar', height:280, stacked:true, toolbar:{show:false}},
+        series: [
+            {name:'Critical', data: anomalyData.map(function(r){return r.critical;})},
+            {name:'High', data: anomalyData.map(function(r){return r.high;})},
+            {name:'Medium', data: anomalyData.map(function(r){return r.medium;})},
+            {name:'Low', data: anomalyData.map(function(r){return r.low;})}
+        ],
+        xaxis: {categories: anomalyData.map(function(r){return r.day;})},
+        colors: ['#dc2626','#f97316','#f59e0b','#06b6d4']
+    }).render();
+})();
+</script>
+{% endblock %}
