@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Incident Types{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Incident Types</h4><div class="text-muted small">Catalog used to classify EHS incidents.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'compliance:incident_type_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Type</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or name..."></div>
+    <div class="col-md-3"><select name="category" class="form-select"><option value="">All categories</option>{% for v, l in category_choices %}<option value="{{ v }}" {% if request.GET.category == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="active" class="form-select"><option value="">All</option><option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option><option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option></select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for t in page %}<tr>
+        <td class="small fw-semibold">{{ t.code }}</td>
+        <td class="small">{{ t.name }}</td>
+        <td class="small">{{ t.get_category_display }}</td>
+        <td>{% if t.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <a href="{% url 'compliance:incident_type_edit' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'compliance:incident_type_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No incident types yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
