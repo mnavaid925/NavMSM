@@ -17,6 +17,47 @@
     <div class="col-md-3 col-6"><div class="card"><div class="card-body"><div class="text-muted small">Active Recalls</div><h4 class="mb-0">{{ kpi.active_recalls|default:0 }}</h4>{% if kpi.open_manifests %}<span class="badge bg-secondary-subtle text-secondary small">{{ kpi.open_manifests }} open manifests</span>{% endif %}</div></div></div>
 </div>
 
+{% if ehs %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="ri-shield-cross-line me-1"></i> EHS Leading &amp; Lagging Indicators (last {{ ehs.period_days }} days)</h6>
+        <span class="text-muted small">{{ ehs.period_start|date:"M j" }} - {{ ehs.period_end|date:"M j, Y" }}{% if ehs.fallback_hours_used %} <span class="badge bg-warning-subtle text-warning ms-1" title="No labor.AttendanceRecord data found - rates use a 24,000 h placeholder. Configure the Labor module for accurate OSHA reporting.">est. hours</span>{% endif %}</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3 col-6">
+                <div class="border rounded p-3 text-center">
+                    <div class="text-muted small">TRIR <span title="OSHA Total Recordable Incident Rate = (recordable incidents x 200,000) / hours worked. Industry benchmark: < 3.0 (manufacturing avg ~3.3).">ⓘ</span></div>
+                    <h3 class="mb-0">{{ ehs.trir }}</h3>
+                    <div class="text-muted small">{{ ehs.recordable_count }} recordable</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="border rounded p-3 text-center">
+                    <div class="text-muted small">LTIR <span title="Lost Time Incident Rate = (lost-time incidents x 200,000) / hours worked. Industry benchmark: < 1.0.">ⓘ</span></div>
+                    <h3 class="mb-0">{{ ehs.ltir }}</h3>
+                    <div class="text-muted small">{{ ehs.lost_time_count }} lost-time</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="border rounded p-3 text-center">
+                    <div class="text-muted small">Near-Miss Ratio <span title="near_miss_count / recordable_count (Heinrich pyramid). Healthy: > 30. Low ratio = near-miss under-reporting (leading indicator of future serious incidents).">ⓘ</span></div>
+                    <h3 class="mb-0">{{ ehs.near_miss_ratio }}</h3>
+                    <div class="text-muted small">{{ ehs.near_miss_count }} near-misses</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="border rounded p-3 text-center">
+                    <div class="text-muted small">Hours Worked</div>
+                    <h3 class="mb-0">{{ ehs.hours_worked|floatformat:0 }}</h3>
+                    <div class="text-muted small">period total</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
     <div class="col-md-6"><div class="card"><div class="card-body">
         <h6 class="mb-3">Recent Incidents</h6>
