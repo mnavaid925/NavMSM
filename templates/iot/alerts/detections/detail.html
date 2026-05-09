@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Detection {{ object.detection_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.detection_number }}</h4><div class="text-muted small">{{ object.rule.name }} | {{ object.get_severity_display }} | {{ object.get_status_display }}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:detection_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if object.is_acknowledgeable %}<form method="post" action="{% url 'iot:detection_acknowledge' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-info"><i class="ri-eye-line me-1"></i> Acknowledge</button></form>{% endif %}
+        {% if object.is_resolvable %}<a href="{% url 'iot:detection_resolve' object.pk %}" class="btn btn-outline-success"><i class="ri-check-line me-1"></i> Resolve</a>{% endif %}
+        {% if object.is_markable_false_positive %}<a href="{% url 'iot:detection_false_positive' object.pk %}" class="btn btn-outline-warning"><i class="ri-close-line me-1"></i> Mark FP</a>{% endif %}
+    {% endif %}
+    </div>
+</div>
+<div class="row g-3">
+<div class="col-md-7"><div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-4">Rule</dt><dd class="col-8"><a href="{% url 'iot:rule_detail' object.rule.pk %}">{{ object.rule.rule_number }}</a> {{ object.rule.name }}</dd>
+    <dt class="col-4">Source Reading</dt><dd class="col-8"><a href="{% url 'iot:reading_detail' object.source_reading.pk %}">{{ object.source_reading.entry_number }}</a></dd>
+    <dt class="col-4">Detected at</dt><dd class="col-8">{{ object.detected_at }}</dd>
+    <dt class="col-4">Value</dt><dd class="col-8">{{ object.value|default:"-" }}</dd>
+    <dt class="col-4">Baseline</dt><dd class="col-8">{{ object.baseline_value|default:"-" }}</dd>
+    <dt class="col-4">Deviation</dt><dd class="col-8">{{ object.deviation|default:"-" }}</dd>
+    <dt class="col-4">Acknowledged by</dt><dd class="col-8">{% if object.acknowledged_by %}{{ object.acknowledged_by }} on {{ object.acknowledged_at }}{% else %}-{% endif %}</dd>
+    <dt class="col-4">Resolved by</dt><dd class="col-8">{% if object.resolved_by %}{{ object.resolved_by }} on {{ object.resolved_at }}{% else %}-{% endif %}</dd>
+    <dt class="col-4">Resolution Notes</dt><dd class="col-8">{{ object.resolution_notes|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div></div>
+<div class="col-md-5"><div class="card"><div class="card-body">
+    <h6>Notifications fanout</h6>
+    <ul class="list-group list-group-flush">{% for n in notifications %}<li class="list-group-item d-flex justify-content-between"><span class="small">{{ n.get_channel_display }}</span><span class="small text-muted">{{ n.get_status_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">No notifications.</li>{% endfor %}</ul>
+</div></div></div>
+</div>
+{% endblock %}
