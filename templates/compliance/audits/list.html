@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Safety Audits{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Safety Audits</h4><div class="text-muted small">Scheduled instances of checklists.</div></div>
+    {% if request.user.is_tenant_admin %}<a href="{% url 'compliance:audit_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Schedule Audit</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number or checklist..."></div>
+    <div class="col-md-3"><select name="status" class="form-select"><option value="">All statuses</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Date</th><th>Checklist</th><th>Auditor</th><th>Pass / Fail / NA</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for a in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'compliance:audit_detail' a.pk %}">{{ a.audit_number }}</a></td>
+        <td class="small">{{ a.scheduled_for|date:"Y-m-d" }}</td>
+        <td class="small">{{ a.checklist.code }}</td>
+        <td class="small">{% if a.auditor %}{{ a.auditor.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="small"><span class="text-success">{{ a.pass_count }}</span> / <span class="text-danger">{{ a.fail_count }}</span> / <span class="text-muted">{{ a.na_count }}</span></td>
+        <td>{{ a.get_status_display }}</td>
+        <td class="text-end">
+            <a href="{% url 'compliance:audit_detail' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            {% if a.status == 'scheduled' and request.user.is_tenant_admin %}<form method="post" action="{% url 'compliance:audit_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
+        </td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No audits scheduled.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
