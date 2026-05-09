@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.manifest_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.manifest_number }} <span class="badge bg-{% if obj.status == 'reconciled' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}-subtle text-{% if obj.status == 'reconciled' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}">{{ obj.get_status_display }}</span></h4>
+        <span class="text-muted small">{{ obj.category.code }} — {{ obj.category.get_hazard_class_display }} · {{ obj.manifest_date|date:"Y-m-d" }}</span></div>
+    <a href="{% url 'compliance:manifest_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="row g-3"><div class="col-md-8">
+<div class="card mb-3"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Generator</th><td>{{ obj.generator }}</td></tr>
+    <tr><th class="text-muted small">Transporter</th><td>{{ obj.transporter|default:"—" }}</td></tr>
+    <tr><th class="text-muted small">Disposal Facility</th><td>{{ obj.disposal_facility|default:"—" }}</td></tr>
+    <tr><th class="text-muted small">EPA ID</th><td>{{ obj.epa_id|default:"—" }}</td></tr>
+    <tr><th class="text-muted small">Pickup</th><td>{% if obj.pickup_at %}{{ obj.pickup_at|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Delivered</th><td>{% if obj.delivered_at %}{{ obj.delivered_at|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Total Quantity</th><td><strong>{{ obj.total_quantity_kg|floatformat:2 }}</strong> kg</td></tr>
+    {% if obj.cancellation_reason %}<tr><th class="text-muted small">Cancellation Reason</th><td>{{ obj.cancellation_reason }}</td></tr>{% endif %}
+</table>
+</div></div>
+
+<div class="card"><div class="card-body">
+<h6 class="mb-2">Disposal Records</h6>
+<table class="table table-sm">
+    <thead><tr><th>#</th><th>Description</th><th>Container</th><th>Method</th><th class="text-end">Qty (kg)</th><th></th></tr></thead>
+    <tbody>{% for r in records %}<tr>
+        <td>{{ r.line_number }}</td><td class="small">{{ r.description }}</td>
+        <td class="small">{{ r.container_count }} × {{ r.get_container_type_display }}</td>
+        <td class="small">{{ r.get_disposal_method_display }}</td>
+        <td class="small text-end">{{ r.quantity_kg|floatformat:2 }}</td>
+        <td class="text-end">{% if obj.is_editable and request.user.is_tenant_admin %}<form method="post" action="{% url 'compliance:disposal_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Remove?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-2">No lines yet.</td></tr>{% endfor %}</tbody>
+</table>
+
+{% if obj.is_editable and request.user.is_tenant_admin %}
+<hr>
+<h6 class="mb-2">Add Line</h6>
+<form method="post" action="{% url 'compliance:disposal_create' obj.pk %}" class="row g-2">{% csrf_token %}
+    <div class="col-md-1"><label class="form-label small">#</label><input type="number" name="line_number" class="form-control" min="1" required value="{{ records|length|add:'1' }}"></div>
+    <div class="col-md-3"><label class="form-label small">Description</label><input type="text" name="description" class="form-control" required></div>
+    <div class="col-md-2"><label class="form-label small">Qty (kg)</label><input type="number" step="0.0001" min="0" name="quantity_kg" class="form-control" required></div>
+    <div class="col-md-2"><label class="form-label small">Container</label><select name="container_type" class="form-select">{% for v, l in record_form.fields.container_type.choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-1"><label class="form-label small">Count</label><input type="number" name="container_count" class="form-control" min="1" value="1"></div>
+    <div class="col-md-2"><label class="form-label small">Method</label><select name="disposal_method" class="form-select">{% for v, l in record_form.fields.disposal_method.choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-1 d-flex align-items-end"><button class="btn btn-primary w-100">Add</button></div>
+</form>
+{% endif %}
+</div></div>
+</div>
+
+<div class="col-md-4">
+{% if request.user.is_tenant_admin %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="card-title">Workflow</h6>
+    {% if obj.is_dispatchable %}<form method="post" action="{% url 'compliance:manifest_dispatch' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-info w-100" onclick="return confirm('Dispatch this manifest?');">Dispatch (in transit)</button></form>{% endif %}
+    {% if obj.is_disposable %}<form method="post" action="{% url 'compliance:manifest_dispose' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-warning w-100">Mark Disposed</button></form>{% endif %}
+    {% if obj.is_reconcilable %}<form method="post" action="{% url 'compliance:manifest_reconcile' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-success w-100">Reconcile</button></form>{% endif %}
+    {% if obj.is_cancellable %}<form method="post" action="{% url 'compliance:manifest_cancel' obj.pk %}">{% csrf_token %}<textarea name="cancellation_reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Cancellation reason..." required></textarea><button class="btn btn-sm btn-outline-secondary w-100" onclick="return confirm('Cancel?');">Cancel Manifest</button></form>{% endif %}
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
