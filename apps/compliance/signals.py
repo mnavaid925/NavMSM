@@ -232,7 +232,7 @@ def _on_critical_ncr(sender, instance, created, **kwargs):
                 'Auto-created from critical QMS Non-Conformance Report.'
             )
             occurred = (
-                getattr(instance, 'detected_at', None)
+                getattr(instance, 'reported_at', None)
                 or getattr(instance, 'created_at', None)
                 or timezone.now()
             )
@@ -265,3 +265,35 @@ def _connect_qms_hooks():
 
 
 _connect_qms_hooks()
+
+
+# ----------------------------------------------------------------------------
+# Cross-module hook 3 — inventory.StockMovement on recalled lot -> leak (C.7)
+# ----------------------------------------------------------------------------
+
+def _on_stock_movement(sender, instance, created, **kwargs):
+    """Detect outbound movements on a lot that is part of an active recall.
+
+    Bumps `RecallAffectedLot.post_recall_movement_count` and stamps
+    `last_leak_at` so the recall detail page can warn an operator. Service
+    helper is in [apps/compliance/services/recall.py](services/recall.py)
+    so the same logic can be invoked from a management command for backfill.
+    """
+    if not created:
+        return
+    from apps.compliance.services.recall import on_outbound_movement
+    on_outbound_movement(instance)
+
+
+def _connect_inventory_hooks():
+    try:
+        from apps.inventory.models import StockMovement
+    except ImportError:
+        return
+    post_save.connect(
+        _on_stock_movement, sender=StockMovement, weak=False,
+        dispatch_uid='compliance.inventory_movement_recall_leak',
+    )
+
+
+_connect_inventory_hooks()
