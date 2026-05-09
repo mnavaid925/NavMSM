@@ -286,6 +286,31 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarUtility" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-flashlight-line"></i> <span>Energy &amp; Utility</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarUtility" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'utility:index' %}" class="nav-link">Utility Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:type_list' %}" class="nav-link">Utility Types</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:meter_list' %}" class="nav-link">Meters</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:consumption_list' %}" class="nav-link">Consumption</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:tariff_list' %}" class="nav-link">Tariffs</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:allocation_list' %}" class="nav-link">Cost Allocations</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:dr_event_list' %}" class="nav-link">Demand Response</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:peak_list' %}" class="nav-link">Peak Suggestions</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:factor_list' %}" class="nav-link">Emission Factors</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:emission_list' %}" class="nav-link">Carbon Emissions</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:sustainability_list' %}" class="nav-link">Sustainability KPI</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:benchmark_list' %}" class="nav-link">Benchmarks</a></li>
+                            <li class="nav-item"><a href="{% url 'utility:benchmark_report_list' %}" class="nav-link">Comparison Reports</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'supplier' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
