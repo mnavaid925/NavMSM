@@ -19,4 +19,19 @@
     {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
 </table>
 </div></div>
+
+{% if not obj.is_reversal and request.user.is_tenant_admin %}
+<div class="card mt-3 border-warning"><div class="card-body">
+    <h6 class="card-title text-warning mb-2"><i class="ri-arrow-go-back-line"></i> Issue reversal</h6>
+    <p class="text-muted small mb-2">An emission row cannot be edited or deleted. Issue a typed-reason reversal to net it out — a NEW row with <code>is_reversal=True</code> and negated values is appended.</p>
+    <form method="post" action="{% url 'utility:emission_reverse' obj.pk %}">
+        {% csrf_token %}
+        <div class="mb-2">
+            <label class="form-label small">Reversal reason <span class="text-danger">*</span></label>
+            {{ reverse_form.reversal_reason }}
+        </div>
+        <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Issue reversal? This appends a netting row to the carbon ledger and emits an audit event.');">Issue reversal</button>
+    </form>
+</div></div>
+{% endif %}
 {% endblock %}
