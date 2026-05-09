@@ -50,6 +50,27 @@
             </div>
         </div>
 
+        {% if record.signatures.all %}
+        <div class="card mt-3">
+            <div class="card-header"><h5 class="mb-0"><i class="ri-quill-pen-line me-1"></i> Electronic Signatures (FDA 21 CFR Part 11)</h5></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>When</th><th>Signer</th><th>Reason</th><th>IP</th></tr></thead>
+                    <tbody>
+                    {% for s in record.signatures.all %}
+                        <tr>
+                            <td class="small">{{ s.signed_at|date:"M j, Y H:i" }}</td>
+                            <td class="small">{{ s.typed_name }}{% if s.role %} <span class="text-muted">— {{ s.role }}</span>{% endif %}</td>
+                            <td class="small"><span class="badge bg-info-subtle text-info">{{ s.get_reason_display }}</span></td>
+                            <td class="small text-muted">{{ s.ip_address|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card mt-3">
             <div class="card-header"><h5 class="mb-0"><i class="ri-history-line me-1"></i> Audit Trail</h5></div>
             <div class="card-body p-0">
