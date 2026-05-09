@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Tag {{ object.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.device.device_number }}::{{ object.name }}</h4><div class="text-muted small">{{ object.address }}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:tag_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:tag_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a><form method="post" action="{% url 'iot:tag_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete tag?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>{% endif %}
+    </div>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Data Type</dt><dd class="col-9">{{ object.get_data_type_display }}</dd>
+    <dt class="col-3">Unit</dt><dd class="col-9">{{ object.unit|default:"-" }}</dd>
+    <dt class="col-3">Scale Factor</dt><dd class="col-9">{{ object.scale_factor }}</dd>
+    <dt class="col-3">Offset</dt><dd class="col-9">{{ object.offset }}</dd>
+    <dt class="col-3">Sampling Interval</dt><dd class="col-9">{{ object.sampling_interval_seconds }} s</dd>
+    <dt class="col-3">Condition Point</dt><dd class="col-9">{% if object.condition_point %}{{ object.condition_point }}{% else %}-{% endif %}</dd>
+    <dt class="col-3">Active</dt><dd class="col-9">{% if object.is_active %}Yes{% else %}No{% endif %}</dd>
+</dl>
+</div></div>
+{% endblock %}
