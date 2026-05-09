@@ -412,6 +412,11 @@ class AndonAlert(TenantAwareModel, TimeStampedModel):
         'eam.Asset', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='andon_alerts',
     )
+    # Module 15 cross-module hook (idempotency anchor for iot.AnomalyDetection cascade).
+    source_anomaly = models.OneToOneField(
+        'iot.AnomalyDetection', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='andon_alert',
+    )
 
     class Meta:
         ordering = ['-severity', '-raised_at']
