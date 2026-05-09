@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Mark False Positive{% endblock %}
+{% block content %}
+<h4>Mark {{ object.detection_number }} as False Positive</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex justify-content-end gap-2 mt-3"><a href="{% url 'iot:detection_detail' object.pk %}" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-warning"><i class="ri-close-line me-1"></i> Mark False Positive</button></div></form>
+</div></div>
+{% endblock %}
