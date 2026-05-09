@@ -67,6 +67,53 @@ def _next_sequence_number(qs, field, prefix, width=5):
     return f'{prefix}-{next_num:0{width}d}'
 
 
+def _maybe_record_e_signature(request, compliance, form, *, previous_status):
+    """C.8 — Write a `ProductComplianceSignature` row when the tenant requires
+    it AND the record just transitioned INTO `compliant`.
+
+    Quietly no-ops when the tenant flag is off or the form did not request a
+    transition into compliant. Idempotent: only fires on the actual
+    transition, not on subsequent re-saves of an already-compliant record.
+
+    Also writes a `ComplianceAuditLog(event='note_added', meta={...})` row so
+    the e-sig is anchored into the SHA-256 audit chain (FDA 21 CFR Part 11).
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None or not getattr(tenant, 'require_compliance_e_signature', False):
+        return
+    if compliance.status != 'compliant' or previous_status == 'compliant':
+        return
+    typed_name = (form.cleaned_data.get('esig_typed_name') or '').strip()
+    if not typed_name:
+        return
+    from .models import ComplianceAuditLog, ProductComplianceSignature
+    sig = ProductComplianceSignature.objects.create(
+        tenant=tenant, compliance=compliance, signer=request.user,
+        typed_name=typed_name,
+        role=(form.cleaned_data.get('esig_role') or '').strip(),
+        reason=form.cleaned_data.get('esig_reason') or 'initial_certification',
+        ip_address=_client_ip(request),
+    )
+    ComplianceAuditLog.objects.create(
+        tenant=tenant, compliance=compliance, event='note_added',
+        performed_by=request.user,
+        meta={
+            'kind': 'e_signature',
+            'signature_pk': sig.pk,
+            'typed_name': sig.typed_name,
+            'reason': sig.reason,
+            'role': sig.role,
+        },
+    )
+
+
+def _client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR') or None
+
+
 def _save_with_unique_number(make_obj, max_attempts=5):
     """Run a create that allocates a unique `number` field, retrying on
     IntegrityError caused by races on the auto-numbering — fixes D-04.
@@ -814,6 +861,7 @@ class ComplianceCreateView(TenantRequiredMixin, View):
             obj = form.save(commit=False)
             obj.tenant = request.tenant
             obj.save()
+            _maybe_record_e_signature(request, obj, form, previous_status=None)
             messages.success(request, 'Compliance record created.')
             return redirect('plm:compliance_detail', pk=obj.pk)
         return render(request, 'plm/compliance/form.html', {'form': form})
@@ -841,11 +889,13 @@ class ComplianceEditView(TenantRequiredMixin, View):
 
     def post(self, request, pk):
         rec = get_object_or_404(ProductCompliance, pk=pk, tenant=request.tenant)
+        previous_status = rec.status
         form = ProductComplianceForm(
             request.POST, request.FILES, instance=rec, tenant=request.tenant,
         )
         if form.is_valid():
             form.save()
+            _maybe_record_e_signature(request, rec, form, previous_status=previous_status)
             messages.success(request, 'Compliance record updated.')
             return redirect('plm:compliance_detail', pk=rec.pk)
         return render(request, 'plm/compliance/form.html', {'form': form, 'record': rec})
