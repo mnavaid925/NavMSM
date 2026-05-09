@@ -122,8 +122,12 @@ class IndexView(TenantRequiredMixin, View):
             .values('severity').annotate(n=Count('id')).order_by('severity')
         )
         severity_chart = [{'severity': r['severity'], 'count': r['n']} for r in sev_rows]
+        # C.4 — EHS KPIs (TRIR, LTIR, near-miss ratio).
+        from .services.kpi import compute_ehs_kpis
+        ehs = compute_ehs_kpis(tenant, period_days=90)
         return render(request, self.template_name, {
             'kpi': kpi,
+            'ehs': ehs,
             'recent_incidents': recent_incidents,
             'recent_recalls': recent_recalls,
             'severity_chart': severity_chart,
@@ -1497,7 +1501,9 @@ class RecallDetailView(TenantRequiredMixin, View):
             models.ProductRecall.objects.select_related('product', 'initiated_by'),
             pk=pk, tenant=request.tenant,
         )
-        affected = obj.affected_lots.select_related('lot').order_by('lot__lot_number')
+        # `Lot.__str__` calls `self.product.sku` so we MUST also pull the
+        # product to avoid N+1 across the affected-lots table.
+        affected = obj.affected_lots.select_related('lot', 'lot__product').order_by('lot__lot_number')
         notices = obj.notices.order_by('-sent_at', 'notice_number')
         return render(request, self.template_name, {
             'obj': obj,
