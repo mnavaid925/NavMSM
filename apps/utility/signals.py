@@ -25,6 +25,7 @@ Reversal pattern mirrors apps.inventory.signals + apps.cost.services.wip:
 emit a NEW row with the ``is_reversal=True`` flag and negated quantities,
 rather than mutating or deleting the original.
 """
+import logging
 from datetime import timedelta
 from decimal import Decimal
 
@@ -36,13 +37,16 @@ from . import models as um
 
 
 _pre_status_snapshots: dict = {}
+_log = logging.getLogger(__name__)
 
 
 def _audit(action: str, instance, extra: dict | None = None):
-    """Audit hook stub - tenants.TenantAuditLog is the canonical sink.
+    """Audit hook — tenants.TenantAuditLog is the canonical sink.
 
     Importing tenants.models eagerly would create a circular import.
-    Audit must never break a write path, hence the broad try/except.
+    Audit must never break a write path, hence the broad try/except —
+    but per D-09, we log a warning rather than swallow silently so
+    audit-pipeline regressions are observable.
     """
     try:
         from apps.tenants.models import TenantAuditLog
@@ -59,10 +63,15 @@ def _audit(action: str, instance, extra: dict | None = None):
             action=action,
             target_type=instance.__class__.__name__,
             target_id=str(instance.pk),
-            payload=payload,
+            meta=payload,
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # D-09: surface (don't crash, but don't swallow either).
+        _log.warning(
+            'utility audit emit failed: action=%s target=%s pk=%s err=%s',
+            action, instance.__class__.__name__, instance.pk, exc,
+            exc_info=True,
+        )
 
 
 def _mk_status_signals(model_cls, action_prefix: str):
