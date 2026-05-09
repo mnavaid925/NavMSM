@@ -439,7 +439,20 @@ class RecallCancelForm(forms.Form):
 class RecallNoticeForm(TenantForm):
     class Meta:
         model = models.RecallNotice
-        fields = ['channel', 'audience', 'subject', 'body', 'notes']
+        fields = ['channel', 'audience', 'recipient_email', 'subject', 'body', 'notes']
         widgets = {
             'body': forms.Textarea(attrs={'rows': 5}),
         }
+
+    def clean(self):
+        """C.5 — When channel='email', `recipient_email` is required so
+        `services.recall.send_notice` can actually deliver the email."""
+        cleaned = super().clean()
+        channel = cleaned.get('channel')
+        recipient = (cleaned.get('recipient_email') or '').strip()
+        if channel == 'email' and not recipient:
+            self.add_error(
+                'recipient_email',
+                'A recipient email address is required when channel = Email.',
+            )
+        return cleaned
