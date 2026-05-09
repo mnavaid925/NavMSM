@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Twin {{ object.twin_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.twin_number }} - {{ object.name }}</h4><div class="text-muted small">{{ object.get_twin_type_display }} v{{ object.model_version }} | {{ object.get_status_display }}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:twin_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if object.is_editable %}<a href="{% url 'iot:twin_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+        {% if object.is_activatable %}<form method="post" action="{% url 'iot:twin_activate' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-success"><i class="ri-play-circle-line me-1"></i> Activate</button></form>{% endif %}
+        {% if object.is_archivable %}<form method="post" action="{% url 'iot:twin_archive' object.pk %}" style="display:inline" onsubmit="return confirm('Archive twin?');">{% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-archive-line me-1"></i> Archive</button></form>{% endif %}
+        <form method="post" action="{% url 'iot:twin_recompute' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-info"><i class="ri-refresh-line me-1"></i> Recompute</button></form>
+        <form method="post" action="{% url 'iot:twin_snapshot' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-info"><i class="ri-camera-line me-1"></i> Snapshot</button></form>
+    {% endif %}
+    </div>
+</div>
+<div class="row g-3">
+<div class="col-md-7"><div class="card"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center"><h6>Attributes</h6>{% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:twin_attribute_create' object.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-add-line me-1"></i> Add Attribute</a>{% endif %}</div>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Name</th><th>Type</th><th>Source</th><th class="text-end">Current</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>{% for a in attrs %}<tr>
+            <td class="small fw-semibold">{{ a.name }}</td>
+            <td class="small">{{ a.get_attribute_type_display }}</td>
+            <td class="small">{% if a.source_tag %}{{ a.source_tag.name }}{% else %}{{ a.formula|truncatechars:40 }}{% endif %}</td>
+            <td class="small text-end">{% if a.current_value_numeric is not None %}{{ a.current_value_numeric }}{% elif a.current_value_text %}{{ a.current_value_text }}{% else %}-{% endif %} {{ a.unit }}</td>
+            <td class="small text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:twin_attribute_edit' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a><form method="post" action="{% url 'iot:twin_attribute_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete attribute?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+        </tr>{% empty %}<tr><td colspan="5" class="text-muted text-center py-3">No attributes yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</div></div></div>
+<div class="col-md-5"><div class="card mb-3"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center"><h6>Scenarios</h6>{% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:twin_scenario_create' object.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-add-line me-1"></i> New</a>{% endif %}</div>
+    <ul class="list-group list-group-flush">{% for s in scenarios %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'iot:twin_scenario_detail' s.pk %}">{{ s.scenario_number }} - {{ s.name }}</a><span class="badge bg-light text-dark">{{ s.get_status_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">No scenarios.</li>{% endfor %}</ul>
+</div></div>
+<div class="card"><div class="card-body">
+    <h6>Recent Snapshots</h6>
+    <ul class="list-group list-group-flush">{% for s in snapshots %}<li class="list-group-item small d-flex justify-content-between"><span>{{ s.snapshot_at }}</span><span class="text-muted">{{ s.get_triggered_by_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">None.</li>{% endfor %}</ul>
+</div></div></div>
+</div>
+{% endblock %}
