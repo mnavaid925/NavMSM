@@ -793,8 +793,10 @@ class ComplianceListView(TenantRequiredMixin, ListView):
         ctx['standards'] = ComplianceStandard.objects.filter(is_active=True)
         today = timezone.now().date()
         soon = today + timedelta(days=30)
+        # D-CR-07: scope to status='compliant' only — non_compliant / expired /
+        # pending records aren't "expiring", they're already broken.
         ctx['expiring_soon_count'] = ProductCompliance.objects.filter(
-            tenant=self.request.tenant,
+            tenant=self.request.tenant, status='compliant',
             expiry_date__gte=today, expiry_date__lte=soon,
         ).count()
         return ctx
