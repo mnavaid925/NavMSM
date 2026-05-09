@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}OEE {{ object.period_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.period_number }}</h4><div class="text-muted small">{{ object.asset }} | {{ object.period_date }}{% if object.shift %} | {{ object.shift }}{% endif %}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:oee_period_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:oee_period_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a><form method="post" action="{% url 'iot:oee_period_recompute' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-info"><i class="ri-refresh-line me-1"></i> Recompute</button></form><form method="post" action="{% url 'iot:oee_period_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>{% endif %}
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Availability</div><h3>{{ object.availability_pct }}%</h3></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Performance</div><h3>{{ object.performance_pct }}%</h3></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body"><div class="text-muted small">Quality</div><h3>{{ object.quality_pct }}%</h3></div></div></div>
+    <div class="col-md-3"><div class="card text-center"><div class="card-body bg-primary-subtle"><div class="text-muted small">OEE</div><h3 class="text-primary">{{ object.oee_pct }}%</h3></div></div></div>
+</div>
+<div class="card mt-3"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Planned Run Min</dt><dd class="col-9">{{ object.planned_run_minutes }}</dd>
+    <dt class="col-3">Run Min</dt><dd class="col-9">{{ object.run_minutes }}</dd>
+    <dt class="col-3">Ideal Cycle (s)</dt><dd class="col-9">{{ object.ideal_cycle_seconds }}</dd>
+    <dt class="col-3">Total Count</dt><dd class="col-9">{{ object.total_count }}</dd>
+    <dt class="col-3">Good Count</dt><dd class="col-9">{{ object.good_count }}</dd>
+    <dt class="col-3">Scrap Count</dt><dd class="col-9">{{ object.scrap_count }}</dd>
+    <dt class="col-3">Recomputed at</dt><dd class="col-9">{% if object.recomputed_at %}{{ object.recomputed_at }}{% else %}-{% endif %}</dd>
+    <dt class="col-3">Notes</dt><dd class="col-9">{{ object.notes|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div>
+{% endblock %}
