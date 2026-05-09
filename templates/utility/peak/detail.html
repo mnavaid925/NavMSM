@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.suggestion_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.suggestion_number }}</h4>
+        {% if obj.status == 'new' %}<span class="badge bg-warning-subtle text-warning">{{ obj.get_status_display }}</span>{% elif obj.status == 'acknowledged' %}<span class="badge bg-info-subtle text-info">{{ obj.get_status_display }}</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">{{ obj.get_status_display }}</span>{% endif %}
+        <span class="text-muted small ms-2">PO {{ obj.production_order }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if obj.is_acknowledgable %}<form method="post" action="{% url 'utility:peak_ack' obj.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-info"><i class="ri-checkbox-circle-line me-1"></i> Acknowledge</button></form>{% endif %}
+        {% if obj.is_dismissable %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#dismissCard"><i class="ri-close-line me-1"></i> Dismiss</button>{% endif %}
+        {% endif %}
+        <a href="{% url 'utility:peak_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+{% if request.user.is_tenant_admin or request.user.is_superuser and obj.is_dismissable %}
+<div class="collapse mb-3" id="dismissCard"><div class="card border-secondary"><div class="card-body">
+    <h6>Dismiss Suggestion</h6>
+    <form method="post" action="{% url 'utility:peak_dismiss' obj.pk %}">{% csrf_token %}
+        {{ dismiss_form|crispy }}
+        <button class="btn btn-secondary btn-sm">Confirm Dismiss</button>
+        <p class="text-muted small mt-2">L-14: dismiss_reason is required.</p>
+    </form>
+</div></div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Trigger</th><td>{% if obj.event %}DR Event {{ obj.event.event_number }}{% elif obj.tou_band %}TOU Band {{ obj.tou_band.get_band_type_display }} ({{ obj.tou_band.tariff.tariff_number }}){% else %}—{% endif %}</td></tr>
+    <tr><th class="text-muted small">Production Order</th><td>{{ obj.production_order }}</td></tr>
+    <tr><th class="text-muted small">Scheduled Operation</th><td>{{ obj.scheduled_operation }}</td></tr>
+    <tr><th class="text-muted small">Original Window</th><td>{{ obj.original_start|date:"Y-m-d H:i" }} → {{ obj.original_end|date:"Y-m-d H:i" }}</td></tr>
+    <tr><th class="text-muted small">Suggested Window</th><td>{% if obj.suggested_start %}{{ obj.suggested_start|date:"Y-m-d H:i" }} → {{ obj.suggested_end|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">no off-peak slot found</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Estimated Savings</th><td><strong>${{ obj.estimated_savings|floatformat:2 }}</strong></td></tr>
+    {% if obj.acknowledged_at %}<tr><th class="text-muted small">Acknowledged</th><td>{{ obj.acknowledged_at|date:"Y-m-d H:i" }} by {% if obj.acknowledged_by %}{{ obj.acknowledged_by.get_full_name|default:obj.acknowledged_by.username }}{% else %}—{% endif %}</td></tr>{% endif %}
+    {% if obj.dismiss_reason %}<tr><th class="text-muted small">Dismiss Reason</th><td>{{ obj.dismiss_reason|linebreaks }}</td></tr>{% endif %}
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+{% endblock %}
