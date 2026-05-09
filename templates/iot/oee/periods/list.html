@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}OEE Periods{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>OEE Periods</h4></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:oee_period_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Period</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3"><div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Period number..."></div><div class="col-md-3"><select name="asset" class="form-select"><option value="">All assets</option>{% for a in assets %}<option value="{{ a.pk }}" {% if request.GET.asset == a.pk|stringformat:"d" %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div><div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div></form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Date</th><th>Asset</th><th>Shift</th><th class="text-end">A%</th><th class="text-end">P%</th><th class="text-end">Q%</th><th class="text-end">OEE%</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for p in object_list %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'iot:oee_period_detail' p.pk %}">{{ p.period_number }}</a></td>
+        <td class="small">{{ p.period_date }}</td>
+        <td class="small">{{ p.asset }}</td>
+        <td class="small">{% if p.shift %}{{ p.shift }}{% else %}-{% endif %}</td>
+        <td class="small text-end">{{ p.availability_pct }}</td>
+        <td class="small text-end">{{ p.performance_pct }}</td>
+        <td class="small text-end">{{ p.quality_pct }}</td>
+        <td class="small text-end fw-semibold">{{ p.oee_pct }}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:oee_period_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a><form method="post" action="{% url 'iot:oee_period_recompute' p.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-info"><i class="ri-refresh-line"></i></button></form><form method="post" action="{% url 'iot:oee_period_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No periods.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'iot/_pagination.html' %}
+</div></div>
+{% endblock %}
