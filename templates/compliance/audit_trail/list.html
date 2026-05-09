@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Audit Trail{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Audit Trail</h4><div class="text-muted small">Tenant-level immutable activity log (read-only viewer over <code>tenants.TenantAuditLog</code>).</div></div>
+    <a href="{% url 'compliance:archive_list' %}" class="btn btn-sm btn-outline-primary"><i class="ri-archive-line me-1"></i> Archives</a>
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-5"><input type="search" name="action" value="{{ request.GET.action }}" class="form-control" placeholder="Action prefix (e.g. compliance.incident)..."></div>
+    <div class="col-md-5"><input type="search" name="target_type" value="{{ request.GET.target_type }}" class="form-control" placeholder="Target type (e.g. IncidentReport)..."></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>Timestamp</th><th>Action</th><th>Target</th><th>User</th><th>Meta</th></tr></thead>
+    <tbody>{% for r in page %}<tr>
+        <td class="small text-nowrap">{{ r.timestamp|date:"Y-m-d H:i:s" }}</td>
+        <td class="small"><code>{{ r.action }}</code></td>
+        <td class="small">{{ r.target_type }} #{{ r.target_id }}</td>
+        <td class="small">{% if r.user %}{{ r.user.username }}{% else %}<span class="text-muted">system</span>{% endif %}</td>
+        <td class="small text-muted"><code>{{ r.meta|truncatechars:60 }}</code></td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No audit rows yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
