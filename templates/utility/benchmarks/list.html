@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Benchmark Snapshots{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Benchmark Snapshots</h4><div class="text-muted small">Per-period per-plant efficiency snapshots — drives plant-to-plant comparison.</div></div>
+</div>
+{% if request.user.is_tenant_admin or request.user.is_superuser %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="mb-2">Generate Snapshot</h6>
+    <form method="post" action="{% url 'utility:benchmark_generate' %}" class="row g-2">{% csrf_token %}
+        <div class="col-md-4">{{ generate_form.period|as_crispy_field }}</div>
+        <div class="col-md-4">{{ generate_form.plant_label|as_crispy_field }}</div>
+        <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100"><i class="ri-bar-chart-2-line me-1"></i> Generate</button></div>
+    </form>
+</div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="period" class="form-select"><option value="">All periods</option>{% for p in periods %}<option value="{{ p.pk }}" {% if request.GET.period == p.pk|stringformat:"d" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><input type="search" name="plant_label" value="{{ request.GET.plant_label }}" class="form-control" placeholder="Plant label..."></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Period</th><th>Plant</th><th class="text-end">kWh/unit</th><th class="text-end">Water/unit</th><th class="text-end">CO2e/unit</th><th class="text-end">Cost/unit</th><th class="text-end">Units</th></tr></thead>
+    <tbody>{% for b in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'utility:benchmark_detail' b.pk %}">{{ b.period.name }}</a></td>
+        <td class="small">{{ b.plant_label }}</td>
+        <td class="small text-end">{{ b.kwh_per_unit|floatformat:4 }}</td>
+        <td class="small text-end">{{ b.water_per_unit|floatformat:4 }}</td>
+        <td class="small text-end">{{ b.co2e_per_unit|floatformat:4 }}</td>
+        <td class="small text-end">{{ b.cost_per_unit|floatformat:4 }}</td>
+        <td class="small text-end">{{ b.total_units_produced|floatformat:0 }}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No snapshots yet. Generate one above.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'utility/_pagination.html' %}
+</div></div>
+{% endblock %}
