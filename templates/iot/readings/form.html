@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Reading{% endblock %}
+{% block content %}
+<h4>Manual IoT Reading Entry</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex justify-content-end gap-2 mt-3"><a href="{% url 'iot:reading_list' %}" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary">Record</button></div></form>
+</div></div>
+{% endblock %}
