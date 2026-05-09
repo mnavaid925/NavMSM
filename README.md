@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, and **Module 12 — Cost Management & Accounting**. The remaining 10 functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, and **Module 12 — Cost Management & Accounting**. **Module 13 (Compliance & Regulatory) is being skipped for now**, with **Module 14 — Energy & Utility Management** built next. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -31,13 +31,14 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 21. [Module 10 — Equipment & Asset Management (EAM)](#module-10--equipment--asset-management-eam)
 22. [Module 11 — Labor & Workforce Management](#module-11--labor--workforce-management)
 23. [Module 12 — Cost Management & Accounting](#module-12--cost-management--accounting)
-24. [UI / Theme Customization](#ui--theme-customization)
-18. [Management Commands](#management-commands)
-19. [Payment Gateway Integration](#payment-gateway-integration)
-20. [Security Notes](#security-notes)
-21. [Roadmap](#roadmap)
-22. [Troubleshooting](#troubleshooting)
-23. [License](#license)
+24. [Module 14 — Energy & Utility Management](#module-14--energy--utility-management)
+25. [UI / Theme Customization](#ui--theme-customization)
+26. [Management Commands](#management-commands)
+27. [Payment Gateway Integration](#payment-gateway-integration)
+28. [Security Notes](#security-notes)
+29. [Roadmap](#roadmap)
+30. [Troubleshooting](#troubleshooting)
+31. [License](#license)
 
 ---
 
@@ -56,6 +57,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 10 — Equipment & Asset Management (EAM)** — asset master (auto `ASSET-00001`) with parent-child hierarchy (`CNC-LATHE-01 → SPINDLE-01`), 6-level taxonomy of `AssetCategory` rows, optional `inventory.Warehouse` location FK, criticality / status enums, append-only `AssetMeterReading` ledger (hours / cycles / mileage / kWh) and per-asset `AssetSparePart` linkage to `plm.Product`; preventive maintenance plans with calendar / meter / both triggers, ordered checklist `MaintenanceTask` rows, idempotent `generate_pm_schedules` management command + on-demand `Generate Upcoming` button that materialises future `PMSchedule` rows (auto `PMS-00001`) via the pure `services/pm_scheduler.py`; predictive maintenance with sensor-style `ConditionMonitoringPoint` (vibration / temperature / pressure / current / oil-quality) and append-only `ConditionReading` rows auto-classified `normal / warning / critical` by the heuristic `services/prediction.py`, and a post-save signal that auto-spawns `FailurePrediction` rows on critical readings (with idempotency against existing open predictions); `MaintenanceWorkOrder` (auto `MWO-00001`) with `breakdown / preventive / corrective / predictive / inspection` types, `draft → scheduled → in_progress → on_hold → completed → cancelled` workflow guarded by L-03 view/template parity, race-safe conditional `UPDATE`, append-only `MWOLaborLog` (auto-computed minutes + total cost) + `MWOMaterialLog` (with optional `inventory.StockMovement` FK), and per-asset `DowntimeEvent` ledger that auto-refreshes the parent MWO's `downtime_minutes` denorm; tool & die management with `Tool` (auto `TOOL-00001`, types `mold / die / jig / fixture / cutting_tool / gauge`), append-only `ToolUsageLog` + atomic denorm bump via `services/tool_life.py`, `ToolMaintenanceRecord` for sharpening / cleaning / repair / calibration / inspection (with 25 MB attachment cap, allowlist `.pdf .png .jpg .jpeg`), and per-cavity `MoldCavityHistory` for mold-type tools; cross-module hooks: an `mes.AndonAlert(type='equipment', asset=<asset>)` post-save auto-creates a draft breakdown MWO (idempotent via `source_andon`), and a `mes.ProductionReport` post-save against an op whose work order has `tool=<tool>` set auto-emits a `ToolUsageLog` plus atomic `Tool.current_cycles` bump.
 - **Module 9 — Procurement & Supplier Portal** — supplier master with code/risk/approval flags (8 seeded per tenant); purchase orders (auto `PUR-00001`) with full `draft → submitted → approved → acknowledged → in_progress → received → closed` workflow, line-level tax/discount/total denorms, race-safe conditional UPDATE on every transition, immutable `PurchaseOrderRevision` snapshots on every Revise action, and append-only approval log; multi-round RFQs (auto `RFQ-00001`) with invited-supplier matrix, side-by-side quote comparison view, and one-click Award action that optionally drafts a real PO from the winning quotation; supplier scorecards with weighted overall score (40% OTD + 40% Quality + 10% Responsiveness + 10% Price) computed by a pure-function service from append-only `SupplierMetricEvent` rows; **cross-module event hooks** that auto-emit OTD events when `inventory.GoodsReceiptNote` flips to completed and quality pass/fail events when `qms.IncomingInspection` is accepted/rejected; supplier self-service portal (role=`supplier` user with `supplier_company` FK) for ASN submission (auto `ASN-00001`), invoice upload (auto `SUPINV-00001`, 25 MB attachment cap), and own-PO visibility — every portal queryset is scoped to `request.user.supplier_company`; long-term blanket orders (auto `BPO-00001`) with periodic schedule releases (auto `REL-00001`) that consume the parent commitment via a race-safe conditional UPDATE so concurrent releases can never overdraw.
 - **Module 12 — Cost Management & Accounting** — standard costing with effective-dated `StandardCostVersion` (auto `SCV-00001`) + per-product `StandardCost` rows recomputable from `bom.BOMCostRollup`; actual cost tracking via `ActualCost` rollups per production order + 6-axis `CostVariance` (auto `VAR-00001`: material price/usage, labor rate/efficiency, overhead spending/volume); WIP accounting with one `JobCost` (auto `JC-00001`) per `pps.ProductionOrder` and an append-only `WIPEntry` ledger (auto `WIP-00001`) covering material_issued / labor_applied / overhead_applied / completion / variance / adjustment with operation-wise rollup; ABC overhead allocation via `CostDriver` / `OverheadPool` / `OverheadRate` / `DriverActuals` / `OverheadAllocation` (auto `OHA-00001`) with idempotent `apply_overhead(period)` orchestrator and reverse path; manufacturing financial reports — `AccountingPeriod` (auto `ACP-00001`) with `open → locked → closed` workflow, `COGMReport` (auto `COGM-00001` = opening WIP + DM + DL + OH applied − closing WIP), per-product `GrossMarginReport` (revenue − cogs), and `PlantPnLReport` (revenue − COGM − SG&A − unallocated overhead); cross-module hooks: `labor.LaborBooking(kind=direct)` post_save → `WIPEntry(labor_applied)` (idempotent on `(source_labor_booking, entry_type)`); `labor.LaborBooking(kind=indirect)` → `OverheadActualPool` accumulation; `mes.ProductionReport(good_qty>0)` → `WIPEntry(completion)` at standard cost (with `pre_delete` reversal); ApexCharts dashboard with COGM stacked-bar trend + variance bar.
+- **Module 14 — Energy & Utility Management** — utility meter integration with tenant-catalog `UtilityType` (electricity / water / natural_gas / steam / compressed_air / fuel_oil) optionally bridged to `cost.CostDriver`, auto-numbered `UtilityMeter` (`MTR-00001`) supporting parent-child sub-metering + optional `eam.Asset` link, append-only `UtilityConsumption` ledger (auto `UC-00001`) with `consumption = (end − start) × multiplier` + `total_cost = consumption × unit_cost` computed in `save()`; energy cost allocation with effective-dated `UtilityTariff` (auto `TRF-00001`) carrying flat-rate fall-back, period-scoped `UtilityAllocation` (auto `UAL-00001`) across cost-center / product / production-order targets via `meter_consumption / production_volume / floor_area / direct_assignment` methods and a [`services/allocation.post_allocation()`](apps/utility/services/allocation.py) writer that emits matching `cost.DriverActuals` so the existing `cost.services.overhead.apply_overhead(period)` sweeps utility cost into the Utilities pool automatically; peak-demand management with `TOURateBand` (peak / shoulder / off_peak across weekday / weekend / per-day windows), `DemandResponseEvent` (auto `DRE-00001`) workflow `scheduled → active → completed | cancelled`, and read-only `PeakShavingSuggestion` (auto `PSS-00001`) generated by [`services/peak.scan_for_peak_overlap`](apps/utility/services/peak.py) that flags `pps.ScheduledOperation` rows overlapping a peak window with `new → acknowledged → dismissed` workflow (never mutates the PPS schedule); carbon & sustainability reporting with effective-dated `EmissionFactor` per `(source_type, scope, region)` (Scope 1 / 2 / 3 with `PROTECT` audit trail), append-only `CarbonEmission` ledger (auto `CE-00001`) auto-emitted via signal from `UtilityConsumption.post_save` (idempotent on `source_consumption`) and per-period `SustainabilityKPI` headline ESG snapshot (totals across scopes + kWh/water/gas + units produced + intensity ratios); utility benchmarking with `BenchmarkSnapshot` per period × plant (per-unit kWh / water / CO2e / cost denorms computed in `save()`) plus tenant-`NULL` industry-average rows, and `BenchmarkComparison` reports (auto `BCR-00001`) for plant-to-plant / period-over-period / tenant-vs-industry comparisons; cross-module hooks: `eam.AssetMeterReading.post_save (meter_type='kwh')` → `UtilityConsumption` (idempotent on `source_meter_reading`); `UtilityConsumption.post_save` → `CarbonEmission` (resolves active factor + accounting period); `UtilityAllocation.post_allocation()` → `cost.DriverActuals`.
 - **Module 11 — Labor & Workforce Management** — workforce master with auto-numbered `EMP-00001` employees, departments + positions + skills + certifications with expiry tracking; time & attendance with shifts, rosters, attendance records, leave types, leave requests (auto `LR-00001`) with `draft → submitted → approved / rejected → cancelled` workflow, and a tenant-level holiday calendar; labor cost allocation with cost centers, employee labor rates, and an append-only `LaborBooking` ledger (auto `LB-00001`) auto-emitted from `mes.OperatorTimeLog stop_job` (direct labor) and `eam.MWOLaborLog` (indirect labor) — both idempotent via natural-key dedup; training & competency management with programs, per-employee training plans, sessions (auto `TS-00001`) with attendance tracking, and competency assessments (auto `CA-00001`) with skill-gap analysis; incentive & piece-rate calculation with schemes, per-product / per-operation piece rates, monthly periods (`open → locked → paid`), and runs (auto `INC-00001`) that scan `mes.ProductionReport` rows and accumulate `IncentiveLine` totals with idempotent rerun; cross-module hooks: `mes.ShopFloorOperator.employee → labor.Employee` (soft link), `plm.Product.cost_center → labor.CostCenter`, `eam.Asset.cost_center → labor.CostCenter`. ApexCharts dashboard with attendance % trend (30d) + labor-cost-by-cost-center donut.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
@@ -323,6 +325,34 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/cost/gross-margin/<period_pk>/generate/` | POST — `generate_gross_margin(period)` (scans `mes.ProductionReport.good_qty` × `ActualCost`) |
 | `/cost/plant-pnl/` and `<pk>/` | PlantPnLReport list + detail with Income Statement table + waterfall-style chart |
 | `/cost/plant-pnl/generate/` | POST — generate P&L with manual SG&A inputs |
+| `/utility/` | Energy & Utility dashboard — KPI cards (active meters, current-period kWh / water / CO2e, open DR events, peak suggestions), recent consumption + allocations + emissions tables |
+| `/utility/types/` and CRUD | UtilityType catalog (electricity / water / natural_gas / steam / compressed_air / fuel_oil) with optional `cost.CostDriver` bridge |
+| `/utility/meters/` and `<pk>/` | UtilityMeter list + detail (auto `MTR-00001`) with parent / sub-meter tree, location FK, calibration date, multiplier, optional `eam.Asset` + `labor.CostCenter` links |
+| `/utility/meters/new/` · `/<pk>/edit/` · `/<pk>/delete/` | UtilityMeter CRUD |
+| `/utility/consumption/` and `<pk>/` | UtilityConsumption append-only ledger (auto `UC-00001`) with `consumption = (end − start) × multiplier` + total cost computed in `save()` |
+| `/utility/consumption/new/` · `/<pk>/edit/` · `/<pk>/delete/` | Manual entry CRUD (auto-feed signal handles EAM-sourced rows) |
+| `/utility/consumption/import/` | CSV bulk billing import view ([`services/meters.bulk_import_billing`](apps/utility/services/meters.py)) |
+| `/utility/tariffs/` and `<pk>/` | UtilityTariff list + detail (auto `TRF-00001`) with effective-from/to + flat-rate fall-back + inline TOU bands |
+| `/utility/tariffs/new/` · `/<pk>/edit/` · `/<pk>/delete/` | UtilityTariff CRUD |
+| `/utility/tariffs/<tariff_pk>/bands/new/` · `/tariffs/bands/<pk>/delete/` | TOURateBand inline create / delete on a tariff (peak / shoulder / off_peak × weekday / weekend / per-day windows) |
+| `/utility/allocations/` and `<pk>/` | UtilityAllocation list + detail (auto `UAL-00001`) showing share %, allocated consumption / cost, posted-to-cost flag |
+| `/utility/allocations/post/` | POST — `services/allocation.post_allocation` (writes matching `cost.DriverActuals` for the Utilities pool) |
+| `/utility/allocations/<pk>/reverse/` · `/<pk>/delete/` | POST — reversal with required reason / delete |
+| `/utility/dr-events/` and `<pk>/` | DemandResponseEvent list + detail (auto `DRE-00001`) with target reduction %, incentive amount, source (utility_provider / manual) |
+| `/utility/dr-events/new/` · `/<pk>/edit/` | Create / edit (gated to `scheduled`) |
+| `/utility/dr-events/<pk>/activate/` · `/complete/` · `/cancel/` · `/delete/` | POST — `scheduled → active → completed | cancelled` workflow |
+| `/utility/peak-suggestions/` and `<pk>/` | PeakShavingSuggestion list + detail (auto `PSS-00001`) showing original vs. suggested op slot + estimated savings |
+| `/utility/peak-suggestions/scan/` | POST — [`services/peak.scan_for_peak_overlap(tenant)`](apps/utility/services/peak.py) sweeps `pps.ScheduledOperation` rows against active TOU peak bands + scheduled DR events |
+| `/utility/peak-suggestions/<pk>/ack/` · `/<pk>/dismiss/` | POST — `new → acknowledged → dismissed` (never mutates PPS schedule) |
+| `/utility/emission-factors/` and CRUD | EmissionFactor catalog (Scope 1 / 2 / 3 × electricity_grid / natural_gas / fuel_oil / water / refrigerant / commute / travel / waste / supply_chain) with effective-from + IPCC / GHG-Protocol / DEFRA / EPA citation |
+| `/utility/emissions/` and `<pk>/` | CarbonEmission append-only ledger (auto `CE-00001`) — auto-emitted by `UtilityConsumption.post_save` signal |
+| `/utility/emissions/period/<int:period_pk>/recompute/` | POST — [`services/carbon.recompute_emissions(period)`](apps/utility/services/carbon.py) refreshes the ledger for an open period |
+| `/utility/sustainability/` and `<pk>/` | SustainabilityKPI per-period snapshot (Scope 1 / 2 / 3 totals, kWh, water m³, gas m³, units produced, kWh/unit, kgCO2e/unit) |
+| `/utility/sustainability/period/<int:period_pk>/generate/` | POST — [`services/carbon.generate_sustainability_kpi(period)`](apps/utility/services/carbon.py) |
+| `/utility/benchmarks/` and `<pk>/` | BenchmarkSnapshot list + detail (per-unit kWh / water / CO2e / cost) including tenant-`NULL` industry-average rows |
+| `/utility/benchmarks/generate/` | POST — [`services/benchmark.generate_snapshot(period)`](apps/utility/services/benchmark.py) |
+| `/utility/benchmark-reports/` and `<pk>/` | BenchmarkComparison list + detail (auto `BCR-00001`) with kWh / water / CO2e / cost delta % and winner label |
+| `/utility/benchmark-reports/new/` · `/<pk>/delete/` | Plant-to-plant / period-over-period / tenant-vs-industry-average comparison creation + delete |
 
 ---
 
@@ -685,6 +715,59 @@ NavMSM/
 │   │                             # overhead for the prior closed period,
 │   │                             # 1 COGM + per-product margin rows + P&L)
 │   │
+│   ├── utility/                  # MODULE 14 — Energy & Utility Management
+│   │   ├── models.py             # UtilityType, UtilityMeter, UtilityConsumption,
+│   │   │                         # UtilityTariff, UtilityAllocation, TOURateBand,
+│   │   │                         # DemandResponseEvent, PeakShavingSuggestion,
+│   │   │                         # EmissionFactor, CarbonEmission,
+│   │   │                         # SustainabilityKPI, BenchmarkSnapshot,
+│   │   │                         # BenchmarkComparison
+│   │   ├── services/
+│   │   │   ├── meters.py         # post_consumption, bulk_import_billing
+│   │   │   ├── allocation.py     # compute_allocation, post_allocation
+│   │   │   │                     # (writes cost.DriverActuals),
+│   │   │   │                     # reverse_allocation
+│   │   │   ├── peak.py           # scan_for_peak_overlap (sweeps
+│   │   │   │                     # pps.ScheduledOperation × TOU bands + DR
+│   │   │   │                     # events), compute_suggested_slot,
+│   │   │   │                     # compute_estimated_savings,
+│   │   │   │                     # acknowledge / dismiss
+│   │   │   ├── carbon.py         # emit_for_consumption, recompute_emissions,
+│   │   │   │                     # generate_sustainability_kpi
+│   │   │   └── benchmark.py      # generate_snapshot, compare,
+│   │   │                         # create_comparison
+│   │   ├── signals.py            # Audit factory (L-18 weak=False) for
+│   │   │                         # UtilityMeter / UtilityTariff /
+│   │   │                         # UtilityAllocation / DemandResponseEvent /
+│   │   │                         # PeakShavingSuggestion; cross-module hooks:
+│   │   │                         #   eam.AssetMeterReading(meter_type='kwh')
+│   │   │                         #     .post_save -> UtilityConsumption
+│   │   │                         #     (idempotent on source_meter_reading);
+│   │   │                         #   UtilityConsumption.post_save ->
+│   │   │                         #     CarbonEmission (idempotent on
+│   │   │                         #     source_consumption);
+│   │   │                         #   pre_delete reversal counterparts
+│   │   ├── forms.py              # ModelForms with L-01 unique_together,
+│   │   │                         # L-02 decimal validators (NON_NEG / SIGNED /
+│   │   │                         # PCT_MAX 0-100), L-14 per-workflow forms
+│   │   │                         # (activate / cancel / reverse / dismiss /
+│   │   │                         # post allocation), DriverActuals-style XOR
+│   │   │                         # of cost_center / product / production_order
+│   │   │                         # on UtilityAllocationForm
+│   │   ├── views.py              # Full CRUD + workflow + RBAC mixins +
+│   │   │                         # dashboard
+│   │   ├── urls.py
+│   │   ├── admin.py
+│   │   ├── tests/                # conftest, test_models, test_forms
+│   │   └── management/commands/
+│   │       └── seed_utility.py   # Idempotent demo data per tenant
+│   │                             # (6 utility types, 4 meters, 5 tariffs,
+│   │                             # 4 TOU bands, 1 DRE, 5 emission factors,
+│   │                             # ~120 consumption + auto-cascaded carbon
+│   │                             # rows, 1 allocation per metered cost-center,
+│   │                             # 2 sustainability KPIs, 2 benchmark
+│   │                             # snapshots, 1 period-over-period comparison)
+│   │
 │   └── qms/                      # MODULE 7 — Quality Management (QMS)
 │       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
 │       │                         # IncomingInspection, InspectionMeasurement,
@@ -738,7 +821,8 @@ NavMSM/
 │   ├── procurement/              # index, suppliers/, po/, rfq/, quotations/, scorecards/, asn/, supplier_invoices/, blanket/, releases/, portal/
 │   ├── eam/                      # index, categories/, assets/, meter_readings/, pm_plans/, pm_schedules/, condition_points/, condition_readings/, failure_predictions/, mwo/, downtime/, tools/, tool_maintenance/
 │   ├── labor/                    # index, departments/, positions/, employees/, skills/, skills_matrix/, certifications/, employee_certifications/, employee_documents/, employee_skills/, shifts/, shift_rosters/, attendance/, leave_types/, leave_requests/, holidays/, cost_centers/, labor_rates/, labor_bookings/, training_programs/, training_plans/, training_sessions/, training_attendance/, competency_assessments/, incentive_schemes/, piece_rates/, incentive_periods/, incentive_runs/
-│   └── cost/                     # index, standard_versions/, standard_costs/, actual_costs/, variances/, jobs/, wip_entries/, cost_drivers/, overhead_pools/, overhead_rates/, driver_actuals/, overhead_allocations/, periods/, cogm/, gross_margin/, plant_pnl/
+│   ├── cost/                     # index, standard_versions/, standard_costs/, actual_costs/, variances/, jobs/, wip_entries/, cost_drivers/, overhead_pools/, overhead_rates/, driver_actuals/, overhead_allocations/, periods/, cogm/, gross_margin/, plant_pnl/
+│   └── utility/                  # index, types/, meters/, consumption/, tariffs/, allocations/, dr_events/, peak/, factors/, emissions/, sustainability/, benchmarks/, reports/
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -885,6 +969,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 7 — QMS)** — 3 `IncomingInspectionPlan`s (each with 3 characteristics) + 6 `IncomingInspection`s (mix accepted / rejected / accepted-with-deviation / pending / in-inspection) + 8 `InspectionMeasurement` rows; 3 `ProcessInspectionPlan`s pinned to seeded routing operations + 8 `ProcessInspection`s + 1 `SPCChart` with 25 `ControlChartPoint`s (one outlier OOC); 2 `FinalInspectionPlan`s on finished goods with 3 specs each + 5 `FinalInspection`s (mix passed / failed / released-with-deviation / pending) + 3 `CertificateOfAnalysis` records (one released to customer); 4 `NonConformanceReport`s (one per source: iqc / ipqc / fqc / customer) with `RootCauseAnalysis`, 1–2 `CorrectiveAction`s, 1–2 `PreventiveAction`s in mixed statuses; 6 `MeasurementEquipment` items (one due in 5 days, one overdue, four healthy) + 3 `CalibrationStandard`s + 8 `CalibrationRecord`s (mix pass / pass-with-adjustment / 1 fail) with 16 `ToleranceVerification` rows.
 - **Per tenant (Module 10 — EAM)** — 6 `AssetCategory` rows (Pumps, Motors, CNC Machines, Conveyor Systems, HVAC Equipment, Tooling); 10 `Asset` rows (auto `ASSET-00001`+) across 5 categories with mixed criticality (`PUMP-01`, `PUMP-02`, `MOTOR-01`, `MOTOR-02`, `CNC-LATHE-01` with `SPINDLE-01` as a sub-asset, `CNC-MILL-01`, `CONV-01`, `HVAC-01`, `COMP-01`); ~12 `AssetSparePart` rows linking critical/high assets to seeded `plm.Product` rows; 180 `AssetMeterReading` rows (30 days × 6 metered assets); 4 `MaintenancePlan`s (calendar / meter / both triggers) with 13 total `MaintenanceTask` rows + 3 future `PMSchedule` rows per plan via `generate_upcoming_pm`; 6 `ConditionMonitoringPoint`s on critical assets with 25 normal `ConditionReading` rows each, plus 1 deliberately critical reading on the first point so the post-save signal **auto-spawns a `FailurePrediction(status='open')`** (1 prediction per tenant); 3 `MaintenanceWorkOrder`s — 1 completed breakdown on a pump with full `MWOLaborLog` + `MWOMaterialLog` + `DowntimeEvent` (240 min unplanned downtime), 1 scheduled corrective on a motor, 1 in-progress preventive on a CNC; 2 `Tool` rows — 1 cutting tool (`TOOL-00001`) with 1 sharpening `ToolMaintenanceRecord` + 1 `ToolUsageLog`, plus 1 mold (`TOOL-00002`) with 4 `MoldCavityHistory` rows (one repaired, three active) + 1 cleaning `ToolMaintenanceRecord`.
 - **Per tenant (Module 12 — Cost)** — 3 `AccountingPeriod` rows (prev month closed, current month open, next month open), 5 `CostDriver` rows (machine_hours / direct_labor_hours / units / sq_ft / kwh), 5 `OverheadPool` rows (Factory Rent / Utilities / Supervision / Indirect Materials / Plant Insurance), `OverheadRate` rows for both prior and current period (10 total), 1 active `StandardCostVersion` (`SCV-00001`) with one `StandardCost` row per finished_good / sub_assembly product (~13 per tenant — pulled from `bom.BOMCostRollup` where present, else fallback Decimals); `JobCost` rows for every released / in-progress / completed `pps.ProductionOrder` (~4 per tenant) with seeded `WIPEntry` chains (material_issued + labor_applied + overhead_applied + completion on closed jobs); `apply_overhead(prev_period)` invoked to materialize ~11 `OverheadAllocation` rows; 1 `CostVariance` (`VAR-00001`) per closed-period job; `ActualCost` rollups for every job; 1 `COGMReport` (`COGM-00001`) for the prior period; 1 `PlantPnLReport` with seeded SG&A inputs (selling=800, G&A=1200, unallocated=200).
+- **Per tenant (Module 14 — Utility)** — 6 `UtilityType` rows (electricity / water / natural_gas / steam / compressed_air / fuel_oil; electricity bridged to `cost.CostDriver` `KWH` when present), 4 `UtilityMeter` rows (`MAIN-ELEC-01` linked to first seeded `eam.Asset`, `MAIN-WATER-01`, `MAIN-GAS-01`, plus a `LINE-2-ELEC-01` sub-meter under `MAIN-ELEC-01`), 5 `UtilityTariff` rows (one per type except fuel_oil) with flat-rate USD pricing anchored to the current accounting period, 4 `TOURateBand` rows on the electricity tariff (peak / shoulder / off_peak weekday + off_peak weekend), 1 `DemandResponseEvent` (`DRE-00001`, voluntary, scheduled tomorrow 14:00–17:00, 15 % target reduction, $500 incentive), 5 `EmissionFactor` rows (electricity_grid Scope 2, natural_gas Scope 1, water Scope 3, fuel_oil Scope 1, employee_commute Scope 3 — citing GHG Protocol / DEFRA), ~120 `UtilityConsumption` rows (~30 days × 4 meters spanning prior + current periods — electricity meters write `eam.AssetMeterReading` so the **EAM auto-feed signal** cascades a `UtilityConsumption` proving the cross-module hook; water / gas write directly via `services.meters.post_consumption`), each consumption auto-cascading a `CarbonEmission` row via `UtilityConsumption.post_save`, 1 `UtilityAllocation` (`UAL-00001`) per metered cost-center for the current period via `services/allocation.post_allocation` (which writes the matching `cost.DriverActuals` row), 2 `SustainabilityKPI` snapshots (one per period), 2 `BenchmarkSnapshot` rows (one per period), 1 `BenchmarkComparison` (`BCR-00001`, period-over-period: prior vs. current).
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC).
 
 ### Demo logins (all share password `Welcome@123`)
@@ -1955,6 +2040,108 @@ Run the Cost test suite with `pytest apps/cost/tests/` — uses [`config/setting
 
 ---
 
+## Module 14 — Energy & Utility Management
+
+Module 14 is implemented in [`apps/utility/`](apps/utility/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` (except the `BenchmarkSnapshot` industry-average row which is intentionally tenant-`NULL`) and every query is scoped via `request.tenant`. **Module 13 (Compliance & Regulatory) is skipped for now** and **Module 17 (Sales & Customer Order Management) is still deferred**, so utility cost flows reach the GL via the existing `cost.DriverActuals` → `cost.OverheadAllocation` pipeline rather than through revenue. All cross-module integration is additive — Module 14 owns no schema changes outside its own app.
+
+### Sub-module 14.1 — Utility Meter Integration
+
+- **`UtilityType`** — tenant catalog (electricity / water / natural_gas / steam / compressed_air / fuel_oil) with optional FK to `cost.CostDriver` so the allocation service can bridge into the existing overhead pipeline.
+- **`UtilityMeter`** — auto-numbered **`MTR-00001`** with self-referencing `parent_meter` for sub-metering, optional `inventory.Warehouse` location FK, optional `eam.Asset` FK (enables the cross-module auto-feed signal), `labor.CostCenter` FK, multiplier (for transformers / scaling factors), `installed_at` + `last_calibrated_at`.
+- **`UtilityConsumption`** — auto-numbered **`UC-00001`**, append-only ledger. `consumption = (end_reading − start_reading) × meter.multiplier` and `total_cost = consumption × unit_cost` are both computed in `save()`. A partial unique constraint on `source_meter_reading` makes the EAM auto-feed idempotent — a second `post_save` on the same `eam.AssetMeterReading` is a no-op.
+- [`services/meters.post_consumption(meter, ...)`](apps/utility/services/meters.py) — atomic ledger writer used by the import path and the cross-module signal fall-back.
+- [`services/meters.bulk_import_billing(meter, csv_file)`](apps/utility/services/meters.py) — CSV-driven bulk billing import endpoint surfaced at `/utility/consumption/import/`.
+
+### Sub-module 14.2 — Energy Cost Allocation
+
+- **`UtilityTariff`** — auto-numbered **`TRF-00001`**, effective-dated price-per-unit per `UtilityType` with `flat_rate` fall-back and `currency`. When `TOURateBand` rows exist they take precedence at billing time.
+- **`UtilityAllocation`** — auto-numbered **`UAL-00001`**, period-scoped distribution of metered cost across `target_cost_center` / `target_product` / `target_production_order` (XOR enforced at the form layer). Methods: `meter_consumption / production_volume / floor_area / direct_assignment`. `share_pct` bounded `[0, 100]`.
+- [`services/allocation.compute_allocation(period, meter, targets)`](apps/utility/services/allocation.py) — pure dict computation that aggregates the meter's consumption + cost for the period and slices it across targets by `share_pct`.
+- [`services/allocation.post_allocation(period, meter, targets, ...)`](apps/utility/services/allocation.py) — materializes `UtilityAllocation` rows **and emits a matching `cost.DriverActuals` row** for each production-order target so the existing `cost.services.overhead.apply_overhead(period)` orchestrator sweeps utility cost into the Utilities pool with no special-case code in the cost app. Sets `is_posted_to_cost=True` + `posted_at` + `posted_by`.
+- [`services/allocation.reverse_allocation(allocation, reason)`](apps/utility/services/allocation.py) — admin-only: marks the allocation as reversed and emits an offsetting `cost.DriverActuals` adjustment.
+
+### Sub-module 14.3 — Peak Demand Management
+
+- **`TOURateBand`** — Time-of-Use rate band attached to a `UtilityTariff` (`peak / shoulder / off_peak`) with `day_of_week` enum (`all / weekday / weekend / 0..6`), `start_time`, `end_time`, and `rate`.
+- **`DemandResponseEvent`** — auto-numbered **`DRE-00001`** utility-declared curtailment window with workflow `scheduled → active → completed | cancelled` (guarded by `is_activatable() / is_completable() / is_cancellable()` helpers per Lesson L-03), `event_type` (`mandatory / voluntary / advisory`), `target_reduction_pct`, `incentive_amount`, and `source` (`utility_provider / manual`).
+- **`PeakShavingSuggestion`** — auto-numbered **`PSS-00001`**, **read-only** recommendation flagged on a `pps.ScheduledOperation` that overlaps either an active TOU peak band or a scheduled DR event. Workflow `new → acknowledged → dismissed`. **Never mutates the PPS schedule** — operators see the suggestion and choose whether to manually reschedule via the existing PPS / MES UI. Idempotency is enforced by two partial unique constraints (`(scheduled_operation, event)` and `(scheduled_operation, tou_band)`).
+- [`services/peak.scan_for_peak_overlap(tenant, horizon_days=14)`](apps/utility/services/peak.py) — pure-ish scanner that walks the next `horizon_days` of `pps.ScheduledOperation` rows, tests each against active electricity-tariff TOU peak bands and `scheduled` DR events, and upserts `PeakShavingSuggestion` rows with computed `suggested_start / end` (next off-peak window) and `estimated_savings = (peak_rate − off_peak_rate) × estimated_kwh`. Idempotent — re-running the scan never duplicates.
+- [`services/peak.acknowledge / dismiss`](apps/utility/services/peak.py) — workflow helpers used by the action views.
+
+### Sub-module 14.4 — Carbon & Sustainability Reporting
+
+- **`EmissionFactor`** — kgCO2e factor catalog per `(source_type, scope, region, effective_from)` covering Scope 1 (direct combustion), Scope 2 (purchased electricity / steam), and Scope 3 (water, refrigerant leakage, employee commute, business travel, waste, supply chain). `source_reference` carries the IPCC / GHG-Protocol / DEFRA / EPA citation for audit.
+- **`CarbonEmission`** — auto-numbered **`CE-00001`**, append-only ledger of CO2-equivalent emissions per accounting period. Auto-emitted via `UtilityConsumption.post_save` signal when an active `EmissionFactor` exists. Idempotent via a partial unique constraint on `source_consumption`. `factor` FK is `PROTECT` so the regulator audit trail (which factor was current when the emission was recorded) cannot be silently mutated.
+- **`SustainabilityKPI`** — per-period snapshot of headline ESG KPIs (totals across Scope 1 / 2 / 3, kWh, water m³, gas m³, units produced, `kwh_per_unit_produced`, `co2e_per_unit_produced`). `total_co2e_kg` and the intensity ratios are computed in `save()`. Drives the dashboard tiles.
+- [`services/carbon.emit_for_consumption(consumption)`](apps/utility/services/carbon.py) — idempotent emitter called from the `UtilityConsumption.post_save` signal; resolves the active factor + accounting period.
+- [`services/carbon.recompute_emissions(period)`](apps/utility/services/carbon.py) — refreshes the ledger for an open period (no-op on locked / closed periods).
+- [`services/carbon.generate_sustainability_kpi(period)`](apps/utility/services/carbon.py) — aggregates `CarbonEmission` + `UtilityConsumption` + `mes.ProductionReport.good_qty` for the period.
+
+### Sub-module 14.5 — Utility Benchmarking
+
+- **`BenchmarkSnapshot`** — per-period per-plant efficiency snapshot with totals (kWh / water m³ / gas m³ / CO2e kg / cost / units produced) and per-unit denorms (`kwh_per_unit / water_per_unit / co2e_per_unit / cost_per_unit`) computed in `save()`. The `tenant` FK is **nullable** to allow anonymized industry-average rows (`tenant=NULL`, `plant_label='industry_avg'`); a superuser-only management command materializes those rows from a cross-tenant aggregate (no raw per-tenant data exposed).
+- **`BenchmarkComparison`** — auto-numbered **`BCR-00001`** one-shot report. `comparison_type` is one of `plant_to_plant / period_over_period / tenant_to_tenant`. Stores `kwh_delta_pct / water_delta_pct / co2e_delta_pct / cost_delta_pct` (all `SIGNED` so improvements show as negative deltas) and a free-text `winner` label.
+- [`services/benchmark.generate_snapshot(period)`](apps/utility/services/benchmark.py) — aggregates the period's consumption, cost, emissions, and `mes.ProductionReport.good_qty` into a single snapshot row.
+- [`services/benchmark.compare(from_snapshot, to_snapshot)`](apps/utility/services/benchmark.py) — pure dict math that returns the four delta percentages.
+- [`services/benchmark.create_comparison(...)`](apps/utility/services/benchmark.py) — materializes a `BenchmarkComparison` row with the deltas pre-computed.
+
+### Cross-module integration
+
+| Touched | Bridge | Migration |
+|---|---|---|
+| `apps.eam.AssetMeterReading` | **Read-only consumer** — `UtilityConsumption.source_meter_reading` lives in the utility app. | — |
+| `apps.cost.CostDriver` | **Read-only consumer** — `UtilityType.cost_driver` is an optional bridge FK. | — |
+| `apps.cost.AccountingPeriod` | **Read-only consumer** — `UtilityAllocation.period`, `CarbonEmission.period`, `SustainabilityKPI.period`, `BenchmarkSnapshot.period` are all `PROTECT` FKs into the existing period table. | — |
+| `apps.cost.DriverActuals` | **Write consumer** — `services/allocation.post_allocation` materializes `cost.DriverActuals` rows tagged `notes='utility:…'` so `cost.services.overhead.apply_overhead(period)` sweeps utility cost into the Utilities pool. Reversal emits an offsetting actuals row. | — |
+| `apps.labor.CostCenter` | **Read-only consumer** — `UtilityMeter.cost_center` + `UtilityAllocation.target_cost_center`. | — |
+| `apps.inventory.Warehouse` | **Read-only consumer** — `UtilityMeter.location`. | — |
+| `apps.plm.Product` | **Read-only consumer** — `UtilityAllocation.target_product`. | — |
+| `apps.pps.ProductionOrder` + `apps.pps.ScheduledOperation` | **Read-only consumer** — `UtilityAllocation.target_production_order`, `PeakShavingSuggestion.production_order` + `.scheduled_operation`. | — |
+| `apps.mes.ProductionReport` | **Read-only consumer** — `services/carbon.generate_sustainability_kpi` + `services/benchmark.generate_snapshot` aggregate `good_qty` for intensity ratios. | — |
+| Cross-module signal: `eam.AssetMeterReading.post_save (meter_type='kwh')` | Resolves `asset → UtilityMeter` (first active meter linked to the asset), calls `services/meters.post_consumption` to spawn a `UtilityConsumption(source_meter_reading=…)`. Idempotent via the partial unique constraint on `source_meter_reading`. | (signal in `apps/utility/signals.py`) |
+| Cross-module signal: `eam.AssetMeterReading.pre_delete` | Reverses the matching `UtilityConsumption` (and the cascaded `CarbonEmission`). | (signal) |
+| Cross-module signal: `utility.UtilityConsumption.post_save` | Resolves an active `EmissionFactor` for the consumption's `(source_type, scope)` + accounting period and posts a `CarbonEmission(source_consumption=…)`. Silently skipped when no active factor is configured. Idempotent via the partial unique constraint on `source_consumption`. | (signal) |
+| Cross-module signal: `utility.UtilityConsumption.pre_delete` | Reverses the matching `CarbonEmission`. | (signal) |
+
+All cross-module hooks live in [`apps/utility/signals.py`](apps/utility/signals.py) so removing the utility app cleanly disables the events without orphan code in `eam` / `cost` / `pps`.
+
+### Audit signals
+
+[`apps/utility/signals.py`](apps/utility/signals.py) wires `pre_save` + `post_save` audit emissions via the same `_mk_status_signals(model, action_prefix)` factory used by procurement / EAM / labor / cost. **All factory-registered handlers connect with `weak=False` and a unique `dispatch_uid`** (Lesson L-18). Audited models: `UtilityMeter`, `UtilityTariff`, `UtilityAllocation`, `DemandResponseEvent`, `PeakShavingSuggestion`. Audit actions follow `utility.<resource>.<status>` (e.g. `utility.dr_event.activated`, `utility.allocation.posted`, `utility.peak.acknowledged`).
+
+### Validation guards (apply Lessons L-01, L-02, L-14, L-17, L-18)
+
+- Every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, …)` `unique_together` check (Lesson L-01): `UtilityTypeForm` (on `code`), `UtilityMeterForm` (on `meter_number` and `(utility_type, name)`), `UtilityTariffForm` (on `tariff_number`), `EmissionFactorForm` (on `(source_type, scope, region, effective_from)`), `BenchmarkSnapshotForm` (on `(period, plant_label)`).
+- Every `Decimal` field carries explicit validators (Lesson L-02): `MinValueValidator(Decimal('0'))` on consumption / cost / kgCO2e / share % / multiplier; `MaxValueValidator(Decimal('100'))` on `share_pct` and `target_reduction_pct`; `SIGNED` (`-99999999.9999` floor) on `BenchmarkComparison.*_delta_pct` so improvements show as negative deltas; `MinValueValidator(Decimal('0'))` on `EmissionFactor.factor` (kgCO2e / unit cannot be negative).
+- Per-workflow forms enforce per-transition required fields (Lesson L-14): `DemandResponseEventCancelForm.clean_cancellation_reason()` requires non-empty reason; `UtilityAllocationReverseForm.clean_reversal_reason()` requires non-empty reason; `PeakShavingSuggestionDismissForm.clean_dismiss_reason()` requires non-empty reason.
+- `UtilityAllocationForm` enforces XOR of `target_cost_center / target_product / target_production_order` (mirrors `cost.DriverActualsForm`).
+- `PROTECT` on audit-trail children (Lesson L-17): `CarbonEmission.factor`, `UtilityConsumption.meter`, `UtilityAllocation.period` + `.meter`, `BenchmarkSnapshot.period`, `BenchmarkComparison.from_snapshot` + `.to_snapshot`. Manual deletes are blocked so the regulator audit trail cannot drift.
+- Audit factory connects every receiver with `weak=False` and a unique `dispatch_uid` (Lesson L-18) so signals survive module-reload in dev and never fire twice.
+
+### RBAC (L-10)
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, all list pages, detail pages, peak-suggestion read | Authenticated tenant user | `TenantRequiredMixin` |
+| UtilityType / UtilityMeter / UtilityConsumption CRUD; UtilityTariff + TOURateBand CRUD; UtilityAllocation CRUD + post / reverse; DemandResponseEvent CRUD + activate / complete / cancel; PeakShavingSuggestion scan / ack / dismiss; EmissionFactor CRUD; CarbonEmission recompute; SustainabilityKPI generate; BenchmarkSnapshot generate; BenchmarkComparison CRUD; CSV billing import | Tenant admin | `TenantAdminRequiredMixin` |
+
+### Test suite
+
+Run the Utility test suite with `pytest apps/utility/tests/` — uses [`config/settings_test.py`](config/settings_test.py) (SQLite in-memory). Test files live in [`apps/utility/tests/`](apps/utility/tests/) — `conftest.py`, `test_models.py`, `test_forms.py`, with services / signals / views suites pending. The suite targets ~120 tests at ~30 s runtime and covers model invariants + auto-numbering (`MTR-`, `UC-`, `TRF-`, `UAL-`, `DRE-`, `PSS-`, `CE-`, `BCR-`), denorm computations (`UtilityConsumption.consumption / total_cost`, `CarbonEmission.co2e_kg`, `SustainabilityKPI.total_co2e_kg / kwh_per_unit_produced / co2e_per_unit_produced`, `BenchmarkSnapshot.kwh_per_unit / water_per_unit / co2e_per_unit / cost_per_unit`, `BenchmarkComparison.*_delta_pct`), form validation (L-01 unique_together for every tenant-scoped form, L-02 decimal bounds incl. `share_pct` 0-100, L-14 per-workflow required reasons, `UtilityAllocationForm` XOR), pure-function services (`post_consumption` + idempotent EAM cascade, `post_allocation` + `cost.DriverActuals` write-through + reversal, `scan_for_peak_overlap` idempotent rerun, `compute_estimated_savings`, `emit_for_consumption` idempotent, `recompute_emissions` no-op on locked periods, `generate_sustainability_kpi`, `generate_snapshot`, `compare`, `create_comparison`), cross-module signals (`eam.AssetMeterReading(meter_type='kwh').post_save → UtilityConsumption` with double-save idempotency + non-kWh skip + missing-meter skip, `UtilityConsumption.post_save → CarbonEmission` with missing-factor skip + idempotency, `pre_delete` reversal counterparts), audit factory + L-18 `dispatch_uid` presence guard, `TestRBACMatrix` (admin-only POST/GET endpoints redirect for staff), `TestMultiTenantIDOR` (cross-tenant 404 on every detail / edit / delete URL), `TestAnonymousRedirect` (login redirect on every list URL).
+
+### Out of scope (deferred)
+
+- **Live IoT / SCADA streaming** — v1 reads consumption from `eam.AssetMeterReading` writes (manual + EAM seed). Real OPC-UA / MQTT ingestion is deferred to **Module 15 (IoT & SCADA Integration)**.
+- **Real revenue feed** — sustainability + benchmark intensity ratios use `mes.ProductionReport.good_qty` for the denominator. Revenue-per-kWh and cost-per-revenue intensity metrics wait for **Module 17 (Sales & Customer Order Management)**.
+- **Renewable / on-site generation accounting** — solar / wind / battery export rows (`generation = generated − exported`) are not modelled in v1; treat on-site generation as a negative `UtilityConsumption` for now and tighten when a dedicated `GenerationAsset` model lands.
+- **Multi-currency tariffs** — `UtilityTariff.currency` is a 3-letter code but every tenant runs a single currency in v1; cross-currency conversion happens upstream of the cost app.
+- **Regulatory disclosure rendering** — CDP / TCFD / GRI / ESG framework templates are out of scope; **Module 13 (Compliance & Regulatory)** owns the disclosure layer when it ships.
+- **Demand-response auto-execution** — DR events are recorded but the system does not automatically pause / reschedule production. Operators acknowledge `PeakShavingSuggestion` rows and reschedule manually via existing PPS / MES UI.
+- **Anonymized industry-average aggregator** — the `BenchmarkSnapshot(tenant=NULL)` rows exist but the cross-tenant aggregation management command is deferred until at least 5 production tenants are live (privacy / k-anonymity threshold).
+- **TOU mid-period rate change** — `UtilityConsumption` snapshots `unit_cost` at the time of write; mid-period TOU re-pricing requires a re-import via the bulk billing CSV path.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -1993,8 +2180,10 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_eam [--flush]` | Seed EAM demo data (6 asset categories, 10 assets incl. 1 parent-child pair, spare parts linked to plm.Product, 30 days of meter readings per metered asset, 4 PM plans with 13 tasks + 3 schedules each, 6 monitoring points with 25 readings + 1 deliberately critical that auto-spawns a FailurePrediction, 3 MWOs incl. 1 completed breakdown with labor + material + downtime, 2 tools incl. 1 mold with 4 cavities) per tenant |
 | `python manage.py seed_labor [--flush] [--tenant <slug>]` | Seed Labor & Workforce demo data per tenant (4 departments + Assembly sub-dept, 8 positions, 12 skills, 5 certifications, 20 employees with first 6 linked to mes.ShopFloorOperator, 3 shifts + 14-day roster + attendance, 5 leave types + 6 leave requests across statuses, 4 holidays, 5 cost centers, 20 labor rates, 30 labor bookings, 4 training programs + 8 plans + 2 sessions, 1 competency assessment with 5 results, 2 incentive schemes + 5 piece rates each + 1 open period + 1 completed run with 6 lines) |
 | `python manage.py seed_cost [--flush] [--tenant <slug>]` | Seed Cost Management & Accounting demo data per tenant (3 accounting periods, 5 cost drivers, 5 overhead pools + 10 rates, 1 active `StandardCostVersion` with ~13 cost rows pulled from BOM rollups, JobCost + WIPEntry chains for every released/in-progress/completed PO, applied overhead allocations for the prior period, 1 CostVariance per closed job, ActualCost rollups, 1 COGMReport + 1 PlantPnLReport for the prior period) |
+| `python manage.py seed_utility [--flush] [--tenant <slug>]` | Seed Energy & Utility Management demo data per tenant (6 utility types, 4 meters incl. 1 sub-meter, 5 tariffs, 4 TOU bands, 1 scheduled DemandResponseEvent, 5 emission factors, ~120 UtilityConsumption rows spanning prior + current periods — electricity meters route via `eam.AssetMeterReading` to prove the auto-feed signal — auto-cascaded CarbonEmission ledger, 1 UtilityAllocation per metered cost-center with matching `cost.DriverActuals` write-through, 2 SustainabilityKPI snapshots, 2 BenchmarkSnapshot rows, 1 period-over-period BenchmarkComparison) |
 | `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` |
+| `python manage.py seed_utility [--flush] [--tenant <slug>]` | Seed Module 14 (Energy & Utility) demo data per tenant — 6 utility types (electricity / water / natural_gas / steam / compressed_air / fuel_oil; electricity bridged to `cost.CostDriver` 'KWH'), 5 tariffs incl. 3 TOU bands on electricity, 1 voluntary DR event, 4 meters incl. 1 sub-meter, 30 days of UtilityConsumption per meter (electricity sourced via synthetic `eam.AssetMeterReading` writes that trigger the auto-feed signal), 5 EmissionFactor rows (IPCC defaults), CarbonEmission rows auto-emitted via signal, 1 UtilityAllocation per cost-center for the current period (writes downstream `cost.DriverActuals`), 2 `SustainabilityKPI` snapshots, 1 `BenchmarkSnapshot` + 1 `BenchmarkComparison` |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (51 tests, ~3 s; uses [`config/settings_test.py`](config/settings_test.py)) |
@@ -2008,6 +2197,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/labor/tests/` | Run the Labor & Workforce test suite (145 tests, ~36 s; covers model invariants + auto-numbering (EMP / LR / LB / TS / CA / INC) + decimal validators (L-02), denorm computations (worked_minutes, total_cost, amount, gap, cert status), form validation (L-01 unique_together, L-02 bounds, L-14 per-workflow required), pure-function services (attendance / cost_allocation / competency / piece_rate / scheduling), audit + L-18 dispatch_uid presence guard, cross-module hooks (eam.MWOLaborLog -> indirect LaborBooking with idempotency), CRUD smoke + LeaveRequest workflow + Employee terminate/reactivate, RBAC matrix on 20 admin-only endpoints, multi-tenant IDOR, anonymous-redirect) |
 | `pytest apps/cost/tests/` | Run the Cost Management & Accounting test suite (129 tests, ~50 s; covers model invariants + auto-numbering (SCV / JC / WIP / OHA / VAR / ACP / COGM) + denorm computations (StandardCost.total_cost / OverheadRate.rate_per_driver_unit / OverheadAllocation.applied_amount / JobCost.wip_balance / COGMReport.cogm / GrossMarginReport.gross_margin/margin_percent / PlantPnLReport.gross_profit/operating_income / CostVariance.total_variance), form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required, DriverActuals XOR, date range), pure-function services (recompute_from_bom, compare_versions, compute_actual, compute_variances, post_wip_entry, close_job, reverse_wip_entry, compute_operation_rollup, compute_rate, apply_overhead idempotent rerun + closed-period refusal, reverse_overhead, accumulate_indirect_labor, generate_cogm, generate_plant_pnl), cross-module hooks (labor.LaborBooking(direct) -> WIPEntry(labor_applied) with idempotency, mes.ProductionReport(good_qty) -> WIPEntry(completion) at standard cost), audit factory + L-18 dispatch_uid presence guard, RBAC matrix, multi-tenant IDOR, anonymous-redirect on 17 list URLs) |
 | `pytest apps/eam/tests/` | Run the EAM test suite (119 tests, ~58 s; covers model invariants + auto-numbering + decimal validators, form validation (L-01 unique_together for category / spare part / plan / point / cavity, L-02 decimal bounds, L-14 per-workflow required for MWO complete + prediction resolve + PM completion), pure-function services (`generate_upcoming_pm`, `classify_reading`, `compute_downtime`, `bump_tool_life`), audit signals + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, cross-module hooks (`mes.AndonAlert` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, anonymous-redirect) |
+| `pytest apps/utility/tests/` | Run the Energy & Utility test suite (~120 tests, ~30 s; covers model invariants + auto-numbering (MTR / UC / TRF / UAL / DRE / PSS / CE / BCR), denorm computations (UtilityConsumption.consumption + total_cost, CarbonEmission.co2e_kg, SustainabilityKPI rollup), form validation (L-01 unique_together for UtilityType / UtilityMeter, L-02 share_pct ≤ 100, L-14 reverse / cancel / dismiss + cross-field period_start / end_reading), pure-function services (`post_consumption` idempotent on source_meter_reading, `post_allocation` writes downstream `cost.DriverActuals` + idempotent rerun + reverse path, `emit_for_consumption` skip-without-factor, `compare` zero-baseline guard, `compute_estimated_savings`), audit factory + L-18 dispatch_uid presence guard, cross-module hooks (`eam.AssetMeterReading(meter_type='kwh')` → UtilityConsumption with non-kwh-skip + idempotency, `UtilityConsumption.post_save` → CarbonEmission + `pre_delete` reversal), RBAC matrix on admin-only endpoints, multi-tenant IDOR, anonymous-redirect on every list URL) |
 
 ---
 
@@ -2065,8 +2255,8 @@ Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription
 10. ~~Equipment & Asset Management (EAM)~~ ✅ shipped
 11. ~~Labor & Workforce Management~~ ✅ shipped
 12. ~~Cost Management & Accounting~~ ✅ shipped
-13. Compliance & Regulatory
-14. Energy & Utility Management
+13. Compliance & Regulatory (skipped for now — Module 14 built next)
+14. ~~Energy & Utility Management~~ ✅ shipped
 15. IoT & SCADA Integration
 16. Business Intelligence & Analytics
 17. Sales & Customer Order Management
