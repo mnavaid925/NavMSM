@@ -356,6 +356,20 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/utility/benchmarks/generate/` | POST — [`services/benchmark.generate_snapshot(period)`](apps/utility/services/benchmark.py) |
 | `/utility/benchmark-reports/` and `<pk>/` | BenchmarkComparison list + detail (auto `BCR-00001`) with kWh / water / CO2e / cost delta % and winner label |
 | `/utility/benchmark-reports/new/` · `/<pk>/delete/` | Plant-to-plant / period-over-period / tenant-vs-industry-average comparison creation + delete |
+| `/compliance/` | Compliance & Regulatory dashboard — KPI cards (open incidents, open risks, effective documents, active recalls) + EHS Leading & Lagging panel (TRIR / LTIR / Near-Miss Ratio / Hours Worked, last 90 days) + recent incidents / recalls tables |
+| `/compliance/incidents/` and CRUD + `/<pk>/investigate/` · `/action/` · `/close/` · `/cancel/` | IncidentReport (auto `INC-NNNNN`) with workflow `reported → investigating → corrective_action → closed | cancelled` |
+| `/compliance/incident-types/` and CRUD | IncidentType catalog per tenant (admin-only management) |
+| `/compliance/risks/` and CRUD + `/<pk>/submit/` · `/approve/` · `/archive/` | RiskAssessment (auto `RA-NNNNN`) with computed `risk_score` + `risk_band` (low / medium / high / critical) + residual scoring + workflow `draft → in_review → approved → archived` |
+| `/compliance/checklists/` and CRUD | SafetyAuditChecklist with JSON `items` schema for ordered audit questions |
+| `/compliance/audits/` and CRUD + `/<pk>/start/` · `/record/` · `/complete/` · `/cancel/` | SafetyAudit (one per checklist instance) with per-item `SafetyAuditItem` recording (pass / fail / na / observation) |
+| `/compliance/documents/` and CRUD + `/<pk>/submit/` · `/approve/` · `/reject/` · `/publish/` · `/sign/` · `/supersede/` | ComplianceDocument (auto `DOC-NNNNN`, type = sop / wi / form / policy / iso_procedure / regulatory) with `draft → in_review → approved → effective → superseded` workflow + ElectronicSignature recording (FDA 21 CFR Part 11) |
+| `/compliance/audit-trail/` | Aggregated cross-cutting view of `tenants.TenantAuditLog` + `plm.ComplianceAuditLog` with filter by target_type |
+| `/compliance/audit-trail/archives/` and `<pk>/` + `/generate/` | AuditLogArchive (auto `ALA-NNNNN`) — periodic SHA-256 sealed snapshot of audit rows with `previous_archive` chain |
+| `/compliance/waste-categories/` and CRUD | WasteCategory with `hazard_class` enum (general / hazardous_chemical / biohazard / e_waste / radioactive) |
+| `/compliance/waste-manifests/` and CRUD + `/<pk>/dispatch/` · `/dispose/` · `/reconcile/` · `/cancel/` | WasteManifest (auto `WM-NNNNN`) with `draft → in_transit → disposed → reconciled` workflow + per-line `WasteDisposalRecord` (qty + facility) |
+| `/compliance/recalls/` and CRUD + `/<pk>/progress/` · `/complete/` · `/close/` · `/cancel/` | ProductRecall (auto `REC-NNNNN`, severity = class_i / class_ii / class_iii) with `draft → in_progress → completed → closed | cancelled` workflow + computed `recovery_pct` + leak warnings (C.7 outbound `inventory.StockMovement` detection on recalled lots) |
+| `/compliance/recalls/<pk>/lots/add/` · `/recalls/lots/<pk>/remove/` | RecallAffectedLot link CRUD with `recompute_affected_quantity` service |
+| `/compliance/recalls/<pk>/notices/new/` · `/recalls/notices/<pk>/` · `/send/` · `/ack/` | RecallNotice (auto `RCN-NNNNN`) with channel = email / phone / letter / press_release / website / regulatory — channel=email actually delivers via Django `send_mail` (C.5) |
 | `/iot/` | IoT & SCADA dashboard — KPI cards (active devices, brokers, 24h reading count, open anomalies, active twins, today's OEE), ApexCharts OEE trend (14d) + anomaly severity stack (30d), recent readings + open anomalies tables |
 | `/iot/protocols/` and CRUD | Shared protocol catalog (MQTT / OPC-UA / Modbus TCP+RTU / HTTP / CoAP) |
 | `/iot/brokers/` and CRUD + `/<pk>/heartbeat/` | DeviceBroker (auto `BRK-00001`) with TLS / auth-method config and ping-style heartbeat |
@@ -401,7 +415,10 @@ NavMSM/
 │
 ├── apps/
 │   ├── core/                     # Multi-tenancy foundation
-│   │   ├── models.py             # Tenant, TenantAwareModel, TimeStampedModel, thread-local
+│   │   ├── models.py             # Tenant (incl. require_compliance_e_signature flag),
+│   │   │                         # TenantAwareModel, TimeStampedModel, thread-local
+│   │   ├── services/
+│   │   │   └── audit_chain.py    # SHA-256 hash-chain helper used by tenants + plm audit logs
 │   │   ├── middleware.py         # TenantMiddleware → request.tenant
 │   │   ├── context_processors.py # tenant + branding + UI preferences
 │   │   ├── views.py              # DashboardView
@@ -418,12 +435,13 @@ NavMSM/
 │   ├── tenants/                  # MODULE 1 — Tenant & Subscription Management
 │   │   ├── models.py             # Plan, Subscription, Invoice, InvoiceLineItem, Payment,
 │   │   │                         # BillingAddress, UsageMeter, BrandingSettings,
-│   │   │                         # EmailTemplate, TenantAuditLog, TenantHealthSnapshot,
-│   │   │                         # HealthAlert
+│   │   │                         # EmailTemplate, TenantAuditLog (SHA-256 chained),
+│   │   │                         # TenantHealthSnapshot, HealthAlert
 │   │   ├── services/
 │   │   │   ├── gateway.py        # PaymentGateway Protocol + MockGateway
 │   │   │   ├── billing.py        # start_trial, issue_invoice, mark_paid
-│   │   │   └── health.py         # capture_snapshot
+│   │   │   ├── health.py         # capture_snapshot
+│   │   │   └── audit_chain.py    # verify_tenant_audit_chain — FDA 21 CFR Part 11 verifier
 │   │   ├── signals.py            # Audit-log receivers on Subscription, Branding
 │   │   ├── forms.py
 │   │   ├── views.py              # Onboarding wizard, Plans, Subscription, Invoices, Branding, Health, Audit
@@ -439,14 +457,19 @@ NavMSM/
 │   │   │                         # ProductVariant, EngineeringChangeOrder, ECOImpactedItem,
 │   │   │                         # ECOApproval, ECOAttachment, CADDocument, CADDocumentVersion,
 │   │   │                         # ComplianceStandard (shared catalog), ProductCompliance,
-│   │   │                         # ComplianceAuditLog, NPIProject, NPIStage, NPIDeliverable
+│   │   │                         # ComplianceAuditLog (immutable + SHA-256 chained),
+│   │   │                         # ProductComplianceSignature (FDA 21 CFR Part 11),
+│   │   │                         # NPIProject, NPIStage, NPIDeliverable
+│   │   ├── services/
+│   │   │   └── audit_chain.py    # verify_compliance_audit_chain — chain integrity verifier
 │   │   ├── signals.py            # Audit-log receivers on ECO + ProductCompliance status changes
 │   │   ├── forms.py              # ModelForms with file-extension allowlists + 25 MB cap
 │   │   ├── views.py              # Full CRUD for all 5 sub-modules + workflow actions
 │   │   ├── urls.py
 │   │   ├── admin.py
 │   │   └── management/commands/
-│   │       └── seed_plm.py       # Idempotent demo data per tenant
+│   │       ├── seed_plm.py            # Idempotent demo data per tenant
+│   │       └── expire_compliance.py   # Daily job: flips compliant→expired past expiry_date
 │   │
 │   ├── bom/                      # MODULE 3 — Bill of Materials Management
 │   │   ├── models.py             # BillOfMaterials, BOMLine (self-FK tree, phantom flag),
@@ -738,6 +761,34 @@ NavMSM/
 │   │                             # PO with seeded WIP entries, applied
 │   │                             # overhead for the prior closed period,
 │   │                             # 1 COGM + per-product margin rows + P&L)
+│   │
+│   ├── compliance/               # MODULE 13 — Compliance & Regulatory Management
+│   │   ├── models.py             # IncidentType, IncidentReport (incl. source_ncr FK),
+│   │   │                         # RiskAssessment, SafetyAuditChecklist, SafetyAudit,
+│   │   │                         # SafetyAuditItem, ComplianceDocument, DocumentApproval,
+│   │   │                         # ElectronicSignature (immutable, FDA 21 CFR Part 11),
+│   │   │                         # AuditLogArchive (SHA-256 chained snapshots),
+│   │   │                         # WasteCategory, WasteManifest, WasteDisposalRecord,
+│   │   │                         # ProductRecall (incl. recovery_pct), RecallAffectedLot
+│   │   │                         # (incl. post_recall_movement_count + last_leak_at),
+│   │   │                         # RecallNotice (incl. recipient_email)
+│   │   ├── services/
+│   │   │   ├── audit.py          # generate_archive (SHA-256 sealed)
+│   │   │   ├── document.py       # workflow + e-sig writer
+│   │   │   ├── incident.py       # workflow transitions
+│   │   │   ├── recall.py         # add/remove lots, lifecycle, send_notice (Django send_mail)
+│   │   │   │                     # + sweep_lot_for_leaks (C.7 leak detection)
+│   │   │   └── kpi.py            # compute_ehs_kpis — TRIR / LTIR / near-miss ratio (C.4)
+│   │   ├── signals.py            # Status-audit factory + mes.AndonAlert(safety) hook
+│   │   │                         # + qms.NCR(critical) hook (C.6)
+│   │   │                         # + inventory.StockMovement(out) → recall leak hook (C.7)
+│   │   ├── forms.py              # ModelForms with workflow-required reasons (L-14)
+│   │   │                         # + RecallNoticeForm requires recipient_email when channel=email
+│   │   ├── views.py              # 81 CBVs across all 5 sub-modules + dashboard with EHS KPIs
+│   │   ├── urls.py               # 60+ patterns
+│   │   ├── admin.py              # incl. ElectronicSignatureAdmin readonly (FDA 21 CFR Part 11)
+│   │   └── management/commands/
+│   │       └── seed_compliance.py
 │   │
 │   ├── utility/                  # MODULE 14 — Energy & Utility Management
 │   │   ├── models.py             # UtilityType, UtilityMeter, UtilityConsumption,
@@ -1141,7 +1192,8 @@ A 4-step wizard at `/tenants/onboarding/`:
 
 - **`TenantAwareModel`** abstract base + per-request thread-local tenant
 - **`TenantAdminRequiredMixin`** — class-based view guard that only permits `is_tenant_admin=True` or superusers
-- **`TenantAuditLog`** — immutable record with `action`, `target_type`, `target_id`, `user`, `ip_address`, `user_agent`, `meta` (JSON), and `timestamp`
+- **`TenantAuditLog`** — immutable record with `action`, `target_type`, `target_id`, `user`, `ip_address`, `user_agent`, `meta` (JSON), `timestamp`, plus tamper-evident **`prev_hash`** + **`this_hash`** SHA-256 chain (FDA 21 CFR Part 11 / ISO 9001). Every insert chains to the previous in-tenant row; the verifier service [`apps.tenants.services.audit_chain.verify_tenant_audit_chain(tenant)`](apps/tenants/services/audit_chain.py) recomputes the chain and reports any tampered or missing rows. Backfill data migration [`apps/tenants/migrations/0003_backfill_audit_chain.py`](apps/tenants/migrations/0003_backfill_audit_chain.py) chains pre-existing rows.
+- **`Tenant.require_compliance_e_signature`** — opt-in BooleanField (default False). When True, every `plm.ProductCompliance` transition INTO `status='compliant'` requires a typed-name e-signature (writes a `plm.ProductComplianceSignature` row); see [Module 13 → Phase C additions](#module-13--compliance--regulatory-management).
 - **Audit signals** — `post_save` / `post_delete` on `Subscription` and `BrandingSettings` auto-write audit entries
 - **`encryption_key_ref`** — `BrandingSettings` stores a *pointer* to a tenant-specific encryption key; raw secrets are expected in a vault (Key Vault / AWS Secrets Manager / etc.). A `WARNING` comment in [`models.py`](apps/tenants/models.py) documents this.
 
@@ -1193,10 +1245,14 @@ Releasing a version automatically obsoletes any prior released version and promo
 ### Sub-module 2.4 — Product Compliance Tracking
 
 - **`ComplianceStandard`** — *shared* catalog (NOT tenant-scoped, like `Plan`) pre-seeded with 8 standards: ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC
-- **`ProductCompliance`** — links a `Product` to a `ComplianceStandard` with status (`pending` / `in_progress` / `compliant` / `non_compliant` / `expired`), `certification_number`, `issuing_body`, `issued_date`, `expiry_date`, optional `certificate_file`. Unique per `(tenant, product, standard)`.
-- **`ComplianceAuditLog`** — immutable per-record trail; entries are written automatically by signals on create and on every status change
+- **`ProductCompliance`** — links a `Product` to a `ComplianceStandard` with status (`pending` / `in_progress` / `compliant` / `non_compliant` / `expired`), `certification_number`, `issuing_body`, `issued_date`, `expiry_date`, optional `certificate_file`. Unique per `(tenant, product, standard)` — duplicate POST is caught at the form layer (lessons L-01) so the user sees a clean error rather than a 500. `expiry_date < issued_date` is also rejected at the form layer.
+- **`ComplianceAuditLog`** — **immutable** per-record trail (FDA 21 CFR Part 11 alignment): instance + queryset `save()` / `update()` / `delete()` raise `PermissionDenied`; admin registration disables add / change / delete buttons; only the post-save signal can write. Every row is **chained via SHA-256** (`prev_hash` + `this_hash` columns) — verify with [`apps.plm.services.audit_chain.verify_compliance_audit_chain(tenant)`](apps/plm/services/audit_chain.py). Backfill migration [`apps/plm/migrations/0006_backfill_compliance_audit_chain.py`](apps/plm/migrations/0006_backfill_compliance_audit_chain.py) chains pre-existing rows.
+- **`ProductComplianceSignature`** *(opt-in)* — when `Tenant.require_compliance_e_signature=True`, every transition of a `ProductCompliance` record INTO `status='compliant'` requires the operator to type their name + role + reason; the view writes an immutable signature row anchored back into the `ComplianceAuditLog` chain. Form fields are hidden by default and only revealed on tenants that have opted in.
+- **`expire_compliance` management command** — flips `status='compliant'` records past their `expiry_date` to `expired`; idempotent; emits one `ComplianceAuditLog(event='expired')` per flip + a cross-cutting `tenants.TenantAuditLog` row. Schedule daily via cron / Task Scheduler.
 
-The list page surfaces an *Expiring within 30 days* counter and a per-row expiry warning icon. Certificate file allowlist: `.pdf .png .jpg .jpeg .zip`.
+The list page surfaces an *Expiring within 30 days* counter (status-scoped to `compliant` only — non_compliant records are not "expiring", they're already broken). Certificate file allowlist: `.pdf .png .jpg .jpeg .zip`.
+
+**Defects fixed against the SQA review (2026-05-09 / Phase A):** D-CR-01 (audit immutability), D-CR-02 (auto-expire), D-CR-04 (date inversion guard), D-CR-05 (unique-trap form guard), D-CR-07 (banner status filter), D-CR-08 (template doc string). All six are pinned by regression tests in [`apps/plm/tests/test_compliance_*.py`](apps/plm/tests/) (55 tests) plus 13 audit-chain + 10 e-signature regression tests added in Phase C (2026-05-10).
 
 ### Sub-module 2.5 — NPI / Stage-Gate Management
 
@@ -1211,7 +1267,7 @@ The detail page renders the 7 stages as a Bootstrap accordion with inline delive
 `apps/plm/signals.py` wires:
 
 - `pre_save` + `post_save` on `EngineeringChangeOrder` → writes `apps.tenants.TenantAuditLog` entries on every status transition (`eco.created`, `eco.status.<new>` with `meta={'from': old, 'to': new}`)
-- `pre_save` + `post_save` on `ProductCompliance` → writes BOTH `TenantAuditLog` and a per-record `ComplianceAuditLog` entry on create and on status change
+- `pre_save` + `post_save` on `ProductCompliance` → writes BOTH `TenantAuditLog` and a per-record `ComplianceAuditLog` entry on create and on status change. Both audit feeds are SHA-256 chained — `ComplianceAuditLog.prev_hash` / `this_hash` are computed at insert time via [`apps/core/services/audit_chain.py`](apps/core/services/audit_chain.py).
 
 ### File-upload security
 
@@ -2168,9 +2224,10 @@ Module 13 is implemented in [`apps/compliance/`](apps/compliance/) with full CRU
 - [`audit.py`](apps/compliance/services/audit.py) — `generate_archive(tenant, start, end)` collects matching audit rows, JSON-serializes, hashes (SHA-256), writes one `AuditLogArchive` row.
 - [`document.py`](apps/compliance/services/document.py) — workflow transitions (`submit_document`, `approve_document`, `publish_document`, `supersede_document`) + e-sig writer.
 - [`incident.py`](apps/compliance/services/incident.py) — workflow transitions for `IncidentReport`.
-- [`recall.py`](apps/compliance/services/recall.py) — `recompute_affected_quantity(recall)`, add/remove affected lots, workflow transitions for `ProductRecall` + `RecallNotice`.
+- [`recall.py`](apps/compliance/services/recall.py) — `recompute_affected_quantity(recall)`, add/remove affected lots, workflow transitions for `ProductRecall` + `RecallNotice`. **Phase C additions**: `sweep_lot_for_leaks(affected_lot)` recounts post-recall outbound movements (C.7) and `send_notice(notice)` actually delivers email via Django `send_mail` when channel=email (C.5).
+- [`kpi.py`](apps/compliance/services/kpi.py) **(C.4)** — `compute_ehs_kpis(tenant, period_days)` computes OSHA TRIR / LTIR + near-miss ratio + period hours worked. Hours sourced from `apps.labor.AttendanceRecord.worked_minutes` with a documented 24,000 h fallback when labor data is missing.
 
-**Tests** ([apps/compliance/tests/](apps/compliance/tests/)) — **149 tests** across 7 files: model invariants + e-sig immutability (test_models, 20), workflow status guards + L-01 unique-trap regression (test_forms), CRUD + filters + pagination + tenant scoping (test_views, 29), cross-tenant IDOR + e-sig admin readonly (test_security), status-audit signals + 3 cross-module hooks: `mes.AndonAlert(safety)` + `qms.NCR(critical)` + `inventory.StockMovement(out)` (test_signals, 18), TRIR/LTIR/near-miss KPI math + dashboard render (test_kpi, 7), `RecallNotice.send` email delivery (test_recall_email, 6), N+1 query budgets for the dashboard + 5 list views (test_performance, 6). PLM-side compliance regression suite adds 78 more tests including the SHA-256 audit-chain (test_audit_chain, 7) and the `Tenant.require_compliance_e_signature` binding (test_compliance_esignature, 10). **Total: 269 PLM + Compliance + Tenants tests, all green.**
+**Tests** ([apps/compliance/tests/](apps/compliance/tests/)) — **140 tests** across 7 files: model invariants + e-sig immutability (test_models, 20), workflow status guards + L-01 unique-trap regression (test_forms), CRUD + filters + pagination + tenant scoping (test_views, 29), cross-tenant IDOR + e-sig admin readonly (test_security), status-audit signals + 3 cross-module hooks: `mes.AndonAlert(safety)` + `qms.NCR(critical)` + `inventory.StockMovement(out)` (test_signals, 18), TRIR/LTIR/near-miss KPI math + dashboard render (test_kpi, 7), `RecallNotice.send` email delivery (test_recall_email, 6), N+1 query budgets for the dashboard + 5 list views (test_performance, 6). PLM-side compliance regression suite adds 122 more tests including the SHA-256 audit-chain (test_audit_chain, 7) and the `Tenant.require_compliance_e_signature` binding (test_compliance_esignature, 10). Tenants suite adds 7 SHA-chain tests for `TenantAuditLog`. **Total: 269 tests across PLM (122) + Compliance (140) + Tenants (7), all green.**
 
 **Phase C additions (2026-05-10):**
 - **Per-row SHA-256 hash chain on `tenants.TenantAuditLog` + `plm.ComplianceAuditLog`** (D-GAP-05) — every audit row now stores `prev_hash` + `this_hash` computed at insert time by [`apps/core/services/audit_chain.py`](apps/core/services/audit_chain.py). Backfill data migrations chain pre-existing rows for all tenants. Verifier services at [`apps/tenants/services/audit_chain.verify_tenant_audit_chain`](apps/tenants/services/audit_chain.py) and [`apps/plm/services/audit_chain.verify_compliance_audit_chain`](apps/plm/services/audit_chain.py) recompute and report any tampering as a list of broken pks. **Verified across all 3 seeded tenants: 823 + 49 = 872 rows, 0 broken.** (FDA 21 CFR Part 11 alignment.)
@@ -2308,17 +2365,17 @@ Module 15 unifies device connectivity, real-time data acquisition, digital-twin 
 | # | From | Trigger | To | Idempotency key |
 |---|---|---|---|---|
 | 1 | `iot.IoTReading.post_save` | every reading | `iot.StreamMetric` (1-to-1 denorm refresh) | `device_tag` |
-| 2 | `iot.IoTReading.post_save` | tag has `condition_point` set | `eam.ConditionReading` | `source_iot_reading` (when EAM migration ships) |
+| 2 | `iot.IoTReading.post_save` | tag has `condition_point` set | `eam.ConditionReading` | `source_iot_reading` (OneToOne, [`apps/eam/migrations/0003_conditionreading_source_iot_reading_and_more.py`](apps/eam/migrations/0003_conditionreading_source_iot_reading_and_more.py)) |
 | 3 | `iot.IoTReading.post_save` | matching active `iot.AlertRule` (with cooldown guard) | `iot.AnomalyDetection` | `(rule, source_reading)` |
 | 4 | `iot.AnomalyDetection.post_save` | every detection | `iot.AlertNotification` (one row per channel) | `(detection, channel)` |
-| 5 | `iot.AnomalyDetection.post_save` | severity ≥ high & rule channels include `mes_andon` | `mes.AndonAlert` | `source_anomaly` (when MES migration ships) |
-| 6 | `iot.AnomalyDetection.post_save` | severity = critical & tag.condition_point set | `eam.FailurePrediction` | `source_anomaly` (when EAM migration ships) |
+| 5 | `iot.AnomalyDetection.post_save` | severity ≥ high & rule channels include `mes_andon` | `mes.AndonAlert` | `source_anomaly` (OneToOne, [`apps/mes/migrations/0004_andonalert_source_anomaly.py`](apps/mes/migrations/0004_andonalert_source_anomaly.py)) |
+| 6 | `iot.AnomalyDetection.post_save` | severity = critical & tag.condition_point set | `eam.FailurePrediction` | `source_anomaly` (OneToOne, same `eam.0003` migration as Hook 2) |
 | 7 | `mes.ProductionReport.post_save` | report has work_order.production_order.product link | `iot.OEEPeriod` denorm refresh | `(asset, shift, period_date)` |
 | 8 | `eam.DowntimeEvent.post_save` | every event with asset | `iot.MachineStateLog` (state='down') | `source_downtime` |
 
 Reverse `pre_delete` counterparts paired for Hooks 2 / 5 / 6 / 8.
 
-The signal handlers use `hasattr()` guards on the destination model's FK so the cascade degrades gracefully on a database where the cross-app FK migrations haven't been applied yet — no crashes, just silent skips.
+All eight hooks are live. The cross-app FKs that anchor Hooks 2 / 5 / 6 ship in `apps/eam/migrations/0003_*` and `apps/mes/migrations/0004_*` (additive, nullable, `on_delete=SET_NULL`). The signal handlers retain `hasattr()` guards as a defensive belt-and-braces so a partially-migrated environment still degrades gracefully.
 
 ### Key routes
 
@@ -2333,8 +2390,8 @@ See the [Screenshots / UI Tour](#screenshotsui-tour) routes table — every `/io
 
 - **Live broker integration** — `paho-mqtt`, `asyncua`, and `pymodbus` clients running as background workers. v1 uses the JSON / CSV bulk ingest endpoint at `/iot/readings/ingest/` to demonstrate the full cascade pipeline without external infrastructure.
 - **ML-based anomaly detection** — `scikit-learn` `IsolationForest` / `LocalOutlierFactor` are deferred. The current heuristic detectors (rolling z-score, IQR, runs rule) cover the common cases and have zero deploy weight.
-- **Cross-app FK migrations** — the planned `eam.ConditionReading.source_iot_reading`, `eam.FailurePrediction.source_anomaly`, and `mes.AndonAlert.source_anomaly` FKs are designed in but not yet shipped. The signal handlers use `hasattr()` guards so when those migrations ship the cascades activate automatically.
 - **TimescaleDB / TSDB backend** — `IoTReading` rows are stored in MySQL like every other ledger. For high-throughput production deployments this is a known scaling ceiling.
+- **Real-time WebSocket / SSE push to the dashboard** — the dashboard polls on page load; live push of new readings / anomalies via Channels is deferred.
 
 ---
 
@@ -2384,7 +2441,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
-| `pytest apps/plm/tests/` | Run the PLM test suite (106 tests, ~63 s; uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 compliance regression tests covering D-CR-01 (audit-log immutability), D-CR-02 (auto-expire), D-CR-04 (date inversion guard), D-CR-05 (unique_together duplicate guard), D-CR-07 (expiring-soon banner scoping), D-CR-08 (template doc) |
+| `pytest apps/plm/tests/` | Run the PLM test suite (122 tests, uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 Phase A compliance regression tests (D-CR-01..08), 7 Phase C audit-chain tests (`test_audit_chain.py`), and 10 Phase C e-signature binding tests (`test_compliance_esignature.py`) |
+| `pytest apps/compliance/tests/` | Run the Module 13 test suite (140 tests) — covers all 5 sub-modules + 3 cross-module signal hooks (mes.AndonAlert, qms.NCR, inventory.StockMovement), EHS KPI math, RecallNotice email delivery, and N+1 query budgets |
+| `pytest apps/tenants/tests/` | Run the tenant test suite (7 tests) — currently scoped to the SHA-256 TenantAuditLog hash chain regression |
 | `pytest apps/pps/tests/` | Run the PPS test suite (58 tests, ~6 s; covers model bounds, form validation, RBAC, workflow, scheduler/optimizer, audit-log emission, query budgets) |
 | `pytest apps/mes/tests/` | Run the MES test suite (142 tests, ~9 s; covers model invariants, dispatcher / time-logging / reporting services, forms, workflow, audit-log emission, multi-tenant IDOR, CSRF, plus 8 seeder-regression tests for the 6 BUGs found during the manual-test walkthrough) |
 | `pytest --cov=apps/plm` | Run with coverage report |
@@ -2396,6 +2455,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/cost/tests/` | Run the Cost Management & Accounting test suite (129 tests, ~50 s; covers model invariants + auto-numbering (SCV / JC / WIP / OHA / VAR / ACP / COGM) + denorm computations (StandardCost.total_cost / OverheadRate.rate_per_driver_unit / OverheadAllocation.applied_amount / JobCost.wip_balance / COGMReport.cogm / GrossMarginReport.gross_margin/margin_percent / PlantPnLReport.gross_profit/operating_income / CostVariance.total_variance), form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required, DriverActuals XOR, date range), pure-function services (recompute_from_bom, compare_versions, compute_actual, compute_variances, post_wip_entry, close_job, reverse_wip_entry, compute_operation_rollup, compute_rate, apply_overhead idempotent rerun + closed-period refusal, reverse_overhead, accumulate_indirect_labor, generate_cogm, generate_plant_pnl), cross-module hooks (labor.LaborBooking(direct) -> WIPEntry(labor_applied) with idempotency, mes.ProductionReport(good_qty) -> WIPEntry(completion) at standard cost), audit factory + L-18 dispatch_uid presence guard, RBAC matrix, multi-tenant IDOR, anonymous-redirect on 17 list URLs) |
 | `pytest apps/eam/tests/` | Run the EAM test suite (119 tests, ~58 s; covers model invariants + auto-numbering + decimal validators, form validation (L-01 unique_together for category / spare part / plan / point / cavity, L-02 decimal bounds, L-14 per-workflow required for MWO complete + prediction resolve + PM completion), pure-function services (`generate_upcoming_pm`, `classify_reading`, `compute_downtime`, `bump_tool_life`), audit signals + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, cross-module hooks (`mes.AndonAlert` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, anonymous-redirect) |
 | `pytest apps/utility/tests/` | Run the Energy & Utility test suite (188 tests, ~78 s; covers model invariants + auto-numbering (MTR / UC / TRF / UAL / DRE / PSS / CE / BCR), denorm computations (UtilityConsumption.consumption + total_cost, CarbonEmission.co2e_kg, SustainabilityKPI rollup), form validation (L-01 unique_together for UtilityType / UtilityMeter, L-02 share_pct ≤ 100, L-14 reverse / cancel / dismiss + cross-field period_start / end_reading), pure-function services (`post_consumption` idempotent on source_meter_reading, `post_allocation` writes downstream `cost.DriverActuals` + idempotent rerun + reverse path, `emit_for_consumption` skip-without-factor, `compare` zero-baseline guard, `compute_estimated_savings`), audit factory + L-18 dispatch_uid presence guard, cross-module hooks (`eam.AssetMeterReading(meter_type='kwh')` → UtilityConsumption with non-kwh-skip + idempotency, `UtilityConsumption.post_save` → CarbonEmission + `pre_delete` reversal), RBAC matrix on admin-only endpoints, multi-tenant IDOR, anonymous-redirect on every list URL) |
+| `pytest apps/iot/tests/` | Run the IoT & SCADA test suite (~150 tests across 13 files: `test_models`, `test_forms`, `test_services`, `test_signals`, `test_views`, `test_views_workflow`, `test_views_crud`, `test_security`, `test_audit_log`, `test_performance`, `test_oee_service`, `test_anomaly_extras`, `test_seeder`. Covers model invariants + auto-numbering (BRK / DEV / IR / IRB / DT / TSC / OEEP / AR / AD), `OEEPeriod.recompute_pcts()` math (incl. zero-division safety), form validation (L-01 unique_together, L-14 resolution_notes required at resolve / false_positive, AlertRule XOR scope), pure-function services (anomaly z-score / IQR / runs_rule / threshold / range / rate-of-change branches, edge rolling_avg / sum / min / max / threshold_count / derivative, twin `_safe_eval` whitelist parser with explicit `__import__` / `exec` / `lambda` / attribute access / `**` operator / undefined-variable rejection), signal cascades (`IoTReading→StreamMetric` aggregates, `IoTReading→AnomalyDetection` with cooldown suppression and inactive-rule skip, fanout to `AlertNotification` per channel, idempotency on resave), audit factory + L-18 dispatch_uid presence guard for 8 audited models, full HTTP CRUD + every workflow POST handler (retire / reactivate / activate / archive / snapshot / scenario_run / rule activate / detection acknowledge-resolve-false_positive / OEE recompute / broker heartbeat), N+1 query budgets on dashboard + 4 list views, RBAC matrix (staff blocked from broker / device / rule mutations + anomaly resolve), multi-tenant IDOR (404 cross-tenant on every detail URL), broker password not exposed in list response, JSON bulk-ingest happy + error paths, `seed_iot` idempotency + fixture-count assertions) |
 
 ---
 
@@ -2440,7 +2500,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Module 1** (Tenant & Subscription), **Module 2** (Product Lifecycle Management), **Module 3** (Bill of Materials), **Module 4** (Production Planning & Scheduling), **Module 5** (Material Requirements Planning), **Module 6** (Shop Floor Control / MES), **Module 7** (Quality Management / QMS), **Module 8** (Inventory & Warehouse Management), **Module 9** (Procurement & Supplier Portal), **Module 10** (Equipment & Asset Management / EAM), **Module 11** (Labor & Workforce Management), and **Module 12** (Cost Management & Accounting). The 10 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Modules 1-15** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, and IoT & SCADA. The 7 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
