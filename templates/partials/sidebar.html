@@ -335,6 +335,35 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarIoT" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-cpu-line"></i> <span>IoT &amp; SCADA</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarIoT" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'iot:index' %}" class="nav-link">IoT Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:protocol_list' %}" class="nav-link">Protocols</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:broker_list' %}" class="nav-link">Brokers</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:device_list' %}" class="nav-link">Devices</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:tag_list' %}" class="nav-link">Device Tags</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:reading_list' %}" class="nav-link">Readings</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:batch_list' %}" class="nav-link">Ingest Batches</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:edge_list' %}" class="nav-link">Edge Processors</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:metric_list' %}" class="nav-link">Stream Metrics</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:twin_list' %}" class="nav-link">Digital Twins</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:oee_dashboard' %}" class="nav-link">OEE Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:oee_period_list' %}" class="nav-link">OEE Periods</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:state_log_list' %}" class="nav-link">State Logs</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:loss_reason_list' %}" class="nav-link">Loss Reasons</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:rule_list' %}" class="nav-link">Alert Rules</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:detection_list' %}" class="nav-link">Anomaly Detections</a></li>
+                            <li class="nav-item"><a href="{% url 'iot:notification_list' %}" class="nav-link">Notifications</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'supplier' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
