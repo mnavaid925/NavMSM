@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Audit Log Archives{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Audit Log Archives</h4><div class="text-muted small">SHA-256 hash-chained period snapshots of <code>tenants.TenantAuditLog</code>.</div></div>
+    <a href="{% url 'compliance:audit_trail_list' %}" class="btn btn-sm btn-outline-secondary">Audit Trail</a>
+</div>
+
+{% if verification %}
+<div class="alert alert-{% if verification.ok %}success{% else %}danger{% endif %}">
+    {% if verification.ok %}<i class="ri-shield-check-line"></i> <strong>Chain integrity verified.</strong>{% else %}<i class="ri-shield-cross-line"></i> <strong>Chain broken at {{ verification.broken_at }}.</strong>{% endif %}
+    Total archives: {{ verification.count }}.
+</div>
+{% endif %}
+
+<div class="card mb-3"><div class="card-body">
+<h6 class="mb-2">Generate New Archive</h6>
+<form method="post" action="{% url 'compliance:archive_generate' %}" class="row g-2 align-items-end">{% csrf_token %}
+    {{ generate_form|crispy }}
+    <div class="col-md-3"><button class="btn btn-primary w-100">Generate</button></div>
+</form>
+</div></div>
+
+<div class="card"><div class="card-body">
+<table class="table table-hover">
+    <thead><tr><th>Number</th><th>Period</th><th>Records</th><th>Hash (truncated)</th><th>Generated</th></tr></thead>
+    <tbody>{% for a in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'compliance:archive_detail' a.pk %}">{{ a.archive_number }}</a></td>
+        <td class="small">{{ a.period_start|date:"Y-m-d" }} → {{ a.period_end|date:"Y-m-d" }}</td>
+        <td class="small">{{ a.record_count }}</td>
+        <td class="small"><code>{{ a.hash_chain|slice:":16" }}…</code></td>
+        <td class="small">{{ a.generated_at|date:"Y-m-d H:i" }}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No archives yet.</td></tr>{% endfor %}</tbody>
+</table>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
