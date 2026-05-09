@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Reading {{ object.entry_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.entry_number }}</h4><div class="text-muted small">{{ object.device_tag }}</div></div>
+    <div><a href="{% url 'iot:reading_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'iot:reading_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete reading?');">{% csrf_token %}<button class="btn btn-outline-danger ms-1"><i class="ri-delete-bin-line"></i> Delete</button></form>{% endif %}
+    </div>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Tag</dt><dd class="col-9">{{ object.device_tag.name }} ({{ object.device_tag.address }})</dd>
+    <dt class="col-3">Device</dt><dd class="col-9">{{ object.device_tag.device.device_number }} - {{ object.device_tag.device.name }}</dd>
+    <dt class="col-3">Timestamp</dt><dd class="col-9">{{ object.timestamp }}</dd>
+    <dt class="col-3">Value</dt><dd class="col-9 fs-4">{{ object.value_display }} {{ object.device_tag.unit }}</dd>
+    <dt class="col-3">Quality</dt><dd class="col-9">{{ object.get_quality_display }}</dd>
+    <dt class="col-3">Source</dt><dd class="col-9">{{ object.get_source_display }}</dd>
+    <dt class="col-3">Batch</dt><dd class="col-9">{% if object.batch %}<a href="{% url 'iot:batch_detail' object.batch.pk %}">{{ object.batch.batch_number }}</a>{% else %}-{% endif %}</dd>
+    <dt class="col-3">Notes</dt><dd class="col-9">{{ object.notes|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div>
+{% endblock %}
