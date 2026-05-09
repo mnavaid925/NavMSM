@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Edge Processor {{ object.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.name }}</h4><div class="text-muted small">{{ object.get_transform_type_display }} on {{ object.input_tag }}</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'iot:edge_list' %}" class="btn btn-outline-secondary">Back</a>
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'iot:edge_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        <form method="post" action="{% url 'iot:edge_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete edge processor?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+        {% endif %}
+    </div>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Transform</dt><dd class="col-9">{{ object.get_transform_type_display }}</dd>
+    <dt class="col-3">Input Tag</dt><dd class="col-9">{{ object.input_tag }}</dd>
+    <dt class="col-3">Window</dt><dd class="col-9">{{ object.window_seconds }} seconds</dd>
+    <dt class="col-3">Threshold</dt><dd class="col-9">{{ object.threshold_value|default:"-" }}</dd>
+    <dt class="col-3">Output Tag</dt><dd class="col-9">{% if object.output_tag %}{{ object.output_tag }}{% else %}-{% endif %}</dd>
+    <dt class="col-3">Active</dt><dd class="col-9">{% if object.is_active %}Yes{% else %}No{% endif %}</dd>
+    <dt class="col-3">Description</dt><dd class="col-9">{{ object.description|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div>
+{% endblock %}
