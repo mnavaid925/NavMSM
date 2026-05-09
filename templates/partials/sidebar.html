@@ -288,6 +288,30 @@
 
                 {% if request.user.role != 'supplier' %}
                 <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarCompliance" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-shield-check-line"></i> <span>Compliance &amp; Regulatory</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarCompliance" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'compliance:index' %}" class="nav-link">Compliance Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:incident_list' %}" class="nav-link">Incidents</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:incident_type_list' %}" class="nav-link">Incident Types</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:risk_list' %}" class="nav-link">Risk Assessments</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:checklist_list' %}" class="nav-link">Audit Checklists</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:audit_list' %}" class="nav-link">Safety Audits</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:document_list' %}" class="nav-link">Regulatory Documents</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:audit_trail_list' %}" class="nav-link">Audit Trail</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:archive_list' %}" class="nav-link">Audit Archives</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:waste_category_list' %}" class="nav-link">Waste Categories</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:manifest_list' %}" class="nav-link">Waste Manifests</a></li>
+                            <li class="nav-item"><a href="{% url 'compliance:recall_list' %}" class="nav-link">Product Recalls</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarUtility" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-flashlight-line"></i> <span>Energy &amp; Utility</span>
                     </a>
