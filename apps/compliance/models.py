@@ -977,7 +977,14 @@ class ProductRecall(TenantAwareModel, TimeStampedModel):
 
 
 class RecallAffectedLot(TenantAwareModel, TimeStampedModel):
-    """Link table: a recall affects N inventory lots."""
+    """Link table: a recall affects N inventory lots.
+
+    `post_recall_movement_count` and `last_leak_at` are denorms updated by the
+    `inventory.StockMovement.post_save` -> `services.recall.on_movement_for_lot`
+    hook (C.7). They surface when a recalled lot is still being moved out of
+    the warehouse AFTER the recall is filed — operators must verify and
+    adjust before the recall can be closed.
+    """
 
     recall = models.ForeignKey(
         ProductRecall, on_delete=models.PROTECT, related_name='affected_lots',
@@ -991,6 +998,14 @@ class RecallAffectedLot(TenantAwareModel, TimeStampedModel):
     recovered_quantity = models.DecimalField(
         max_digits=16, decimal_places=4, default=Decimal('0'), validators=[NON_NEG],
     )
+    post_recall_movement_count = models.PositiveIntegerField(
+        default=0,
+        help_text='Number of outbound StockMovements posted on this lot AFTER the recall was filed.',
+    )
+    last_leak_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Timestamp of the most recent post-recall outbound movement.',
+    )
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -999,6 +1014,10 @@ class RecallAffectedLot(TenantAwareModel, TimeStampedModel):
 
     def __str__(self):
         return f'{self.recall.recall_number} | {self.lot}'
+
+    @property
+    def has_leaks(self) -> bool:
+        return self.post_recall_movement_count > 0
 
     def save(self, *args, **kwargs):
         if not self.tenant_id and self.recall_id:
@@ -1031,6 +1050,10 @@ class RecallNotice(TenantAwareModel, TimeStampedModel):
     audience = models.CharField(
         max_length=200,
         help_text='Customer segment / distributor / regulator name.',
+    )
+    recipient_email = models.EmailField(
+        blank=True,
+        help_text='Required when channel=email; left blank for non-email channels.',
     )
     subject = models.CharField(max_length=200)
     body = models.TextField()
