@@ -9,7 +9,7 @@ Wires:
 
 Audit emission writes ``meta=<payload>`` to ``tenants.TenantAuditLog`` —
 NOT ``payload=`` (that's a different model's field). Audit failure is
-logged at WARNING and never breaks a write path (mirrors L-19 pattern).
+logged at WARNING and never breaks a write path (mirrors L-23 pattern).
 """
 import logging
 
