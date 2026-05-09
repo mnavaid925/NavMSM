@@ -5,8 +5,9 @@ Honors:
     - Lesson L-02: every Decimal field carries explicit MinValueValidator
       (declared on the model; ModelForm picks them up).
     - Lesson L-14: per-workflow forms enforce per-transition required fields.
-    - L-19 (this module): file uploads validate extension + content_type +
-      size cap so the importer can't be abused as a file-storage primitive.
+    - L-22: file uploads validate extension + content_type + size cap +
+      magic-byte sniff so the importer can't be abused as a file-storage
+      primitive.
 """
 import re
 from decimal import Decimal
