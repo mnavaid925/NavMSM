@@ -889,6 +889,22 @@ class SustainabilityKPI(TenantAwareModel, TimeStampedModel):
 # 14.5  UTILITY BENCHMARKING
 # ============================================================================
 
+class BenchmarkSnapshotManager(models.Manager):
+    """Custom manager for BenchmarkSnapshot.
+
+    D-10 mitigation: ``BenchmarkSnapshot.tenant`` is overridden as nullable
+    to support the cross-tenant ``industry_avg`` row. Views that forget to
+    add ``tenant=request.tenant`` would otherwise leak that row to every
+    tenant. Use ``BenchmarkSnapshot.tenant_objects.for_tenant(t)`` as the
+    default access pattern; the unrestricted manager is still available as
+    ``all_objects`` (inherited from TenantAwareModel) for the seeder /
+    industry-avg writer.
+    """
+
+    def for_tenant(self, tenant):
+        return self.get_queryset().filter(tenant=tenant)
+
+
 class BenchmarkSnapshot(TenantAwareModel, TimeStampedModel):
     """Per-period per-plant efficiency snapshot.
 
@@ -897,6 +913,9 @@ class BenchmarkSnapshot(TenantAwareModel, TimeStampedModel):
     superuser-only management command (cross-tenant aggregate; never exposes
     raw per-tenant data).
     """
+
+    # D-10: dedicated manager that always requires an explicit tenant.
+    tenant_objects = BenchmarkSnapshotManager()
 
     # Override tenant FK to allow NULL for the industry-average row.
     tenant = models.ForeignKey(
