@@ -319,3 +319,44 @@ A subtle related rule: any KPI or banner that shows "X expiring within N days" M
 4. Audit any KPI count that sums by date window — make sure it's status-scoped.
 
 **Concrete example in repo:** [apps/plm/management/commands/expire_compliance.py](../../apps/plm/management/commands/expire_compliance.py) + [apps/plm/views.py — ComplianceListView (D-CR-07 fix)](../../apps/plm/views.py) + 7 regression tests in [apps/plm/tests/test_compliance_workflow.py](../../apps/plm/tests/test_compliance_workflow.py). Fixed 2026-05-09 (defects D-CR-02 + D-CR-07 from the SQA review of Module 13 / PLM compliance subset). Same pattern already exists in `apps/eam/management/commands/generate_pm_schedules.py` for the `'overdue'` state on `PMSchedule` — that one was right from the start.
+
+---
+
+## L-22 — File uploads need extension + content-type + size + magic-byte validation, not just FileField
+
+**Rule:** A bare `forms.FileField()` (or `models.FileField()`) accepts ANY uploaded bytes up to Django's `DATA_UPLOAD_MAX_MEMORY_SIZE` default. Renaming `evil.exe` to `evil.csv`, uploading a 50 MiB ZIP, or a polyglot CSV/PE binary all sail through silently. Any FileField wired to a user-facing form needs FOUR layers of validation:
+
+1. **Extension allow-list** via `validators=[FileExtensionValidator(['csv', 'pdf', ...])]` declared on the field — Django checks before the form's `clean()` runs.
+2. **Size cap** in a `clean_<field>()` method (don't rely on `DATA_UPLOAD_MAX_MEMORY_SIZE` alone — it's project-wide, not per-field, and chunked uploads can bypass it).
+3. **Content-type allow-list** in the same `clean_<field>()` checking `f.content_type` against a small whitelist.
+4. **Magic-byte sniff** for the first ~8 bytes — reject `MZ` (PE), `\x7fELF`, `PK\x03\x04` (ZIP), `\x89PNG`, `%PDF`, `\xff\xd8\xff` (JPEG) when the file claims to be CSV / text.
+
+**Why:** D-03 in the Module 14 SQA review found `UtilityConsumptionImportForm.csv_file` had ZERO of these. A determined attacker could upload a 5 MB executable, store it on disk via the import code path, and probably hit it later via `/media/`. Even when the file is consumed and discarded, polyglot attacks can exfiltrate data to a downstream pipeline.
+
+**How to apply:** every time you add a `FileField` (model OR form), implement all four layers in the same change. Capture the size cap as a module-level constant so it's easy to adjust per surface. Have a regression test that uploads a binary masquerading as the allowed extension and asserts the form is invalid.
+
+**Concrete example in repo:** [apps/utility/forms.py — `UtilityConsumptionImportForm.clean_csv_file`](../../apps/utility/forms.py) and [apps/compliance/forms.py — `ComplianceDocumentForm.clean_attachment`](../../apps/compliance/forms.py) — both follow the same shape. Regression tests in [apps/utility/tests/test_security_extended.py](../../apps/utility/tests/test_security_extended.py) and [apps/compliance/tests/test_forms.py](../../apps/compliance/tests/test_forms.py). Introduced 2026-05-09 (defect D-03 from the Module 14 SQA review).
+
+---
+
+## L-23 — `except Exception: pass` in a write-path side-effect (audit, telemetry) is a silent regression generator
+
+**Rule:** Any `try/except Exception: pass` block whose role is "best-effort side-effect that must never crash the parent write path" — audit emission, metric publish, cache invalidation — MUST log the exception at WARNING with `exc_info=True`. Otherwise the side-effect can silently rot for months and only surface during an audit / disaster.
+
+**Why:** `apps/utility/signals.py::_audit` was wrapping `TenantAuditLog.objects.create(...)` in `except: pass`. The keyword argument was `payload=` but the model field is `meta=`. Every audit row write had been failing with `TypeError` since module ship — and nobody knew, because `pass` swallowed it. The Module 14 D-09 fix added `logger.warning(..., exc_info=True)`, which immediately surfaced the latent bug as a stacktrace in the test output. Once you can SEE the exception, you can fix it; while it's swallowed, it's structurally invisible.
+
+**How to apply:** when writing best-effort side-effects:
+
+```python
+try:
+    do_the_side_effect(...)
+except Exception as exc:
+    logger.warning(
+        '<module> <action> failed: <key context> err=%s',
+        exc, exc_info=True,
+    )
+```
+
+The bare `pass` form is acceptable ONLY when the exception class is narrow and the failure mode is well-understood (e.g. `except ImportError: pass` for an optional dependency). For `except Exception:` the answer is always: log it. Add a regression test that monkey-patches the side-effect to raise and asserts the warning was logged via `caplog`.
+
+**Concrete example in repo:** [apps/utility/signals.py — `_audit`](../../apps/utility/signals.py) and [apps/compliance/signals.py — `_audit`](../../apps/compliance/signals.py). Regression test [apps/utility/tests/test_audit_log.py — `test_audit_emit_failure_logs_warning`](../../apps/utility/tests/test_audit_log.py). Surfaced 2026-05-09 while implementing defect D-09 from the Module 14 SQA review — patching `pass` → `logger.warning` immediately exposed a latent `payload=` vs `meta=` kwarg mismatch that had been silent since module ship.
