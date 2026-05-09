@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Batch {{ object.batch_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.batch_number }}</h4><div class="text-muted small">{{ object.get_source_format_display }} ingest at {{ object.ingested_at }}</div></div>
+    <a href="{% url 'iot:batch_list' %}" class="btn btn-outline-secondary">Back</a>
+</div>
+<div class="card mb-3"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Status</dt><dd class="col-9">{{ object.get_status_display }}</dd>
+    <dt class="col-3">Row count</dt><dd class="col-9">{{ object.row_count }}</dd>
+    <dt class="col-3">Ingested by</dt><dd class="col-9">{% if object.ingested_by %}{{ object.ingested_by }}{% else %}-{% endif %}</dd>
+    <dt class="col-3">Notes</dt><dd class="col-9">{{ object.notes|linebreaksbr|default:"-" }}</dd>
+    {% if object.error_summary %}<dt class="col-3 text-danger">Errors</dt><dd class="col-9 text-danger"><pre>{{ object.error_summary }}</pre></dd>{% endif %}
+</dl>
+</div></div>
+<div class="card"><div class="card-body">
+<h6>Readings (showing first 50)</h6>
+<div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>Entry</th><th>Tag</th><th>Time</th><th class="text-end">Value</th></tr></thead>
+    <tbody>{% for r in readings %}<tr><td class="small fw-semibold">{{ r.entry_number }}</td><td class="small">{{ r.device_tag }}</td><td class="small">{{ r.timestamp }}</td><td class="small text-end">{{ r.value_display }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted text-center py-3">No readings.</td></tr>{% endfor %}</tbody>
+</table></div>
+</div></div>
+{% endblock %}
