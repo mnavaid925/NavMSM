@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.report_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.report_number }}</h4>
+        <span class="badge bg-info-subtle text-info">{{ obj.get_comparison_type_display }}</span>
+        <span class="text-muted small ms-2">Generated {{ obj.generated_at|date:"Y-m-d H:i" }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'utility:benchmark_report_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete report?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
+        <a href="{% url 'utility:benchmark_report_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+<div class="row g-3 mb-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="text-muted small">FROM</h6>
+        <h5><a href="{% url 'utility:benchmark_detail' obj.from_snapshot.pk %}">{{ obj.from_snapshot.period.name }} / {{ obj.from_snapshot.plant_label }}</a></h5>
+        <table class="table table-sm mb-0">
+            <tr><td class="text-muted small">kWh/unit</td><td class="text-end">{{ obj.from_snapshot.kwh_per_unit|floatformat:4 }}</td></tr>
+            <tr><td class="text-muted small">CO2e/unit</td><td class="text-end">{{ obj.from_snapshot.co2e_per_unit|floatformat:4 }}</td></tr>
+            <tr><td class="text-muted small">Cost/unit</td><td class="text-end">{{ obj.from_snapshot.cost_per_unit|floatformat:4 }}</td></tr>
+        </table>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="text-muted small">TO</h6>
+        <h5><a href="{% url 'utility:benchmark_detail' obj.to_snapshot.pk %}">{{ obj.to_snapshot.period.name }} / {{ obj.to_snapshot.plant_label }}</a></h5>
+        <table class="table table-sm mb-0">
+            <tr><td class="text-muted small">kWh/unit</td><td class="text-end">{{ obj.to_snapshot.kwh_per_unit|floatformat:4 }}</td></tr>
+            <tr><td class="text-muted small">CO2e/unit</td><td class="text-end">{{ obj.to_snapshot.co2e_per_unit|floatformat:4 }}</td></tr>
+            <tr><td class="text-muted small">Cost/unit</td><td class="text-end">{{ obj.to_snapshot.cost_per_unit|floatformat:4 }}</td></tr>
+        </table>
+    </div></div></div>
+</div>
+<div class="card"><div class="card-body">
+    <h6>Delta (TO vs FROM)</h6>
+    <div class="row g-3">
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="text-muted small">Δ kWh / unit</div><h4 class="{% if obj.kwh_delta_pct > 0 %}text-danger{% else %}text-success{% endif %} mb-0">{{ obj.kwh_delta_pct|floatformat:2 }} %</h4></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="text-muted small">Δ Water / unit</div><h4 class="{% if obj.water_delta_pct > 0 %}text-danger{% else %}text-success{% endif %} mb-0">{{ obj.water_delta_pct|floatformat:2 }} %</h4></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="text-muted small">Δ CO2e / unit</div><h4 class="{% if obj.co2e_delta_pct > 0 %}text-danger{% else %}text-success{% endif %} mb-0">{{ obj.co2e_delta_pct|floatformat:2 }} %</h4></div></div></div>
+        <div class="col-md-3"><div class="card"><div class="card-body text-center"><div class="text-muted small">Δ Cost / unit</div><h4 class="{% if obj.cost_delta_pct > 0 %}text-danger{% else %}text-success{% endif %} mb-0">{{ obj.cost_delta_pct|floatformat:2 }} %</h4></div></div></div>
+    </div>
+    <div class="alert alert-info mt-3 mb-0"><strong>Winner:</strong> {{ obj.winner|default:"tie" }}</div>
+    {% if obj.notes %}<hr><div>{{ obj.notes|linebreaks }}</div>{% endif %}
+</div></div>
+{% endblock %}
