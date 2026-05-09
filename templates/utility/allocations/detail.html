@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.allocation_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.allocation_number }}</h4>
+        {% if obj.is_reversed %}<span class="badge bg-warning-subtle text-warning">Reversed</span>{% elif obj.is_posted_to_cost %}<span class="badge bg-success-subtle text-success">Posted to cost</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Open</span>{% endif %}
+        <span class="text-muted small ms-2">Period {{ obj.period.name }} · Meter {{ obj.meter.meter_number }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if not obj.is_reversed %}<button class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#reverseCard"><i class="ri-arrow-go-back-line me-1"></i> Reverse</button>{% endif %}
+        <form method="post" action="{% url 'utility:allocation_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete allocation?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}
+        <a href="{% url 'utility:allocation_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+{% if request.user.is_tenant_admin or request.user.is_superuser and not obj.is_reversed %}
+<div class="collapse mb-3" id="reverseCard"><div class="card border-warning"><div class="card-body">
+    <h6>Reverse Allocation</h6>
+    <form method="post" action="{% url 'utility:allocation_reverse' obj.pk %}">{% csrf_token %}
+        {{ reverse_form|crispy }}
+        <button class="btn btn-warning btn-sm">Confirm Reverse</button>
+        <p class="text-muted small mt-2">L-14: reversal_reason is required. Removes the matching <code>cost.DriverActuals</code> row.</p>
+    </form>
+</div></div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Method</th><td>{{ obj.get_allocation_method_display }}</td></tr>
+    <tr><th class="text-muted small">Target Cost Center</th><td>{% if obj.target_cost_center %}{{ obj.target_cost_center }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Target Product</th><td>{% if obj.target_product %}{{ obj.target_product }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Target PO</th><td>{% if obj.target_production_order %}{{ obj.target_production_order }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Share %</th><td>{{ obj.share_pct|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Allocated Consumption</th><td>{{ obj.allocated_consumption|floatformat:4 }} {{ obj.meter.utility_type.unit_of_measure }}</td></tr>
+    <tr><th class="text-muted small">Allocated Cost</th><td><strong>{{ obj.allocated_cost|floatformat:2 }}</strong></td></tr>
+    <tr><th class="text-muted small">Posted</th><td>{% if obj.posted_at %}{{ obj.posted_at|date:"Y-m-d H:i" }} by {% if obj.posted_by %}{{ obj.posted_by.get_full_name|default:obj.posted_by.username }}{% else %}—{% endif %}{% else %}—{% endif %}</td></tr>
+    {% if obj.is_reversed %}<tr><th class="text-muted small">Reversal Reason</th><td>{{ obj.reversal_reason|default:"—"|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+{% endblock %}
