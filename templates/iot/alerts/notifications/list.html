@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Alert Notifications{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Alert Notifications</h4><div class="text-muted small">Append-only fanout log of every detection x channel.</div></div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><select name="channel" class="form-select"><option value="">All channels</option>{% for v,l in channel_choices %}<option value="{{ v }}" {% if request.GET.channel == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select name="status" class="form-select"><option value="">All statuses</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Detection</th><th>Channel</th><th>Status</th><th>Sent At</th><th>Target</th></tr></thead>
+    <tbody>{% for n in object_list %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'iot:detection_detail' n.detection.pk %}">{{ n.detection.detection_number }}</a></td>
+        <td class="small">{{ n.get_channel_display }}</td>
+        <td class="small">{{ n.get_status_display }}</td>
+        <td class="small">{% if n.sent_at %}{{ n.sent_at }}{% else %}-{% endif %}</td>
+        <td class="small">{% if n.target_user %}{{ n.target_user }}{% elif n.target_email %}{{ n.target_email }}{% elif n.mes_andon %}Andon {{ n.mes_andon }}{% else %}-{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No notifications.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'iot/_pagination.html' %}
+</div></div>
+{% endblock %}
