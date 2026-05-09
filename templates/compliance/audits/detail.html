@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.audit_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.audit_number }} <span class="badge bg-{% if obj.status == 'completed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}-subtle text-{% if obj.status == 'completed' %}success{% elif obj.status == 'cancelled' %}secondary{% else %}primary{% endif %}">{{ obj.get_status_display }}</span></h4>
+        <span class="text-muted small">{{ obj.checklist.code }} — {{ obj.checklist.name }} · scheduled {{ obj.scheduled_for|date:"Y-m-d" }}</span></div>
+    <a href="{% url 'compliance:audit_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="row g-3"><div class="col-md-8"><div class="card"><div class="card-body">
+<h6 class="mb-3">Recorded results <small class="text-muted">— {{ obj.pass_count }} pass · {{ obj.fail_count }} fail · {{ obj.na_count }} N/A</small></h6>
+<table class="table table-sm align-middle">
+    <thead><tr><th>#</th><th>Question</th><th>Result</th><th>Finding</th></tr></thead>
+    <tbody>{% for it in items %}<tr>
+        <td>{{ it.item_order }}</td>
+        <td class="small">{{ it.question }}</td>
+        <td><span class="badge bg-{% if it.result == 'pass' %}success{% elif it.result == 'fail' %}danger{% else %}secondary{% endif %}-subtle text-{% if it.result == 'pass' %}success{% elif it.result == 'fail' %}danger{% else %}secondary{% endif %}">{{ it.get_result_display }}</span></td>
+        <td class="small">{{ it.finding|default:"—" }}</td>
+    </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-2">No results recorded yet.</td></tr>{% endfor %}</tbody>
+</table>
+
+{% if obj.is_completable and request.user.is_tenant_admin %}
+<hr>
+<h6 class="mb-2">Record next item</h6>
+<form method="post" action="{% url 'compliance:audit_record' obj.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-1"><label class="form-label small">#</label><input type="number" name="item_order" class="form-control" min="1" required></div>
+    <div class="col-md-5"><label class="form-label small">Question</label><input type="text" name="question" class="form-control" list="pendingQuestions" required>
+        <datalist id="pendingQuestions">{% for it in pending_items %}<option value="{{ it.question }}" data-order="{{ it.order }}">{% endfor %}</datalist>
+    </div>
+    <div class="col-md-2"><label class="form-label small">Result</label><select name="result" class="form-select"><option value="pass">Pass</option><option value="fail">Fail</option><option value="na">N/A</option></select></div>
+    <div class="col-md-3"><label class="form-label small">Finding</label><input type="text" name="finding" class="form-control" placeholder="optional"></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">Save</button></div>
+</form>
+{% endif %}
+</div></div></div>
+
+<div class="col-md-4">
+{% if request.user.is_tenant_admin %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="card-title">Workflow</h6>
+    {% if obj.is_startable %}<form method="post" action="{% url 'compliance:audit_start' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-info w-100">Start Audit</button></form>{% endif %}
+    {% if obj.is_completable %}<form method="post" action="{% url 'compliance:audit_complete' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-success w-100">Complete Audit</button></form>{% endif %}
+    {% if obj.is_cancellable %}<form method="post" action="{% url 'compliance:audit_cancel' obj.pk %}">{% csrf_token %}<textarea name="cancellation_reason" class="form-control form-control-sm mb-2" rows="2" placeholder="Cancellation reason..." required></textarea><button class="btn btn-sm btn-outline-secondary w-100" onclick="return confirm('Cancel?');">Cancel Audit</button></form>{% endif %}
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
