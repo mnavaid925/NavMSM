@@ -45,3 +45,8 @@ class Command(BaseCommand):
             call_command('seed_compliance', flush=options.get('flush', False))
         except Exception as exc:
             self.stdout.write(self.style.WARNING(f'seed_compliance skipped: {exc}'))
+        self.stdout.write(self.style.HTTP_INFO('-> seed_iot'))
+        try:
+            call_command('seed_iot', flush=options.get('flush', False))
+        except Exception as exc:
+            self.stdout.write(self.style.WARNING(f'seed_iot skipped: {exc}'))
