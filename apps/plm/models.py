@@ -11,10 +11,13 @@ Sub-modules:
     2.5  NPI / Stage-Gate          (NPIProject, NPIStage, NPIDeliverable)
 """
 from django.conf import settings
+from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import TenantAwareModel, TimeStampedModel
+from apps.core.models import (
+    TenantAwareModel, TenantManager, TimeStampedModel, get_current_tenant,
+)
 
 
 # ============================================================================
@@ -427,8 +430,57 @@ class ProductCompliance(TenantAwareModel, TimeStampedModel):
         return 0 < delta <= 30
 
 
+_AUDIT_IMMUTABLE_MSG = (
+    'ComplianceAuditLog rows are immutable (FDA 21 CFR Part 11 alignment).'
+)
+
+
+class _ImmutableAuditQuerySet(models.QuerySet):
+    """D-CR-01: bulk update / delete must raise — audit rows are append-only.
+
+    A parent `ProductCompliance.delete()` still removes its `audit_entries` via
+    the FK CASCADE because Django bypasses this QuerySet when cascading — that
+    is intentional record-lifecycle, not tampering.
+    """
+
+    def update(self, *args, **kwargs):
+        raise PermissionDenied(_AUDIT_IMMUTABLE_MSG)
+
+    def delete(self):
+        raise PermissionDenied(_AUDIT_IMMUTABLE_MSG)
+
+
+class _ImmutableTenantAuditManager(TenantManager):
+    """Tenant-auto-scoped + immutable."""
+
+    def get_queryset(self):
+        qs = _ImmutableAuditQuerySet(self.model, using=self._db)
+        tenant = get_current_tenant()
+        if tenant is not None:
+            qs = qs.filter(tenant=tenant)
+        return qs
+
+
+class _ImmutableAllAuditManager(models.Manager):
+    """Un-scoped immutable manager (parity with TenantAwareModel.all_objects)."""
+
+    def get_queryset(self):
+        return _ImmutableAuditQuerySet(self.model, using=self._db)
+
+
 class ComplianceAuditLog(TenantAwareModel):
-    """Immutable audit trail for compliance changes — no UI edit/delete."""
+    """Immutable audit trail for compliance changes — append-only.
+
+    D-CR-01: enforced at the model layer:
+      - `objects.update()` and `objects.delete()` raise `PermissionDenied`
+      - instance `.save()` raises if the row already has a pk (no edits)
+      - instance `.delete()` raises (use a parent CASCADE to clean up)
+      - admin registration uses `ComplianceAuditLogAdmin` with all permissions
+        denied (see [apps/plm/admin.py](../../apps/plm/admin.py))
+
+    The signal in [apps/plm/signals.py](../../apps/plm/signals.py) is the only
+    legitimate writer — it always passes `force_insert=True` via `objects.create()`.
+    """
 
     EVENT_CHOICES = [
         ('created', 'Created'),
@@ -449,12 +501,29 @@ class ComplianceAuditLog(TenantAwareModel):
     performed_at = models.DateTimeField(default=timezone.now)
     meta = models.JSONField(default=dict, blank=True)
 
+    objects = _ImmutableTenantAuditManager()
+    # Override `all_objects` (from TenantAwareModel) so signal-side reads via
+    # `sender.all_objects.get(...)` still work AND remain append-only.
+    all_objects = _ImmutableAllAuditManager()
+
     class Meta:
         ordering = ['-performed_at']
         indexes = [models.Index(fields=['compliance', '-performed_at'])]
 
     def __str__(self):
         return f'{self.event} @ {self.performed_at:%Y-%m-%d %H:%M}'
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise PermissionDenied(
+                'ComplianceAuditLog rows are immutable (FDA 21 CFR Part 11 alignment).'
+            )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionDenied(
+            'ComplianceAuditLog rows are immutable (FDA 21 CFR Part 11 alignment).'
+        )
 
 
 # ============================================================================
