@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'apps.labor',
     'apps.cost',
     'apps.utility',
+    'apps.compliance',
+    'apps.iot',
 ]
 
 MIDDLEWARE = [
