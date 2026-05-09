@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if object %}Edit Tag{% else %}New Tag{% endif %}{% endblock %}
+{% block content %}
+<h4>{% if object %}Edit Tag{% else %}New Tag{% endif %}</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="d-flex justify-content-end gap-2 mt-3"><a href="{% url 'iot:tag_list' %}" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary">Save</button></div></form>
+</div></div>
+{% endblock %}
