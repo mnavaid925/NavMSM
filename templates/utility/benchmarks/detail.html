@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Benchmark — {{ obj.period.name }} / {{ obj.plant_label }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.period.name }} — {{ obj.plant_label }}</h4>
+        <span class="text-muted small">Generated {{ obj.generated_at|date:"Y-m-d H:i" }}{% if obj.generated_by %} by {{ obj.generated_by.get_full_name|default:obj.generated_by.username }}{% endif %}</span>
+    </div>
+    <a href="{% url 'utility:benchmark_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card border-primary"><div class="card-body"><div class="text-muted small">kWh / unit</div><h4 class="text-primary mb-0">{{ obj.kwh_per_unit|floatformat:4 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Water m3 / unit</div><h4 class="mb-0">{{ obj.water_per_unit|floatformat:4 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card border-success"><div class="card-body"><div class="text-muted small">CO2e kg / unit</div><h4 class="text-success mb-0">{{ obj.co2e_per_unit|floatformat:4 }}</h4></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Cost / unit</div><h4 class="mb-0">{{ obj.cost_per_unit|floatformat:4 }}</h4></div></div></div>
+</div>
+<div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Total kWh</th><td>{{ obj.total_kwh|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Total Water (m3)</th><td>{{ obj.total_water_m3|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Total Gas (m3)</th><td>{{ obj.total_gas_m3|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Total CO2e (kg)</th><td>{{ obj.total_co2e_kg|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Total Cost</th><td>{{ obj.total_cost|floatformat:2 }}</td></tr>
+    <tr><th class="text-muted small">Total Units Produced</th><td>{{ obj.total_units_produced|floatformat:0 }}</td></tr>
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+{% endblock %}
