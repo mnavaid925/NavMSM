@@ -77,6 +77,7 @@ urlpatterns = [
     # 14.4 Carbon Emissions
     path('emissions/', views.CarbonEmissionListView.as_view(), name='emission_list'),
     path('emissions/<int:pk>/', views.CarbonEmissionDetailView.as_view(), name='emission_detail'),
+    path('emissions/<int:pk>/reverse/', views.CarbonEmissionReverseView.as_view(), name='emission_reverse'),
     path('emissions/period/<int:period_pk>/recompute/', views.CarbonEmissionRecomputeView.as_view(), name='emission_recompute'),
 
     # 14.4 Sustainability KPI
