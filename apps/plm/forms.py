@@ -243,6 +243,8 @@ class ProductComplianceForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Stash tenant so clean() can scope the duplicate-check (lessons L-01).
+        self._tenant = tenant
         if tenant is not None:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant)
 
@@ -250,6 +252,41 @@ class ProductComplianceForm(forms.ModelForm):
         f = self.cleaned_data.get('certificate_file')
         _validate_file(f, COMPLIANCE_ALLOWED_EXTS, 'certificate')
         return f
+
+    def clean(self):
+        """D-CR-04 + D-CR-05 guards.
+
+        D-CR-04: reject `expiry_date < issued_date` (silent data corruption).
+        D-CR-05: enforce `unique_together = (tenant, product, standard)` at the
+                 form layer because `tenant` is set by the view post-`commit=False`
+                 and is therefore excluded from Django's `validate_unique()` —
+                 the duplicate would otherwise escape to the DB and 500.
+                 (Lessons L-01.)
+        """
+        cleaned = super().clean()
+
+        issued = cleaned.get('issued_date')
+        expiry = cleaned.get('expiry_date')
+        if issued and expiry and expiry < issued:
+            self.add_error(
+                'expiry_date',
+                'Expiry date must be on or after the issued date.',
+            )
+
+        product = cleaned.get('product')
+        standard = cleaned.get('standard')
+        if self._tenant is not None and product and standard:
+            qs = ProductCompliance.objects.filter(
+                tenant=self._tenant, product=product, standard=standard,
+            )
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    'A compliance record for this product + standard already exists.',
+                )
+
+        return cleaned
 
 
 # ---------------- NPI ----------------
