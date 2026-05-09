@@ -250,3 +250,127 @@ def test_critical_ncr_skipped_when_no_incident_type(acme):
     """If the tenant has no IncidentType configured, hook silently skips."""
     ncr = _build_ncr(acme, severity='critical', sku='NC-NIT', sequence='-4')
     assert not cm.IncidentReport.objects.filter(source_ncr=ncr).exists()
+
+
+# ---------- Cross-module hook 3: inventory.StockMovement -> RecallAffectedLot leak (C.7) ----------
+
+def _build_recall_with_lot(acme, plm_product, acme_admin):
+    """Build a ProductRecall with one RecallAffectedLot row for leak tests."""
+    from apps.inventory.models import Lot
+    lot = Lot.objects.create(
+        tenant=acme, lot_number='LEAK-LOT-1', product=plm_product,
+    )
+    recall = cm.ProductRecall.objects.create(
+        tenant=acme, product=plm_product, title='Leak probe recall',
+        severity='class_iii', status='in_progress', initiated_by=acme_admin,
+    )
+    link = cm.RecallAffectedLot.objects.create(
+        tenant=acme, recall=recall, lot=lot,
+        affected_quantity=10,
+    )
+    return recall, link, lot
+
+
+def _build_warehouse_and_bin(acme):
+    """Build Warehouse -> WarehouseZone -> StorageBin (the inventory model
+    chain — StorageBin links to a Zone, not directly to Warehouse)."""
+    from apps.inventory.models import StorageBin, Warehouse, WarehouseZone
+    wh = Warehouse.objects.create(
+        tenant=acme, code='WH-LEAK', name='Leak probe WH', is_default=True,
+    )
+    zone = WarehouseZone.objects.create(
+        tenant=acme, warehouse=wh, code='Z-1', name='Storage zone',
+    )
+    bin_ = StorageBin.objects.create(
+        tenant=acme, zone=zone, code='BIN-LEAK',
+    )
+    return wh, bin_
+
+
+def test_outbound_movement_on_recalled_lot_increments_leak_count(acme, plm_product, acme_admin):
+    from decimal import Decimal
+    from apps.inventory.models import StockMovement
+    recall, link, lot = _build_recall_with_lot(acme, plm_product, acme_admin)
+    _wh, bin_ = _build_warehouse_and_bin(acme)
+    StockMovement.objects.create(
+        tenant=acme, product=plm_product, lot=lot,
+        movement_type='issue', from_bin=bin_,
+        qty=Decimal('5'), reason='probe',
+    )
+    link.refresh_from_db()
+    assert link.post_recall_movement_count == 1
+    assert link.last_leak_at is not None
+    assert link.has_leaks is True
+
+
+def test_inbound_movement_on_recalled_lot_does_not_count(acme, plm_product, acme_admin):
+    """A receipt back into stock is not a leak — only outbound (issue, transfer, production_out, scrap)."""
+    from decimal import Decimal
+    from apps.inventory.models import StockMovement
+    recall, link, lot = _build_recall_with_lot(acme, plm_product, acme_admin)
+    _wh, bin_ = _build_warehouse_and_bin(acme)
+    StockMovement.objects.create(
+        tenant=acme, product=plm_product, lot=lot,
+        movement_type='receipt', to_bin=bin_,
+        qty=Decimal('10'), reason='probe receipt',
+    )
+    link.refresh_from_db()
+    assert link.post_recall_movement_count == 0
+    assert link.has_leaks is False
+
+
+def test_movement_on_unrelated_lot_does_not_affect_recall(acme, plm_product, acme_admin):
+    """A movement on a lot NOT in the recall affects nothing."""
+    from decimal import Decimal
+    from apps.inventory.models import Lot, StockMovement
+    recall, link, lot = _build_recall_with_lot(acme, plm_product, acme_admin)
+    _wh, bin_ = _build_warehouse_and_bin(acme)
+    other_lot = Lot.objects.create(
+        tenant=acme, lot_number='UNRELATED', product=plm_product,
+    )
+    StockMovement.objects.create(
+        tenant=acme, product=plm_product, lot=other_lot,
+        movement_type='issue', from_bin=bin_,
+        qty=Decimal('1'), reason='probe',
+    )
+    link.refresh_from_db()
+    assert link.post_recall_movement_count == 0
+
+
+def test_closed_recall_does_not_track_leaks(acme, plm_product, acme_admin):
+    """Once recall.status == 'closed' or 'cancelled', new movements are not flagged."""
+    from decimal import Decimal
+    from apps.inventory.models import StockMovement
+    recall, link, lot = _build_recall_with_lot(acme, plm_product, acme_admin)
+    _wh, bin_ = _build_warehouse_and_bin(acme)
+    recall.status = 'closed'
+    recall.closed_at = timezone.now()
+    recall.save(update_fields=['status', 'closed_at'])
+    StockMovement.objects.create(
+        tenant=acme, product=plm_product, lot=lot,
+        movement_type='issue', from_bin=bin_,
+        qty=Decimal('5'),
+    )
+    link.refresh_from_db()
+    assert link.post_recall_movement_count == 0
+
+
+def test_sweep_service_recomputes_count_from_ledger(acme, plm_product, acme_admin):
+    """`sweep_lot_for_leaks` re-counts from the source-of-truth ledger.
+
+    Useful for backfill or verifying post-incident inventory after the
+    signal is enabled in production.
+    """
+    from decimal import Decimal
+    from apps.inventory.models import StockMovement
+    from apps.compliance.services.recall import sweep_lot_for_leaks
+    recall, link, lot = _build_recall_with_lot(acme, plm_product, acme_admin)
+    _wh, bin_ = _build_warehouse_and_bin(acme)
+    for _ in range(3):
+        StockMovement.objects.create(
+            tenant=acme, product=plm_product, lot=lot,
+            movement_type='issue', from_bin=bin_, qty=Decimal('1'),
+        )
+    sweep_lot_for_leaks(link)
+    link.refresh_from_db()
+    assert link.post_recall_movement_count == 3
