@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.entry_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.entry_number }}</h4>
+        <span class="text-muted small">{{ obj.get_scope_display }} · {{ obj.get_source_type_display }} · {{ obj.period.name }}{% if obj.is_reversal %} <span class="badge bg-warning-subtle text-warning small">reversal</span>{% endif %}</span>
+    </div>
+    <a href="{% url 'utility:emission_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+<div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Source Quantity</th><td>{{ obj.source_quantity|floatformat:4 }} {{ obj.factor.unit_of_measure }}</td></tr>
+    <tr><th class="text-muted small">Factor Used</th><td>{{ obj.factor }} <span class="text-muted small">(snapshot — PROTECT FK)</span></td></tr>
+    <tr><th class="text-muted small">CO2e</th><td><strong>{{ obj.co2e_kg|floatformat:4 }}</strong> kgCO2e</td></tr>
+    {% if obj.factor.source_reference %}<tr><th class="text-muted small">Citation</th><td>{{ obj.factor.source_reference }}</td></tr>{% endif %}
+    <tr><th class="text-muted small">Source Consumption</th><td>{% if obj.source_consumption %}<a href="{% url 'utility:consumption_detail' obj.source_consumption.pk %}">{{ obj.source_consumption.entry_number }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Recorded By</th><td>{% if obj.recorded_by %}{{ obj.recorded_by.get_full_name|default:obj.recorded_by.username }}{% else %}<span class="text-muted">system</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Recorded At</th><td>{{ obj.recorded_at|date:"Y-m-d H:i" }}</td></tr>
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+{% endblock %}
