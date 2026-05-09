@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.doc_number }} v{{ obj.version }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.doc_number }} v{{ obj.version }} <span class="badge bg-{% if obj.status == 'effective' %}success{% elif obj.status == 'superseded' %}secondary{% else %}primary{% endif %}-subtle text-{% if obj.status == 'effective' %}success{% elif obj.status == 'superseded' %}secondary{% else %}primary{% endif %}">{{ obj.get_status_display }}</span></h4>
+        <span class="text-muted small">{{ obj.title }} · {{ obj.get_doc_type_display }}</span></div>
+    <div class="d-flex gap-2">
+        {% if obj.is_editable and request.user.is_tenant_admin %}<a href="{% url 'compliance:document_edit' obj.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+        <a href="{% url 'compliance:document_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+<div class="col-md-8"><div class="card mb-3"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Title</th><td>{{ obj.title }}</td></tr>
+    {% if obj.description %}<tr><th class="text-muted small">Description</th><td>{{ obj.description|linebreaks }}</td></tr>{% endif %}
+    <tr><th class="text-muted small">Type</th><td>{{ obj.get_doc_type_display }}</td></tr>
+    <tr><th class="text-muted small">Version</th><td>{{ obj.version }}</td></tr>
+    <tr><th class="text-muted small">Effective From</th><td>{% if obj.effective_from %}{{ obj.effective_from|date:"Y-m-d" }}{% else %}<span class="text-muted">— (not yet effective)</span>{% endif %}</td></tr>
+    {% if obj.effective_to %}<tr><th class="text-muted small">Effective To</th><td>{{ obj.effective_to|date:"Y-m-d" }}</td></tr>{% endif %}
+    {% if obj.attachment %}<tr><th class="text-muted small">Attachment</th><td><a href="{{ obj.attachment.url }}" target="_blank"><i class="ri-attachment-2"></i> {{ obj.attachment.name|cut:"compliance/documents/"|truncatechars:60 }}</a></td></tr>{% endif %}
+    {% if obj.owner %}<tr><th class="text-muted small">Owner</th><td>{{ obj.owner.get_full_name|default:obj.owner.username }}</td></tr>{% endif %}
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+
+<div class="card mb-3"><div class="card-body">
+<h6 class="mb-2">Approval History</h6>
+<table class="table table-sm">
+    <thead><tr><th>When</th><th>Action</th><th>Actor</th><th>Comment</th></tr></thead>
+    <tbody>{% for a in approvals %}<tr>
+        <td class="small">{{ a.acted_at|date:"Y-m-d H:i" }}</td>
+        <td class="small"><span class="badge bg-info-subtle text-info">{{ a.get_action_display }}</span></td>
+        <td class="small">{% if a.actor %}{{ a.actor.username }}{% else %}—{% endif %}</td>
+        <td class="small">{{ a.comment|truncatechars:80 }}</td>
+    </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-2">No approvals yet.</td></tr>{% endfor %}</tbody>
+</table>
+</div></div>
+
+<div class="card"><div class="card-body">
+<h6 class="mb-2">Electronic Signatures (FDA 21 CFR §11.50)</h6>
+<table class="table table-sm">
+    <thead><tr><th>When</th><th>Signer</th><th>Reason</th><th>Typed Name</th><th>Role</th></tr></thead>
+    <tbody>{% for s in signatures %}<tr>
+        <td class="small">{{ s.signed_at|date:"Y-m-d H:i" }}</td>
+        <td class="small">{{ s.signer.username }}</td>
+        <td class="small"><span class="badge bg-primary-subtle text-primary">{{ s.get_reason_display }}</span></td>
+        <td class="small">{{ s.typed_name }}</td>
+        <td class="small">{{ s.role|default:"—" }}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No signatures yet.</td></tr>{% endfor %}</tbody>
+</table>
+</div></div>
+</div>
+
+<div class="col-md-4">
+{% if request.user.is_tenant_admin %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="card-title">Workflow</h6>
+    {% if obj.is_submittable %}<form method="post" action="{% url 'compliance:document_submit' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-info w-100">Submit for Review</button></form>{% endif %}
+    {% if obj.is_approvable %}
+    <form method="post" action="{% url 'compliance:document_approve' obj.pk %}" class="mb-2">{% csrf_token %}<textarea name="comment" class="form-control form-control-sm mb-1" rows="2" placeholder="Approval comment..." required></textarea><button class="btn btn-sm btn-success w-100">Approve</button></form>
+    <form method="post" action="{% url 'compliance:document_reject' obj.pk %}" class="mb-2">{% csrf_token %}<textarea name="comment" class="form-control form-control-sm mb-1" rows="2" placeholder="Rejection reason..." required></textarea><button class="btn btn-sm btn-outline-danger w-100">Reject</button></form>
+    {% endif %}
+    {% if obj.is_publishable %}<form method="post" action="{% url 'compliance:document_publish' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-primary w-100">Publish (Effective)</button></form>{% endif %}
+    {% if obj.is_supersedable %}<form method="post" action="{% url 'compliance:document_supersede' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-secondary w-100" onclick="return confirm('Supersede?');">Supersede</button></form>{% endif %}
+</div></div>
+
+<div class="card border-primary"><div class="card-body">
+    <h6 class="card-title text-primary"><i class="ri-quill-pen-line"></i> e-Signature</h6>
+    <p class="text-muted small">FDA 21 CFR §11.50: typed full legal name + reason + password re-auth.</p>
+    <form method="post" action="{% url 'compliance:document_sign' obj.pk %}">{% csrf_token %}
+        <input type="text" name="typed_name" class="form-control form-control-sm mb-1" placeholder="Full legal name" required>
+        <input type="text" name="role" class="form-control form-control-sm mb-1" placeholder="Role (optional)">
+        <select name="reason" class="form-select form-select-sm mb-1" required>
+            <option value="approval">Approval</option><option value="review">Review</option>
+            <option value="authorship">Authorship</option><option value="responsibility">Responsibility</option>
+            <option value="verification">Verification</option>
+        </select>
+        <input type="password" name="password" class="form-control form-control-sm mb-2" placeholder="Re-enter password" required>
+        <button class="btn btn-sm btn-primary w-100">Sign</button>
+    </form>
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
