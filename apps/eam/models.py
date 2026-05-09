@@ -469,6 +469,11 @@ class ConditionReading(TenantAwareModel, TimeStampedModel):
     )
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='normal')
     notes = models.CharField(max_length=255, blank=True)
+    # Module 15 cross-module hook (idempotency anchor for iot.IoTReading cascade).
+    source_iot_reading = models.OneToOneField(
+        'iot.IoTReading', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='condition_reading',
+    )
 
     class Meta:
         ordering = ['-recorded_at']
@@ -512,6 +517,11 @@ class FailurePrediction(TenantAwareModel, TimeStampedModel):
         null=True, blank=True, related_name='resolved_failure_predictions',
     )
     resolution_notes = models.TextField(blank=True)
+    # Module 15 cross-module hook (idempotency anchor for iot.AnomalyDetection cascade).
+    source_anomaly = models.OneToOneField(
+        'iot.AnomalyDetection', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='failure_prediction',
+    )
 
     class Meta:
         ordering = ['-created_at']
