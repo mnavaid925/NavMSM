@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Device {{ object.device_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.device_number }} - {{ object.name }}</h4><div class="text-muted small">{{ object.get_device_type_display }} on {{ object.broker.name }}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:device_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'iot:device_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% if object.is_retirable %}<form method="post" action="{% url 'iot:device_retire' object.pk %}" style="display:inline" onsubmit="return confirm('Retire device?');">{% csrf_token %}<button class="btn btn-outline-warning"><i class="ri-stop-circle-line me-1"></i> Retire</button></form>{% endif %}
+        {% if object.is_reactivatable %}<form method="post" action="{% url 'iot:device_reactivate' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-success"><i class="ri-play-circle-line me-1"></i> Reactivate</button></form>{% endif %}
+        <form method="post" action="{% url 'iot:device_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete device?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+    {% endif %}
+    </div>
+</div>
+<div class="row g-3">
+<div class="col-md-6"><div class="card"><div class="card-body">
+    <h6>Specs</h6>
+    <dl class="row mb-0 small">
+        <dt class="col-4">Serial</dt><dd class="col-8">{{ object.serial_number|default:"-" }}</dd>
+        <dt class="col-4">Firmware</dt><dd class="col-8">{{ object.firmware_version|default:"-" }}</dd>
+        <dt class="col-4">Location</dt><dd class="col-8">{{ object.location_text|default:"-" }}</dd>
+        <dt class="col-4">Asset</dt><dd class="col-8">{% if object.asset %}{{ object.asset }}{% else %}-{% endif %}</dd>
+        <dt class="col-4">Last Seen</dt><dd class="col-8">{% if object.last_seen_at %}{{ object.last_seen_at }}{% else %}-{% endif %}</dd>
+        <dt class="col-4">Notes</dt><dd class="col-8">{{ object.notes|linebreaksbr|default:"-" }}</dd>
+    </dl>
+</div></div></div>
+<div class="col-md-6"><div class="card"><div class="card-body">
+    <h6>Tags ({{ tags|length }})</h6>
+    <ul class="list-group list-group-flush">{% for t in tags %}<li class="list-group-item d-flex justify-content-between"><span class="small">{{ t.name }} <span class="text-muted">{{ t.address }}</span></span><span class="small text-muted">{{ t.unit }}</span></li>{% empty %}<li class="list-group-item text-muted small">No tags yet.</li>{% endfor %}</ul>
+</div></div></div>
+</div>
+<div class="card mt-3"><div class="card-body">
+    <h6>Recent Readings</h6>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>Entry</th><th>Tag</th><th>Time</th><th class="text-end">Value</th><th>Quality</th></tr></thead>
+        <tbody>{% for r in recent_readings %}<tr><td class="small fw-semibold">{{ r.entry_number }}</td><td class="small">{{ r.device_tag.name }}</td><td class="small">{{ r.timestamp }}</td><td class="small text-end">{{ r.value_display }}</td><td class="small">{{ r.get_quality_display }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted text-center py-3">No readings yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</div></div>
+{% endblock %}
