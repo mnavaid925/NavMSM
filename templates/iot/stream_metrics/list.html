@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Stream Metrics{% endblock %}
+{% block content %}
+<div class="page-title"><h4>Stream Metrics</h4><div class="text-muted small">Latest-value denorm + 24h aggregates per tag (read-only).</div></div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3"><div class="col-md-3"><select name="device" class="form-select"><option value="">All devices</option>{% for d in devices %}<option value="{{ d.pk }}" {% if request.GET.device == d.pk|stringformat:"d" %}selected{% endif %}>{{ d.device_number }}</option>{% endfor %}</select></div><div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div></form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Tag</th><th>Latest Value</th><th>Latest @</th><th>Min 24h</th><th>Max 24h</th><th>Avg 24h</th><th>Count 24h</th></tr></thead>
+    <tbody>{% for m in object_list %}<tr>
+        <td class="small">{{ m.device_tag }}</td>
+        <td class="small text-end">{{ m.latest_value|default:"-" }}</td>
+        <td class="small">{% if m.latest_timestamp %}{{ m.latest_timestamp }}{% else %}-{% endif %}</td>
+        <td class="small text-end">{{ m.last_24h_min|default:"-" }}</td>
+        <td class="small text-end">{{ m.last_24h_max|default:"-" }}</td>
+        <td class="small text-end">{{ m.last_24h_avg|default:"-" }}</td>
+        <td class="small text-end">{{ m.count_24h }}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No metrics yet (post a reading first).</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'iot/_pagination.html' %}
+</div></div>
+{% endblock %}
