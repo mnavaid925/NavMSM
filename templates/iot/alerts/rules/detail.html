@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Rule {{ object.rule_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.rule_number }} - {{ object.name }}</h4><div class="text-muted small">{{ object.get_condition_type_display }} | {{ object.get_severity_display }}</div></div>
+    <div class="d-flex gap-2">
+    <a href="{% url 'iot:rule_list' %}" class="btn btn-outline-secondary">Back</a>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'iot:rule_edit' object.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        {% if object.is_active %}<form method="post" action="{% url 'iot:rule_deactivate' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-secondary"><i class="ri-toggle-line me-1"></i> Deactivate</button></form>{% else %}<form method="post" action="{% url 'iot:rule_activate' object.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-outline-success"><i class="ri-toggle-fill me-1"></i> Activate</button></form>{% endif %}
+        <form method="post" action="{% url 'iot:rule_delete' object.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-outline-danger"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+    {% endif %}
+    </div>
+</div>
+<div class="row g-3">
+<div class="col-md-7"><div class="card"><div class="card-body">
+    <h6>Configuration</h6>
+    <dl class="row mb-0 small">
+        <dt class="col-4">Scope</dt><dd class="col-8">{% if object.device_tag %}Tag {{ object.device_tag }}{% elif object.scope_device %}Device {{ object.scope_device.device_number }}{% elif object.scope_asset %}Asset {{ object.scope_asset }}{% else %}-{% endif %}</dd>
+        <dt class="col-4">Condition</dt><dd class="col-8">{{ object.get_condition_type_display }}</dd>
+        <dt class="col-4">Threshold High</dt><dd class="col-8">{{ object.threshold_high|default:"-" }}</dd>
+        <dt class="col-4">Threshold Low</dt><dd class="col-8">{{ object.threshold_low|default:"-" }}</dd>
+        <dt class="col-4">Window</dt><dd class="col-8">{{ object.window_seconds }}s</dd>
+        <dt class="col-4">Cooldown</dt><dd class="col-8">{{ object.cooldown_seconds }}s</dd>
+        <dt class="col-4">Channels</dt><dd class="col-8">{{ object.notification_channels }}</dd>
+    </dl>
+</div></div></div>
+<div class="col-md-5"><div class="card"><div class="card-body">
+    <h6>Recent Detections</h6>
+    <ul class="list-group list-group-flush">{% for d in recent_detections %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'iot:detection_detail' d.pk %}" class="small">{{ d.detection_number }} - {{ d.detected_at|date:"Y-m-d H:i" }}</a><span class="badge bg-light text-dark">{{ d.get_severity_display }}</span></li>{% empty %}<li class="list-group-item text-muted small">No detections.</li>{% endfor %}</ul>
+</div></div></div>
+</div>
+{% endblock %}
