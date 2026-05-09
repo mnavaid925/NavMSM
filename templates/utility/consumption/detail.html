@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.entry_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.entry_number }}</h4>
+        <span class="text-muted small">Meter <a href="{% url 'utility:meter_detail' obj.meter.pk %}">{{ obj.meter.meter_number }}</a> · {{ obj.get_source_display }}{% if obj.is_reversal %} <span class="badge bg-warning-subtle text-warning small">reversal</span>{% endif %}</span>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        <a href="{% url 'utility:consumption_edit' obj.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+        <form method="post" action="{% url 'utility:consumption_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete consumption entry?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}
+        <a href="{% url 'utility:consumption_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-8"><div class="card"><div class="card-body">
+        <table class="table table-sm">
+            <tr><th class="text-muted small w-25">Period</th><td>{{ obj.period_start|date:"Y-m-d H:i" }} → {{ obj.period_end|date:"Y-m-d H:i" }}</td></tr>
+            <tr><th class="text-muted small">Start Reading</th><td>{{ obj.start_reading|floatformat:4 }}</td></tr>
+            <tr><th class="text-muted small">End Reading</th><td>{{ obj.end_reading|floatformat:4 }}</td></tr>
+            <tr><th class="text-muted small">Consumption</th><td><strong>{{ obj.consumption|floatformat:4 }}</strong> {{ obj.meter.utility_type.unit_of_measure }}</td></tr>
+            <tr><th class="text-muted small">Unit Cost</th><td>{{ obj.unit_cost|floatformat:6 }}</td></tr>
+            <tr><th class="text-muted small">Total Cost</th><td><strong>{{ obj.total_cost|floatformat:2 }}</strong></td></tr>
+            <tr><th class="text-muted small">Recorded By</th><td>{% if obj.recorded_by %}{{ obj.recorded_by.get_full_name|default:obj.recorded_by.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+            <tr><th class="text-muted small">Recorded At</th><td>{{ obj.recorded_at|date:"Y-m-d H:i" }}</td></tr>
+            {% if obj.source_meter_reading %}<tr><th class="text-muted small">Source EAM Reading</th><td>EAM AssetMeterReading #{{ obj.source_meter_reading_id }}</td></tr>{% endif %}
+            {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+        </table>
+    </div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6>Carbon Emissions</h6>
+        <ul class="list-group list-group-flush">{% for e in obj.carbon_emissions.all %}<li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'utility:emission_detail' e.pk %}">{{ e.entry_number }}</a> <span class="text-muted small">{{ e.get_scope_display }}</span></span><span class="badge bg-success-subtle text-success">{{ e.co2e_kg|floatformat:2 }} kg</span></li>{% empty %}<li class="list-group-item text-muted small">No carbon entries linked.</li>{% endfor %}</ul>
+    </div></div></div>
+</div>
+{% endblock %}
