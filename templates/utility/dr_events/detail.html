@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.event_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.event_number }}</h4>
+        {% if obj.status == 'active' %}<span class="badge bg-warning-subtle text-warning">{{ obj.get_status_display }}</span>{% elif obj.status == 'completed' %}<span class="badge bg-success-subtle text-success">{{ obj.get_status_display }}</span>{% elif obj.status == 'cancelled' %}<span class="badge bg-secondary-subtle text-secondary">{{ obj.get_status_display }}</span>{% else %}<span class="badge bg-info-subtle text-info">{{ obj.get_status_display }}</span>{% endif %}
+        <span class="text-muted small ms-2">{{ obj.utility_type.code }} · {{ obj.get_event_type_display }}</span>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+        {% if obj.is_activatable %}<form method="post" action="{% url 'utility:dr_event_activate' obj.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-warning"><i class="ri-play-line me-1"></i> Activate</button></form>{% endif %}
+        {% if obj.is_completable %}<form method="post" action="{% url 'utility:dr_event_complete' obj.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="ri-checkbox-circle-line me-1"></i> Complete</button></form>{% endif %}
+        {% if obj.is_cancellable %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#cancelCard"><i class="ri-close-line me-1"></i> Cancel</button>{% endif %}
+        {% if obj.status == 'scheduled' %}<a href="{% url 'utility:dr_event_edit' obj.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+        <form method="post" action="{% url 'utility:dr_event_delete' obj.pk %}" style="display:inline" onsubmit="return confirm('Delete event?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}
+        <a href="{% url 'utility:dr_event_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+{% if request.user.is_tenant_admin or request.user.is_superuser and obj.is_cancellable %}
+<div class="collapse mb-3" id="cancelCard"><div class="card border-secondary"><div class="card-body">
+    <h6>Cancel Event</h6>
+    <form method="post" action="{% url 'utility:dr_event_cancel' obj.pk %}">{% csrf_token %}
+        {{ cancel_form|crispy }}
+        <button class="btn btn-secondary btn-sm">Confirm Cancel</button>
+        <p class="text-muted small mt-2">L-14: cancellation_reason is required.</p>
+    </form>
+</div></div></div>
+{% endif %}
+<div class="row g-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <table class="table table-sm">
+            <tr><th class="text-muted small w-25">Window</th><td>{{ obj.start_at|date:"Y-m-d H:i" }} → {{ obj.end_at|date:"Y-m-d H:i" }}</td></tr>
+            <tr><th class="text-muted small">Target Reduction</th><td>{{ obj.target_reduction_pct|floatformat:2 }} %</td></tr>
+            <tr><th class="text-muted small">Incentive</th><td>{% if obj.incentive_amount %}${{ obj.incentive_amount|floatformat:2 }}{% else %}—{% endif %}</td></tr>
+            <tr><th class="text-muted small">Source</th><td>{{ obj.get_source_display }}</td></tr>
+            {% if obj.cancellation_reason %}<tr><th class="text-muted small">Cancel Reason</th><td>{{ obj.cancellation_reason|linebreaks }}</td></tr>{% endif %}
+            {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+        </table>
+    </div></div></div>
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h6>Linked Suggestions</h6>
+        <ul class="list-group list-group-flush">{% for s in suggestions %}<li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'utility:peak_detail' s.pk %}">{{ s.suggestion_number }}</a> <span class="text-muted small">{{ s.production_order }}</span></span><span class="badge bg-warning-subtle text-warning">${{ s.estimated_savings|floatformat:2 }}</span></li>{% empty %}<li class="list-group-item text-muted small">No suggestions emitted for this event yet.</li>{% endfor %}</ul>
+    </div></div></div>
+</div>
+{% endblock %}
