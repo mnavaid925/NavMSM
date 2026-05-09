@@ -228,6 +228,32 @@ class CADDocumentVersionForm(forms.ModelForm):
 # ---------------- Compliance ----------------
 
 class ProductComplianceForm(forms.ModelForm):
+    """ProductCompliance create/edit form.
+
+    When the tenant has `require_compliance_e_signature=True`, transitioning
+    a record INTO `status='compliant'` requires the operator to fill in the
+    optional `esig_*` fields below. The view writes a
+    `plm.ProductComplianceSignature` row from those fields after save (C.8 /
+    FDA 21 CFR Part 11).
+    """
+
+    esig_typed_name = forms.CharField(
+        max_length=200, required=False,
+        label='Electronic signature - typed name',
+        help_text='Full legal name. Required when transitioning to "Compliant" on a regulated tenant.',
+    )
+    esig_role = forms.CharField(max_length=120, required=False, label='Signer role')
+    esig_reason = forms.ChoiceField(
+        choices=[
+            ('initial_certification', 'Initial Certification'),
+            ('renewal', 'Renewal'),
+            ('reaffirmation', 'Reaffirmation'),
+            ('correction', 'Correction'),
+        ],
+        initial='initial_certification', required=False,
+        label='Signature reason',
+    )
+
     class Meta:
         model = ProductCompliance
         fields = (
@@ -247,6 +273,11 @@ class ProductComplianceForm(forms.ModelForm):
         self._tenant = tenant
         if tenant is not None:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant)
+            # Hide e-sig fields when the tenant doesn't require them — keeps
+            # the existing UI clean for non-regulated tenants.
+            if not getattr(tenant, 'require_compliance_e_signature', False):
+                for fname in ('esig_typed_name', 'esig_role', 'esig_reason'):
+                    self.fields[fname].widget = forms.HiddenInput()
 
     def clean_certificate_file(self):
         f = self.cleaned_data.get('certificate_file')
@@ -285,6 +316,33 @@ class ProductComplianceForm(forms.ModelForm):
                 raise ValidationError(
                     'A compliance record for this product + standard already exists.',
                 )
+
+        # C.8 — FDA 21 CFR Part 11 e-sig requirement. Only fires when the
+        # tenant has opted in AND this submit transitions INTO 'compliant'
+        # (either creation directly into compliant or edit from another
+        # status into compliant). Re-saves of an already-compliant record
+        # without status change do NOT re-prompt.
+        require_esig = (
+            self._tenant is not None
+            and getattr(self._tenant, 'require_compliance_e_signature', False)
+            and cleaned.get('status') == 'compliant'
+        )
+        if require_esig:
+            previous_status = (
+                self.instance.status
+                if self.instance and self.instance.pk
+                else None
+            )
+            transitioning_in = previous_status != 'compliant'
+            if transitioning_in:
+                if not (cleaned.get('esig_typed_name') or '').strip():
+                    self.add_error(
+                        'esig_typed_name',
+                        'Electronic signature is required when transitioning to "Compliant" '
+                        '(FDA 21 CFR Part 11). Type your full legal name.',
+                    )
+                if not cleaned.get('esig_reason'):
+                    self.add_error('esig_reason', 'Signature reason is required.')
 
         return cleaned
 
