@@ -125,9 +125,13 @@ def water_meter(db, acme, utility_type_water):
 
 @pytest.fixture
 def tariff(db, acme, utility_type_electricity):
+    # Use a backdated effective_from so the resolver matches under any
+    # local-vs-UTC date boundary (date.today() local can be one day ahead
+    # of timezone.now().date() UTC late at night).
     return U.UtilityTariff.objects.create(
         tenant=acme, utility_type=utility_type_electricity,
-        name='Standard Electricity', effective_from=date.today(),
+        name='Standard Electricity',
+        effective_from=date.today() - timedelta(days=7),
         flat_rate=Decimal('0.12'), currency='USD',
     )
 
