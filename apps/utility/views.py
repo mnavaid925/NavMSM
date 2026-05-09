@@ -561,12 +561,18 @@ class UtilityConsumptionImportView(TenantAdminRequiredMixin, View):
                     request,
                     f'Import complete: {result["created"]} created.',
                 )
-                # L-04: surface skipped count loudly when non-zero.
+                # L-04: surface skipped + invalid counts loudly when non-zero.
                 if result.get('skipped', 0) > 0:
                     messages.warning(
                         request,
                         f'{result["skipped"]} row(s) skipped (already imported '
                         f'for that period).',
+                    )
+                if result.get('invalid', 0) > 0:
+                    messages.warning(
+                        request,
+                        f'{result["invalid"]} row(s) skipped (unparseable '
+                        f'period_start/period_end).',
                     )
                 return redirect('utility:consumption_list')
             except Exception as exc:
@@ -687,16 +693,16 @@ class TOURateBandCreateView(TenantAdminRequiredMixin, View):
         tariff = get_object_or_404(
             models.UtilityTariff, pk=tariff_pk, tenant=request.tenant,
         )
-        form = forms.TOURateBandForm(request.POST)
+        # D-04: pass parent tariff so the form can pre-check the
+        # unique_together and surface a friendly error rather than the raw
+        # IntegrityError text.
+        form = forms.TOURateBandForm(request.POST, tariff=tariff)
         if form.is_valid():
             band = form.save(commit=False)
             band.tariff = tariff
             band.tenant = request.tenant
-            try:
-                band.save()
-                messages.success(request, 'TOU rate band added.')
-            except Exception as exc:
-                messages.error(request, f'Could not add band: {exc}')
+            band.save()
+            messages.success(request, 'TOU rate band added.')
         else:
             err = (
                 next(iter(form.errors.values()))[0]
@@ -1343,7 +1349,78 @@ class CarbonEmissionDetailView(TenantRequiredMixin, View):
             ),
             pk=pk, tenant=request.tenant,
         )
-        return render(request, self.template_name, {'obj': obj})
+        return render(request, self.template_name, {
+            'obj': obj,
+            'reverse_form': forms.CarbonEmissionReverseForm(),
+        })
+
+
+class CarbonEmissionReverseView(TenantAdminRequiredMixin, View):
+    """D-08: admin-only path to issue a typed-reason reversal of a manual or
+    mis-emitted CarbonEmission row.
+
+    Append-only ledger semantics — emits a NEW row with ``is_reversal=True``
+    and negated ``co2e_kg``/``source_quantity`` rather than mutating or
+    deleting the original. The audit signal on ``is_reversal`` flips records
+    the action for compliance.
+    """
+
+    def post(self, request, pk):
+        obj = get_object_or_404(
+            models.CarbonEmission, pk=pk, tenant=request.tenant,
+        )
+        if obj.is_reversal:
+            messages.warning(request, 'This is already a reversal row.')
+            return redirect('utility:emission_detail', pk=pk)
+        # Don't double-reverse: bail if a prior reversal of this row exists.
+        already = models.CarbonEmission.all_objects.filter(
+            tenant=obj.tenant,
+            period=obj.period,
+            is_reversal=True,
+            notes__startswith=f'reversal-of:{obj.entry_number}',
+        ).exists()
+        if already:
+            messages.warning(
+                request,
+                'A reversal already exists for this emission row.',
+            )
+            return redirect('utility:emission_detail', pk=pk)
+        form = forms.CarbonEmissionReverseForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, 'Reversal reason is required.')
+            return redirect('utility:emission_detail', pk=pk)
+        try:
+            from decimal import Decimal as _D
+            with transaction.atomic():
+                reversal = models.CarbonEmission.all_objects.create(
+                    tenant=obj.tenant,
+                    period=obj.period,
+                    scope=obj.scope,
+                    source_type=obj.source_type,
+                    source_quantity=_D('0'),
+                    factor=obj.factor,
+                    source_consumption=None,
+                    source_allocation=obj.source_allocation,
+                    recorded_by=request.user,
+                    recorded_at=timezone.now(),
+                    is_reversal=True,
+                    notes=(
+                        f'reversal-of:{obj.entry_number} | '
+                        f'reason: {form.cleaned_data["reversal_reason"]}'
+                    ),
+                )
+                # Override the persisted values with negated originals.
+                models.CarbonEmission.all_objects.filter(pk=reversal.pk).update(
+                    source_quantity=-(obj.source_quantity or _D('0')),
+                    co2e_kg=-(obj.co2e_kg or _D('0')),
+                )
+            messages.success(request, 'Reversal row emitted.')
+        except Exception as exc:
+            messages.error(request, f'Reverse failed: {exc}')
+        return redirect('utility:emission_detail', pk=pk)
+
+    def get(self, request, pk):
+        return redirect('utility:emission_detail', pk=pk)
 
 
 class CarbonEmissionRecomputeView(TenantAdminRequiredMixin, View):
