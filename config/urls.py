@@ -20,6 +20,7 @@ urlpatterns = [
     path('eam/', include('apps.eam.urls')),
     path('labor/', include('apps.labor.urls')),
     path('cost/', include('apps.cost.urls')),
+    path('utility/', include('apps.utility.urls')),
 ]
 
 if settings.DEBUG:
