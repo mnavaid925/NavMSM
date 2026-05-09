@@ -35,3 +35,8 @@ class Command(BaseCommand):
         call_command('seed_labor', flush=options.get('flush', False))
         self.stdout.write(self.style.HTTP_INFO('→ seed_cost'))
         call_command('seed_cost', flush=options.get('flush', False))
+        self.stdout.write(self.style.HTTP_INFO('→ seed_utility'))
+        try:
+            call_command('seed_utility', flush=options.get('flush', False))
+        except Exception as exc:
+            self.stdout.write(self.style.WARNING(f'seed_utility skipped: {exc}'))
