@@ -86,7 +86,7 @@ def _iot_reading_to_condition(sender, instance, created, **kwargs):
         eam_models.ConditionReading.objects.create(
             tenant=instance.tenant,
             point=tag.condition_point,
-            value=instance.value_numeric,
+            reading_value=instance.value_numeric,
             recorded_at=instance.timestamp,
             source_iot_reading=instance,
         )
@@ -197,16 +197,40 @@ def _detection_fanout(sender, instance, created, **kwargs):
             if not mes_models.AndonAlert.objects.filter(
                 tenant=instance.tenant, source_anomaly=instance,
             ).exists():
-                with transaction.atomic():
-                    mes_models.AndonAlert.objects.create(
-                        tenant=instance.tenant,
-                        alert_type='equipment',
-                        severity=('high' if instance.severity == 'critical' else 'medium'),
-                        description=f'IoT anomaly {instance.detection_number}: rule {rule.name}',
-                        status='open',
-                        raised_at=instance.detected_at,
-                        source_anomaly=instance,
-                    )
+                # AndonAlert.work_center is PROTECT/non-null. For IoT-spawned
+                # alerts we pick the first work center for the tenant; if none
+                # exists we silently skip (no point creating an alert that
+                # can't be saved).
+                from apps.pps.models import WorkCenter
+                wc = WorkCenter.objects.filter(tenant=instance.tenant).first()
+                if wc is not None:
+                    with transaction.atomic():
+                        # Compute next AND- sequence (mirrors apps/mes/views.py).
+                        last_num = (
+                            mes_models.AndonAlert.objects
+                            .filter(tenant=instance.tenant, alert_number__startswith='AND-')
+                            .order_by('-alert_number').values_list('alert_number', flat=True)
+                            .first()
+                        )
+                        next_n = 1
+                        if last_num:
+                            try:
+                                next_n = int(last_num.split('-')[-1]) + 1
+                            except (ValueError, IndexError):
+                                next_n = 1
+                        mes_models.AndonAlert.objects.create(
+                            tenant=instance.tenant,
+                            alert_number=f'AND-{next_n:05d}',
+                            alert_type='equipment',
+                            severity=instance.severity,
+                            title=f'IoT anomaly: {rule.name}',
+                            message=f'Detection {instance.detection_number}: '
+                                    f'value={instance.value} baseline={instance.baseline_value}.',
+                            work_center=wc,
+                            raised_at=instance.detected_at,
+                            status='open',
+                            source_anomaly=instance,
+                        )
 
     if instance.severity == 'critical':
         tag = instance.source_reading.device_tag if instance.source_reading_id else None
@@ -219,17 +243,19 @@ def _detection_fanout(sender, instance, created, **kwargs):
                 if not eam_models.FailurePrediction.objects.filter(
                     tenant=instance.tenant, source_anomaly=instance,
                 ).exists():
-                    with transaction.atomic():
-                        eam_models.FailurePrediction.objects.create(
-                            tenant=instance.tenant,
-                            point=tag.condition_point,
-                            asset=tag.condition_point.asset,
-                            predicted_at=instance.detected_at,
-                            severity='high',
-                            status='open',
-                            recommendation=f'Auto-spawned from IoT anomaly {instance.detection_number}',
-                            source_anomaly=instance,
-                        )
+                    asset = getattr(tag.condition_point, 'asset', None)
+                    if asset is not None:
+                        with transaction.atomic():
+                            from decimal import Decimal as _D
+                            eam_models.FailurePrediction.objects.create(
+                                tenant=instance.tenant,
+                                asset=asset,
+                                summary=f'IoT anomaly {instance.detection_number}: {rule.name}',
+                                recommended_action='Investigate the source IoT reading and inspect the asset.',
+                                confidence_pct=_D('70'),
+                                status='open',
+                                source_anomaly=instance,
+                            )
 
 
 @receiver(pre_delete, sender=models.AnomalyDetection, dispatch_uid='iot_detection_reverse')
