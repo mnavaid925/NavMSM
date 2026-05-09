@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Digital Twins{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Digital Twins</h4><div class="text-muted small">Virtual representations of machines, lines, cells, plants.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'iot:twin_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Twin</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number / name..."></div>
+    <div class="col-md-2"><select name="status" class="form-select"><option value="">All</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select name="twin_type" class="form-select"><option value="">All types</option>{% for v,l in type_choices %}<option value="{{ v }}" {% if request.GET.twin_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Name</th><th>Type</th><th>Asset</th><th>Version</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for t in object_list %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'iot:twin_detail' t.pk %}">{{ t.twin_number }}</a></td>
+        <td class="small">{{ t.name }}</td>
+        <td class="small">{{ t.get_twin_type_display }}</td>
+        <td class="small">{% if t.asset %}{{ t.asset }}{% else %}-{% endif %}</td>
+        <td class="small">{{ t.model_version }}</td>
+        <td><span class="badge bg-{% if t.status == 'active' %}success{% elif t.status == 'archived' %}secondary{% else %}info{% endif %}-subtle text-{% if t.status == 'active' %}success{% elif t.status == 'archived' %}secondary{% else %}info{% endif %}">{{ t.get_status_display }}</span></td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}{% if t.is_editable %}<a href="{% url 'iot:twin_edit' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}{% if t.is_deletable %}<form method="post" action="{% url 'iot:twin_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No twins yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'iot/_pagination.html' %}
+</div></div>
+{% endblock %}
