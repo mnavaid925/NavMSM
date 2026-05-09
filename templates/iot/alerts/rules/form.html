@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if object %}Edit Rule{% else %}New Rule{% endif %}{% endblock %}
+{% block content %}
+<h4>{% if object %}Edit Alert Rule{% else %}New Alert Rule{% endif %}</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="alert alert-info small"><strong>Scope:</strong> exactly one of Device Tag, Scope Device, or Scope Asset must be set. <strong>Channels:</strong> comma-separated subset of <code>in_app, email, mes_andon</code>.</div>
+<div class="d-flex justify-content-end gap-2 mt-3"><a href="{% url 'iot:rule_list' %}" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary">Save</button></div></form>
+</div></div>
+{% endblock %}
