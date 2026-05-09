@@ -193,3 +193,60 @@ def test_non_safety_andon_does_not_create_incident(acme, incident_type_injury):
         raised_at=timezone.now(),
     )
     assert not cm.IncidentReport.objects.filter(source_andon=alert).exists()
+
+
+# ---------- Cross-module hook 2: qms.NCR(severity='critical') -> IncidentReport (C.6) ----------
+
+def _build_ncr(acme, *, severity='critical', sku='NC-S1', sequence='-1'):
+    """Build a minimum NonConformanceReport for the auto-incident hook test.
+
+    Field names are pinned to [apps/qms/models.py](../../qms/models.py): the
+    timestamp is `reported_at` (not detected_at). `source` is a required
+    enum (we use 'internal' as the safest default that does not require an
+    inspection FK).
+    """
+    from apps.plm.models import Product
+    from apps.qms.models import NonConformanceReport
+    Product.objects.create(tenant=acme, sku=sku, name=f'NCR probe {sku}')
+    return NonConformanceReport.objects.create(
+        tenant=acme,
+        ncr_number=f'NCR-{sequence}',
+        title='Critical contamination found',
+        description='Lot-level contamination identified during incoming inspection.',
+        severity=severity,
+        source='internal',
+        reported_at=timezone.now(),
+    )
+
+
+def test_critical_ncr_auto_creates_incident(acme, incident_type_injury):
+    ncr = _build_ncr(acme, severity='critical')
+    incidents = cm.IncidentReport.objects.filter(tenant=acme, source_ncr=ncr)
+    assert incidents.count() == 1, (
+        f'expected 1 incident from critical NCR; got {incidents.count()}'
+    )
+    inc = incidents.first()
+    assert inc.severity == 'critical'
+    assert inc.status == 'reported'
+    assert ncr.ncr_number in inc.title
+
+
+def test_non_critical_ncr_does_not_create_incident(acme, incident_type_injury):
+    ncr = _build_ncr(acme, severity='major', sku='NC-MJ', sequence='-2')
+    assert not cm.IncidentReport.objects.filter(source_ncr=ncr).exists()
+
+
+def test_critical_ncr_idempotent_on_resave(acme, incident_type_injury):
+    ncr = _build_ncr(acme, severity='critical', sku='NC-IDM', sequence='-3')
+    initial_count = cm.IncidentReport.objects.filter(tenant=acme, source_ncr=ncr).count()
+    assert initial_count == 1
+    ncr.title = 'Updated title (still critical)'
+    ncr.save()
+    final_count = cm.IncidentReport.objects.filter(tenant=acme, source_ncr=ncr).count()
+    assert final_count == 1, 'incident must NOT duplicate on second save'
+
+
+def test_critical_ncr_skipped_when_no_incident_type(acme):
+    """If the tenant has no IncidentType configured, hook silently skips."""
+    ncr = _build_ncr(acme, severity='critical', sku='NC-NIT', sequence='-4')
+    assert not cm.IncidentReport.objects.filter(source_ncr=ncr).exists()
