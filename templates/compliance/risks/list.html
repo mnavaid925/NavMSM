@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Risk Assessments{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Risk Assessments</h4><div class="text-muted small">5×5 likelihood × severity matrix; sorted by risk score (high to low).</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'compliance:risk_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Assessment</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number or title..."></div>
+    <div class="col-md-3"><select name="status" class="form-select"><option value="">All statuses</option>{% for v, l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select name="band" class="form-select"><option value="">All bands</option><option value="low" {% if request.GET.band == 'low' %}selected{% endif %}>Low (1-3)</option><option value="medium" {% if request.GET.band == 'medium' %}selected{% endif %}>Medium (4-8)</option><option value="high" {% if request.GET.band == 'high' %}selected{% endif %}>High (9-15)</option><option value="critical" {% if request.GET.band == 'critical' %}selected{% endif %}>Critical (16-25)</option></select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Title</th><th>L × S</th><th>Score</th><th>Band</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for r in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'compliance:risk_detail' r.pk %}">{{ r.assessment_number }}</a></td>
+        <td class="small">{{ r.title|truncatechars:40 }}</td>
+        <td class="small">{{ r.likelihood }} × {{ r.severity }}</td>
+        <td><strong>{{ r.risk_score }}</strong></td>
+        <td><span class="badge bg-{% if r.risk_band == 'critical' %}danger{% elif r.risk_band == 'high' %}warning{% elif r.risk_band == 'medium' %}info{% else %}success{% endif %}-subtle text-{% if r.risk_band == 'critical' %}danger{% elif r.risk_band == 'high' %}warning{% elif r.risk_band == 'medium' %}info{% else %}success{% endif %}">{{ r.risk_band|title }}</span></td>
+        <td>{{ r.get_status_display }}</td>
+        <td class="text-end">
+            <a href="{% url 'compliance:risk_detail' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+            {% if r.is_editable and request.user.is_tenant_admin %}<a href="{% url 'compliance:risk_edit' r.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-line"></i></a>{% endif %}
+        </td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No assessments yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'compliance/_pagination.html' %}
+</div></div>
+{% endblock %}
