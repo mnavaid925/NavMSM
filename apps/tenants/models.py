@@ -242,7 +242,15 @@ class EmailTemplate(TenantAwareModel, TimeStampedModel):
 # -------------------- Audit log --------------------
 
 class TenantAuditLog(TenantAwareModel):
-    """Immutable log of tenant-level actions."""
+    """Append-only log of tenant-level actions with SHA-256 per-row hash chain.
+
+    `prev_hash` + `this_hash` make the log tamper-evident at row granularity
+    (FDA 21 CFR Part 11 / ISO 9001). Every save passes through the chain
+    helper in [apps/core/services/audit_chain.py](../core/services/audit_chain.py).
+
+    Verification is exposed via
+    [apps/tenants/services/audit_chain.verify_tenant_audit_chain](../tenants/services/audit_chain.py).
+    """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
@@ -255,6 +263,8 @@ class TenantAuditLog(TenantAwareModel):
     user_agent = models.CharField(max_length=255, blank=True)
     meta = models.JSONField(default=dict, blank=True)
     timestamp = models.DateTimeField(default=timezone.now)
+    prev_hash = models.CharField(max_length=64, blank=True, default='')
+    this_hash = models.CharField(max_length=64, blank=True, default='')
 
     class Meta:
         ordering = ['-timestamp']
@@ -265,6 +275,31 @@ class TenantAuditLog(TenantAwareModel):
 
     def __str__(self):
         return f'{self.action} @ {self.timestamp:%Y-%m-%d %H:%M}'
+
+    def _canonical_payload(self) -> dict:
+        return {
+            'tenant_id': self.tenant_id,
+            'user_id': self.user_id,
+            'action': self.action,
+            'target_type': self.target_type,
+            'target_id': self.target_id,
+            'meta': self.meta or {},
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def save(self, *args, **kwargs):
+        # Resolve tenant first (TenantAwareModel.save sets it from thread-local
+        # storage); then chain. We piggy-back on parent save() rather than
+        # duplicate that logic.
+        if not self.tenant_id:
+            from apps.core.models import get_current_tenant
+            t = get_current_tenant()
+            if t is not None:
+                self.tenant = t
+        if self.tenant_id and not self.this_hash:
+            from apps.core.services.audit_chain import apply_hash_chain
+            apply_hash_chain(self, ordering_field='timestamp')
+        super().save(*args, **kwargs)
 
 
 # -------------------- Health monitoring --------------------
