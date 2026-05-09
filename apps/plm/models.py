@@ -500,6 +500,8 @@ class ComplianceAuditLog(TenantAwareModel):
     )
     performed_at = models.DateTimeField(default=timezone.now)
     meta = models.JSONField(default=dict, blank=True)
+    prev_hash = models.CharField(max_length=64, blank=True, default='')
+    this_hash = models.CharField(max_length=64, blank=True, default='')
 
     objects = _ImmutableTenantAuditManager()
     # Override `all_objects` (from TenantAwareModel) so signal-side reads via
@@ -513,16 +515,96 @@ class ComplianceAuditLog(TenantAwareModel):
     def __str__(self):
         return f'{self.event} @ {self.performed_at:%Y-%m-%d %H:%M}'
 
+    def _canonical_payload(self) -> dict:
+        return {
+            'tenant_id': self.tenant_id,
+            'compliance_id': self.compliance_id,
+            'event': self.event,
+            'performed_by_id': self.performed_by_id,
+            'performed_at': self.performed_at.isoformat() if self.performed_at else None,
+            'meta': self.meta or {},
+        }
+
     def save(self, *args, **kwargs):
         if self.pk is not None:
             raise PermissionDenied(
                 'ComplianceAuditLog rows are immutable (FDA 21 CFR Part 11 alignment).'
             )
+        if self.tenant_id and not self.this_hash:
+            from apps.core.services.audit_chain import apply_hash_chain
+            apply_hash_chain(self, ordering_field='performed_at')
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         raise PermissionDenied(
             'ComplianceAuditLog rows are immutable (FDA 21 CFR Part 11 alignment).'
+        )
+
+
+class ProductComplianceSignature(TenantAwareModel, TimeStampedModel):
+    """FDA 21 CFR §11.50-aligned signature on a `ProductCompliance` transition.
+
+    Required (and enforced by the view layer) when
+    `Tenant.require_compliance_e_signature = True` and the record transitions
+    INTO status='compliant'. Captures: signer, typed_name, role, reason,
+    signed_at, ip_address. Immutable after first save.
+
+    Mirrors `apps.compliance.ElectronicSignature` but lives in `apps.plm`
+    because it binds to a PLM-side model. Each row also feeds the
+    `ComplianceAuditLog` chain so the e-sig is traceable forward into the
+    SHA-256 audit trail.
+    """
+
+    REASON_CHOICES = [
+        ('initial_certification', 'Initial Certification'),
+        ('renewal', 'Renewal'),
+        ('reaffirmation', 'Reaffirmation'),
+        ('correction', 'Correction'),
+    ]
+
+    compliance = models.ForeignKey(
+        ProductCompliance, on_delete=models.PROTECT,
+        related_name='signatures',
+    )
+    signer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name='product_compliance_signatures',
+    )
+    typed_name = models.CharField(
+        max_length=200,
+        help_text='Full legal name as typed by the signer at the moment of signing.',
+    )
+    role = models.CharField(
+        max_length=120, blank=True,
+        help_text='Signer’s role / title at the time of signing.',
+    )
+    reason = models.CharField(
+        max_length=30, choices=REASON_CHOICES, default='initial_certification',
+    )
+    signed_at = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-signed_at']
+        indexes = [
+            models.Index(fields=['tenant', 'compliance', '-signed_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.signer} signed {self.compliance} ({self.reason})'
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise PermissionDenied(
+                'ProductComplianceSignature rows are immutable (FDA 21 CFR Part 11).'
+            )
+        if not self.tenant_id and self.compliance_id:
+            self.tenant_id = self.compliance.tenant_id
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionDenied(
+            'ProductComplianceSignature rows are immutable (FDA 21 CFR Part 11).'
         )
 
 
