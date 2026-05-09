@@ -108,7 +108,26 @@ class ProductComplianceAdmin(admin.ModelAdmin):
     search_fields = ('certification_number',)
 
 
-admin.site.register(ComplianceAuditLog)
+@admin.register(ComplianceAuditLog)
+class ComplianceAuditLogAdmin(admin.ModelAdmin):
+    """D-CR-01: append-only — no add / change / delete from admin.
+
+    The signal in [apps/plm/signals.py](signals.py) is the only legitimate writer.
+    Even Django superusers cannot tamper with the audit trail (FDA 21 CFR
+    Part 11 alignment).
+    """
+    list_display = ('compliance', 'event', 'performed_at', 'performed_by', 'tenant')
+    list_filter = ('event', 'tenant')
+    readonly_fields = ('compliance', 'event', 'performed_by', 'performed_at', 'meta', 'tenant')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 # ---- NPI ----
