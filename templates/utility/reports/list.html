@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Benchmark Comparison Reports{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Benchmark Comparison Reports</h4><div class="text-muted small">Plant-to-plant / period-over-period / tenant-to-industry comparison reports.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}<a href="{% url 'utility:benchmark_report_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Report</a>{% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Number or winner..."></div>
+    <div class="col-md-3"><select name="comparison_type" class="form-select"><option value="">All types</option>{% for v,l in comparison_choices %}<option value="{{ v }}" {% if request.GET.comparison_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Number</th><th>Type</th><th>From</th><th>To</th><th class="text-end">Δ kWh/unit</th><th class="text-end">Δ CO2e/unit</th><th>Winner</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>{% for r in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'utility:benchmark_report_detail' r.pk %}">{{ r.report_number }}</a></td>
+        <td class="small">{{ r.get_comparison_type_display }}</td>
+        <td class="small">{{ r.from_snapshot.period.name }} / {{ r.from_snapshot.plant_label }}</td>
+        <td class="small">{{ r.to_snapshot.period.name }} / {{ r.to_snapshot.plant_label }}</td>
+        <td class="small text-end {% if r.kwh_delta_pct > 0 %}text-danger{% else %}text-success{% endif %}">{{ r.kwh_delta_pct|floatformat:2 }} %</td>
+        <td class="small text-end {% if r.co2e_delta_pct > 0 %}text-danger{% else %}text-success{% endif %}">{{ r.co2e_delta_pct|floatformat:2 }} %</td>
+        <td class="small">{{ r.winner|default:"—" }}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}<form method="post" action="{% url 'utility:benchmark_report_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Delete report?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No comparison reports yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'utility/_pagination.html' %}
+</div></div>
+{% endblock %}
