@@ -4,7 +4,8 @@ Honors:
     - L-01: tenant-scoped forms enforce their own (tenant, ...) clean().
     - L-02: every Decimal carries explicit MinValueValidator.
     - L-14: per-workflow forms enforce per-transition required fields.
-    - L-19: file uploads validate extension + content_type + size cap.
+    - L-22: file uploads validate extension + content_type + size cap +
+            magic-byte sniff.
 """
 from decimal import Decimal
 
