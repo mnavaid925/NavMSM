@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}State Log{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ object.asset }} - {{ object.get_state_display }}</h4></div>
+    <a href="{% url 'iot:state_log_list' %}" class="btn btn-outline-secondary">Back</a>
+</div>
+<div class="card"><div class="card-body">
+<dl class="row mb-0">
+    <dt class="col-3">Started at</dt><dd class="col-9">{{ object.started_at }}</dd>
+    <dt class="col-3">Ended at</dt><dd class="col-9">{% if object.ended_at %}{{ object.ended_at }}{% else %}- (open)</dd>{% endif %}
+    <dt class="col-3">Duration</dt><dd class="col-9">{{ object.duration_seconds }} s</dd>
+    <dt class="col-3">Loss Reason</dt><dd class="col-9">{% if object.loss_reason %}{{ object.loss_reason }}{% else %}-{% endif %}</dd>
+    <dt class="col-3">Source</dt><dd class="col-9">{{ object.get_source_display }}</dd>
+    <dt class="col-3">Notes</dt><dd class="col-9">{{ object.notes|linebreaksbr|default:"-" }}</dd>
+</dl>
+</div></div>
+{% endblock %}
