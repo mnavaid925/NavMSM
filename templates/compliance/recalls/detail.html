@@ -24,14 +24,18 @@
 <div class="card mb-3"><div class="card-body">
 <h6 class="mb-2">Affected Lots <small class="text-muted">— linked to <code>inventory.Lot</code></small></h6>
 <table class="table table-sm">
-    <thead><tr><th>Lot</th><th class="text-end">Affected Qty</th><th class="text-end">Recovered Qty</th><th></th></tr></thead>
-    <tbody>{% for link in affected_lots %}<tr>
+    <thead><tr><th>Lot</th><th class="text-end">Affected Qty</th><th class="text-end">Recovered Qty</th><th class="text-center">Post-Recall Movements</th><th></th></tr></thead>
+    <tbody>{% for link in affected_lots %}<tr{% if link.has_leaks %} class="table-warning"{% endif %}>
         <td class="small">{{ link.lot }}</td>
         <td class="small text-end">{{ link.affected_quantity|floatformat:2 }}</td>
         <td class="small text-end">{{ link.recovered_quantity|floatformat:2 }}</td>
+        <td class="small text-center">
+            {% if link.has_leaks %}<span class="badge bg-danger" title="{{ link.last_leak_at|date:'M j, Y H:i' }}">⚠ {{ link.post_recall_movement_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}
+        </td>
         <td class="text-end">{% if obj.is_editable and request.user.is_tenant_admin %}<form method="post" action="{% url 'compliance:affected_lot_remove' link.pk %}" style="display:inline" onsubmit="return confirm('Unlink?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-2">No lots linked yet.</td></tr>{% endfor %}</tbody>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-2">No lots linked yet.</td></tr>{% endfor %}</tbody>
 </table>
+{% if affected_lots %}{% for link in affected_lots %}{% if link.has_leaks %}<div class="alert alert-warning mb-2 small"><strong><i class="ri-alarm-warning-line me-1"></i>Leak detected on {{ link.lot }}:</strong> {{ link.post_recall_movement_count }} outbound movement(s) posted AFTER recall was filed (last at {{ link.last_leak_at|date:"M j, Y H:i" }}). Investigate via the inventory ledger and adjust before closing the recall.</div>{% endif %}{% endfor %}{% endif %}
 {% if obj.is_editable and request.user.is_tenant_admin %}
 <hr>
 <form method="post" action="{% url 'compliance:affected_lot_add' obj.pk %}" class="row g-2 align-items-end">{% csrf_token %}
