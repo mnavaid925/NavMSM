@@ -41,8 +41,8 @@ def generate_snapshot(period, *, plant_label='main_factory', tenant=None,
     )
     units = ProductionReport.all_objects.filter(
         tenant=t,
-        recorded_at__date__gte=period.start_date,
-        recorded_at__date__lte=period.end_date,
+        reported_at__date__gte=period.start_date,
+        reported_at__date__lte=period.end_date,
     ).aggregate(t=Sum('good_qty')).get('t') or Decimal('0')
 
     obj, _ = models.BenchmarkSnapshot.all_objects.update_or_create(
