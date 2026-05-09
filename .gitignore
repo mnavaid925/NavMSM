@@ -208,6 +208,7 @@ cython_debug/
 staticfiles/
 media/
 *.sqlite3
+temp/
 
 # Marimo
 marimo/_static/
