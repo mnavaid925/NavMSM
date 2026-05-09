@@ -192,3 +192,76 @@ def _connect_mes_hooks():
 
 
 _connect_mes_hooks()
+
+
+# ----------------------------------------------------------------------------
+# Cross-module hook 2 — qms.NCR(severity='critical') -> IncidentReport (C.6)
+# ----------------------------------------------------------------------------
+
+def _on_critical_ncr(sender, instance, created, **kwargs):
+    """Auto-create an IncidentReport when a critical NCR is filed.
+
+    QMS severity values are typically 'minor' / 'major' / 'critical'. We treat
+    'critical' as warranting an EHS incident report because a critical
+    quality nonconformance often correlates with a safety event (recalled
+    lot in production, contaminated material released, etc.).
+
+    Idempotent on the partial unique constraint
+    ``compliance_incident_unique_ncr`` on ``IncidentReport.source_ncr``.
+    Fires on creation AND on transition to 'critical' (in case severity is
+    upgraded during investigation). Silently skips when no IncidentType is
+    configured for the tenant.
+    """
+    if instance.tenant_id is None:
+        return
+    if (getattr(instance, 'severity', '') or '').lower() != 'critical':
+        return
+    # Idempotency guard.
+    if cm.IncidentReport.all_objects.filter(source_ncr=instance).exists():
+        return
+    incident_type = cm.IncidentType.all_objects.filter(
+        tenant_id=instance.tenant_id, is_active=True,
+    ).order_by('code').first()
+    if incident_type is None:
+        return
+    try:
+        with transaction.atomic():
+            ncr_number = getattr(instance, 'ncr_number', None) or instance.pk
+            ncr_title = getattr(instance, 'title', '') or 'Critical NCR'
+            ncr_description = getattr(instance, 'description', '') or (
+                'Auto-created from critical QMS Non-Conformance Report.'
+            )
+            occurred = (
+                getattr(instance, 'detected_at', None)
+                or getattr(instance, 'created_at', None)
+                or timezone.now()
+            )
+            cm.IncidentReport.all_objects.create(
+                tenant_id=instance.tenant_id,
+                incident_type=incident_type,
+                title=f'Critical NCR: {ncr_number}',
+                description=f'{ncr_title}\n\n{ncr_description}',
+                occurred_at=occurred,
+                severity='critical',
+                status='reported',
+                source_ncr=instance,
+            )
+    except Exception as exc:
+        _log.warning(
+            'compliance: critical NCR -> incident auto-create failed: %s',
+            exc, exc_info=True,
+        )
+
+
+def _connect_qms_hooks():
+    try:
+        from apps.qms.models import NonConformanceReport
+    except ImportError:
+        return
+    post_save.connect(
+        _on_critical_ncr, sender=NonConformanceReport, weak=False,
+        dispatch_uid='compliance.qms_ncr_to_incident',
+    )
+
+
+_connect_qms_hooks()
