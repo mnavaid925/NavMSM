@@ -360,3 +360,60 @@ except Exception as exc:
 The bare `pass` form is acceptable ONLY when the exception class is narrow and the failure mode is well-understood (e.g. `except ImportError: pass` for an optional dependency). For `except Exception:` the answer is always: log it. Add a regression test that monkey-patches the side-effect to raise and asserts the warning was logged via `caplog`.
 
 **Concrete example in repo:** [apps/utility/signals.py — `_audit`](../../apps/utility/signals.py) and [apps/compliance/signals.py — `_audit`](../../apps/compliance/signals.py). Regression test [apps/utility/tests/test_audit_log.py — `test_audit_emit_failure_logs_warning`](../../apps/utility/tests/test_audit_log.py). Surfaced 2026-05-09 while implementing defect D-09 from the Module 14 SQA review — patching `pass` → `logger.warning` immediately exposed a latent `payload=` vs `meta=` kwarg mismatch that had been silent since module ship.
+
+---
+
+## L-24 — A SHA-256 hash chain across audit rows is half a feature without a backfill data migration
+
+**Rule:** When you add `prev_hash` + `this_hash` columns to an existing audit-log table for FDA 21 CFR Part 11 / ISO 9001 tamper-evidence, you MUST also ship a `RunPython` data migration that walks the existing rows in chronological order and computes the chain. Otherwise the verifier reports every pre-migration row as broken — the chain only "starts" at the moment the column is added.
+
+**Why:** Adding the columns alone gives you tamper-evidence for new rows ONLY. Pre-existing audit data is left with empty `prev_hash` + `this_hash`, which (a) means the verifier flags every legacy row as `prev_hash_mismatch` (false positive flood), and (b) leaves the historical record unverifiable — defeating the regulatory purpose. An auditor reviewing 12 months of pre-existing audit data needs the chain to begin at row 0, not at the migration date.
+
+**Mechanics matter for an immutable model:** `apps.get_model('plm', 'ComplianceAuditLog')` returns the historical model class WITHOUT the immutable manager / `save()` override. The data migration can therefore use `objects.update(...)` to write `prev_hash` + `this_hash` directly — at runtime the same write would raise `PermissionDenied`, but inside the migration's historical-model context, the override is bypassed cleanly. Hash both the canonical payload AND the previous row's `this_hash` (same algorithm as the runtime helper) — duplicate the helper logic inside the migration so the migration stays runnable even if the production helper changes shape later.
+
+**How to apply:** every immutable-audit-log schema change that adds chain columns ships TWO migrations:
+  1. `XXXX_add_prev_this_hash.py` — `AddField` for both columns, `default=''`, `blank=True`.
+  2. `XXXX_backfill_audit_chain.py` — `RunPython(forwards, backwards)` where `forwards` walks `Tenant.objects.all()`, then for each tenant walks the audit rows in chronological order computing prev/this and persisting via `objects.update()`. `backwards` blanks both columns.
+
+The second migration MUST list `('core', '0001_initial')` in `dependencies` so the historical Tenant model is available even when running migrations from scratch. Verify by running `verify_*_audit_chain(tenant)` against seeded data after both migrations apply — `ok=True, broken=[]` confirms the chain.
+
+**Concrete example in repo:** [apps/tenants/migrations/0002_…_prev_hash_…_this_hash.py](../../apps/tenants/migrations) + [apps/tenants/migrations/0003_backfill_audit_chain.py](../../apps/tenants/migrations/0003_backfill_audit_chain.py); analogous pair for [apps/plm/migrations/0005_…](../../apps/plm/migrations) + [0006_backfill_compliance_audit_chain.py](../../apps/plm/migrations/0006_backfill_compliance_audit_chain.py). Verifier services at [apps/tenants/services/audit_chain.py](../../apps/tenants/services/audit_chain.py) + [apps/plm/services/audit_chain.py](../../apps/plm/services/audit_chain.py). Shipped 2026-05-10 (Phase C closeout of Module 13 SQA review). Confirmed across all 3 seeded tenants: 823 + 49 = 872 rows backfilled, 0 broken.
+
+---
+
+## L-25 — When wiring a cross-module signal hook, the hard part is field names — read the actual model first
+
+**Rule:** Before writing a `post_save` receiver that fires on a model in another app, READ the target app's `models.py` and confirm the field names you reference. Apps that look interchangeable from their domain (NCR, IncidentReport, Lot, Movement) often have surprising field-name drift across modules — `severity` vs `risk_level`, `detected_at` vs `reported_at`, `lot_number` vs `code`, `quantity` vs `qty` vs `planned_qty` vs `quantity_to_build`. Guessing costs an hour of failing tests + traceback decoding; reading costs 60 seconds of `grep -n class`.
+
+**Why:** While shipping Phase C the QMS NCR hook used `instance.detected_at` (matched no field), the MES context builder used `BillOfMaterials(kind=...)` (real field is `bom_type`), `Routing(name='R')` (real field requires `routing_number`), `ProductionOrder(planned_qty=10)` (real field is `quantity`), and `MESWorkOrder(planned_qty=10)` (real field is `quantity_to_build` and the model also requires `product` + `wo_number`). The signals were correct in spirit but had to be re-tested 4 times because each hidden field-name mismatch re-surfaced as a `TypeError: Foo() got unexpected keyword arguments: 'X'` only when the signal fired. **Each retry costs ~90 seconds of pytest run + 60 seconds of inspection — five field-name mistakes added 12 min of cycle time before any real bug showed up.**
+
+**How to apply:** when the signal handler or test fixture references another app's model, paste this one-liner FIRST:
+```bash
+python -c "
+import os, django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+from apps.qms.models import NonConformanceReport
+print([f.name for f in NonConformanceReport._meta.fields if not f.is_relation or f.many_to_one])
+"
+```
+Then write code against the printed field list, not the docstring or the dashboard label or your memory. For test fixtures, ALSO mirror the canonical fixture pattern from the target app's `tests/conftest.py` (e.g., `apps/mes/tests/conftest.py` for MES models) — those are battle-tested and pre-include all the required-but-default fields you'd otherwise miss.
+
+**Concrete example in repo:** Phase C of [.claude/tasks/compliance_module13_plan.md](compliance_module13_plan.md) — five field-name retries logged in commit history for `apps/compliance/tests/test_signals.py`. The fix pattern is now codified in the test file's `_build_mes_context()` helper docstring, which names every "did NOT match my guess" field for future reference.
+
+---
+
+## L-26 — When extending an existing model's denorm fields, render the new state in the template at the same time
+
+**Rule:** Adding a denormalized count column (`post_recall_movement_count`, `last_leak_at`, `recovery_pct`, etc.) is half the feature. The other half is making it visible — the operator who sees a stale "Affected: 5 / Recovered: 0" today won't notice the new "Movements after recall: ⚠ 3" warning unless you put it on the page in the same change. Otherwise the field exists but the bug it surfaces stays invisible.
+
+**Why:** Phase C added `RecallAffectedLot.post_recall_movement_count` + `last_leak_at` plus the `inventory.StockMovement.post_save` hook that increments them. Without also extending the recall detail template's affected-lots table, the entire signal would be silent — leak counts would be incrementing in the database but no operator would ever see them. The signal becomes invisible infrastructure rather than a UX feature, and the regression test that asserts the count incremented passes while the actual workflow regression (operator missing a leak) goes uncaught.
+
+**How to apply:** every denorm field added to a model gets:
+  1. A column or badge in the relevant list / detail template the SAME turn.
+  2. A row-level visual cue (yellow row tint, badge, alert banner) when the value crosses a threshold (`> 0`, `expiring_soon`, `overdue`).
+  3. A regression test that hits the page (HTTP GET) and asserts the visual cue is present in the response body — not just that the denorm field has the right value.
+
+The order of work is: model field → migration → signal → service → template → view test that asserts the rendered cue. If you stop at "service writes the denorm correctly", you've shipped half a feature.
+
+**Concrete example in repo:** [apps/compliance/models.py — `RecallAffectedLot.has_leaks` property](../../apps/compliance/models.py) + [templates/compliance/recalls/detail.html — yellow row + warning banner](../../templates/compliance/recalls/detail.html) + [apps/compliance/tests/test_signals.py — `test_outbound_movement_on_recalled_lot_increments_leak_count`](../../apps/compliance/tests/test_signals.py). Shipped 2026-05-10 as Phase C C.7.
