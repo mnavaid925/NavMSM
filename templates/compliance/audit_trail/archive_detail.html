@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.archive_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <h4>{{ obj.archive_number }}</h4>
+    <a href="{% url 'compliance:archive_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+<div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Period</th><td>{{ obj.period_start|date:"Y-m-d" }} → {{ obj.period_end|date:"Y-m-d" }}</td></tr>
+    <tr><th class="text-muted small">Record Count</th><td>{{ obj.record_count }}</td></tr>
+    <tr><th class="text-muted small">Hash Chain</th><td><code class="small">{{ obj.hash_chain }}</code></td></tr>
+    <tr><th class="text-muted small">Previous Archive</th><td>{% if obj.previous_archive %}<a href="{% url 'compliance:archive_detail' obj.previous_archive.pk %}">{{ obj.previous_archive.archive_number }}</a>{% else %}<span class="text-muted">— (chain start)</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Generated</th><td>{{ obj.generated_at|date:"Y-m-d H:i" }}{% if obj.generated_by %} by {{ obj.generated_by.username }}{% endif %}</td></tr>
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div>
+{% endblock %}
