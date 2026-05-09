@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if object %}Edit Broker{% else %}New Broker{% endif %}{% endblock %}
+{% block content %}
+<h4>{% if object %}Edit Broker{% else %}New Broker{% endif %}</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="alert alert-warning small"><i class="ri-shield-keyhole-line me-1"></i> <strong>Security note:</strong> credentials are stored as a stop-gap hash. Production deployments should rotate to KMS / Vault for real broker authentication.</div>
+<div class="d-flex justify-content-end gap-2 mt-3">
+    <a href="{% url 'iot:broker_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    <button class="btn btn-primary">Save</button>
+</div></form>
+</div></div>
+{% endblock %}
