@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Utility Consumption{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Utility Consumption</h4><div class="text-muted small">Append-only meter consumption ledger.</div></div>
+    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+    <div class="d-flex gap-2"><a href="{% url 'utility:consumption_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> Add Entry</a><a href="{% url 'utility:consumption_import' %}" class="btn btn-outline-primary"><i class="ri-upload-line me-1"></i> Import CSV</a></div>
+    {% endif %}
+</div>
+<div class="card"><div class="card-body">
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Entry or meter..."></div>
+    <div class="col-md-3"><select name="meter" class="form-select"><option value="">All meters</option>{% for m in meters %}<option value="{{ m.pk }}" {% if request.GET.meter == m.pk|stringformat:"d" %}selected{% endif %}>{{ m.meter_number }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><select name="source" class="form-select"><option value="">All sources</option>{% for v,l in source_choices %}<option value="{{ v }}" {% if request.GET.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+</form>
+<div class="table-responsive"><table class="table table-hover align-middle">
+    <thead><tr><th>Entry</th><th>Meter</th><th>Period</th><th class="text-end">Consumption</th><th class="text-end">Cost</th><th>Source</th><th></th></tr></thead>
+    <tbody>{% for c in page %}<tr>
+        <td class="small fw-semibold"><a href="{% url 'utility:consumption_detail' c.pk %}">{{ c.entry_number }}</a>{% if c.is_reversal %} <span class="badge bg-warning-subtle text-warning small">reversal</span>{% endif %}</td>
+        <td class="small">{{ c.meter.meter_number }}</td>
+        <td class="small">{{ c.period_start|date:"Y-m-d H:i" }} → {{ c.period_end|date:"H:i" }}</td>
+        <td class="small text-end">{{ c.consumption|floatformat:2 }}</td>
+        <td class="small text-end">{{ c.total_cost|floatformat:2 }}</td>
+        <td class="small">{{ c.get_source_display }}</td>
+        <td class="text-end">{% if request.user.is_tenant_admin or request.user.is_superuser %}
+            <a href="{% url 'utility:consumption_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+            <form method="post" action="{% url 'utility:consumption_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete consumption entry? Linked carbon row will be reversed.');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No consumption recorded yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% include 'utility/_pagination.html' %}
+</div></div>
+{% endblock %}
