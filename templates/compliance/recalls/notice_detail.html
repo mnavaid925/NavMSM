@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.notice_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.notice_number }} <span class="badge bg-{% if obj.status == 'acknowledged' %}success{% elif obj.status == 'sent' %}info{% else %}secondary{% endif %}-subtle text-{% if obj.status == 'acknowledged' %}success{% elif obj.status == 'sent' %}info{% else %}secondary{% endif %}">{{ obj.get_status_display }}</span></h4>
+        <span class="text-muted small">For recall <a href="{% url 'compliance:recall_detail' obj.recall.pk %}">{{ obj.recall.recall_number }}</a> · {{ obj.get_channel_display }}</span></div>
+    <a href="{% url 'compliance:recall_detail' obj.recall.pk %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<div class="row g-3"><div class="col-md-8"><div class="card"><div class="card-body">
+<table class="table table-sm">
+    <tr><th class="text-muted small w-25">Audience</th><td>{{ obj.audience }}</td></tr>
+    <tr><th class="text-muted small">Subject</th><td><strong>{{ obj.subject }}</strong></td></tr>
+    <tr><th class="text-muted small">Body</th><td>{{ obj.body|linebreaks }}</td></tr>
+    <tr><th class="text-muted small">Sent</th><td>{% if obj.sent_at %}{{ obj.sent_at|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    <tr><th class="text-muted small">Acknowledged</th><td>{% if obj.acknowledged_at %}{{ obj.acknowledged_at|date:"Y-m-d H:i" }}{% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+    {% if obj.notes %}<tr><th class="text-muted small">Notes</th><td>{{ obj.notes|linebreaks }}</td></tr>{% endif %}
+</table>
+</div></div></div>
+
+<div class="col-md-4">
+{% if request.user.is_tenant_admin %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="card-title">Workflow</h6>
+    {% if obj.is_sendable %}<form method="post" action="{% url 'compliance:notice_send' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-info w-100">Mark Sent</button></form>{% endif %}
+    {% if obj.is_acknowledgable %}<form method="post" action="{% url 'compliance:notice_ack' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-sm btn-success w-100">Mark Acknowledged</button></form>{% endif %}
+    {% if obj.status == 'draft' %}<form method="post" action="{% url 'compliance:notice_delete' obj.pk %}" onsubmit="return confirm('Delete?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger w-100">Delete</button></form>{% endif %}
+</div></div>
+{% endif %}
+</div>
+</div>
+{% endblock %}
