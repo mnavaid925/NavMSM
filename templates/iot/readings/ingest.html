@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Bulk Ingest IoT Readings{% endblock %}
+{% block content %}
+<h4>Bulk Ingest IoT Readings</h4>
+<div class="card"><div class="card-body">
+<form method="post">{% csrf_token %}{{ form|crispy }}
+<div class="alert alert-info small">
+    <strong>JSON example:</strong>
+    <pre class="mb-0">[{"tag_address": "plant/line1/temp_c", "timestamp": "2026-05-10T08:00:00", "value": 72.4}]</pre>
+    <strong>CSV header row:</strong> <code>tag_address,timestamp,value,quality</code>
+</div>
+<div class="d-flex justify-content-end gap-2 mt-3"><a href="{% url 'iot:reading_list' %}" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary"><i class="ri-upload-2-line me-1"></i> Ingest</button></div></form>
+</div></div>
+{% endblock %}
