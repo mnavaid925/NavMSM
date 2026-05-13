@@ -27,10 +27,28 @@ class CustomerCategoryForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._tenant = tenant
         if tenant is not None:
             self.fields['parent'].queryset = CustomerCategory.objects.filter(
                 tenant=tenant,
             ).exclude(pk=self.instance.pk or 0)
+
+    def clean(self):
+        # Model has unique_together=('tenant','name','parent') but `tenant`
+        # is excluded from the form, so Django's validate_unique() skips
+        # the check and a duplicate name+parent crashes with IntegrityError.
+        cleaned = super().clean()
+        if self._tenant and cleaned.get('name'):
+            qs = CustomerCategory.objects.filter(
+                tenant=self._tenant,
+                name=cleaned['name'],
+                parent=cleaned.get('parent'),
+            ).exclude(pk=self.instance.pk or 0)
+            if qs.exists():
+                raise forms.ValidationError(
+                    'A category with this name and parent already exists.',
+                )
+        return cleaned
 
 
 class PriceListForm(forms.ModelForm):
@@ -45,6 +63,16 @@ class PriceListForm(forms.ModelForm):
             'effective_to': forms.DateInput(attrs={'type': 'date'}),
         }
 
+    def clean(self):
+        cleaned = super().clean()
+        ef_from = cleaned.get('effective_from')
+        ef_to = cleaned.get('effective_to')
+        if ef_from and ef_to and ef_to < ef_from:
+            raise forms.ValidationError(
+                'Effective to must be on or after Effective from.',
+            )
+        return cleaned
+
 
 class PriceListItemForm(forms.ModelForm):
     class Meta:
@@ -58,11 +86,35 @@ class PriceListItemForm(forms.ModelForm):
             'valid_to': forms.DateInput(attrs={'type': 'date'}),
         }
 
-    def __init__(self, *args, tenant=None, **kwargs):
+    def __init__(self, *args, tenant=None, price_list=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._price_list = price_list or getattr(self.instance, 'price_list', None)
         if tenant is not None:
             from apps.plm.models import Product
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant)
+
+    def clean(self):
+        cleaned = super().clean()
+        v_from = cleaned.get('valid_from')
+        v_to = cleaned.get('valid_to')
+        if v_from and v_to and v_to < v_from:
+            raise forms.ValidationError(
+                'Valid to must be on or after Valid from.',
+            )
+        # Model has unique_together=('price_list','product','min_qty') but
+        # `price_list` is excluded from the form. Re-check here so a duplicate
+        # surfaces as a form error rather than IntegrityError 500.
+        product = cleaned.get('product')
+        min_qty = cleaned.get('min_qty')
+        if product and min_qty is not None and self._price_list:
+            qs = PriceListItem.objects.filter(
+                price_list=self._price_list, product=product, min_qty=min_qty,
+            ).exclude(pk=self.instance.pk or 0)
+            if qs.exists():
+                raise forms.ValidationError(
+                    'A tier with this product and min qty already exists in this price list.',
+                )
+        return cleaned
 
 
 class CustomerForm(forms.ModelForm):
@@ -299,16 +351,48 @@ class ShipmentLineForm(forms.ModelForm):
                 tenant=tenant,
             )
 
+    def clean(self):
+        cleaned = super().clean()
+        order_line = cleaned.get('order_line')
+        qty_to_ship = cleaned.get('qty_to_ship')
+        if order_line and qty_to_ship is not None:
+            from django.db.models import Sum
+            committed = (
+                order_line.shipment_lines
+                .exclude(pk=self.instance.pk or 0)
+                .exclude(shipment__status='cancelled')
+                .aggregate(s=Sum('qty_to_ship'))['s']
+            ) or 0
+            remaining = (order_line.qty_ordered or 0) - committed
+            if qty_to_ship > remaining:
+                raise forms.ValidationError(
+                    f'Qty to ship ({qty_to_ship}) exceeds remaining on '
+                    f'SO line L{order_line.line_no}: {remaining} '
+                    f'(ordered {order_line.qty_ordered}, committed elsewhere {committed}).',
+                )
+        return cleaned
 
-def _validate_pod_image(file):
-    """L-22: signatures and photos limited to 5 MB / 25 MB and image types."""
+
+def _validate_pod_signature(file):
+    """L-22: signatures limited to 5 MB; PNG/JPG/JPEG/PDF only."""
     from django.core.exceptions import ValidationError
-    if file.size > 25 * 1024 * 1024:
-        raise ValidationError('File exceeds 25 MB limit.')
+    if file.size > 5 * 1024 * 1024:
+        raise ValidationError('Signature exceeds 5 MB limit.')
     allowed = {'.png', '.jpg', '.jpeg', '.pdf'}
     name = (file.name or '').lower()
     if not any(name.endswith(ext) for ext in allowed):
-        raise ValidationError('Allowed: PNG, JPG, JPEG, PDF.')
+        raise ValidationError('Allowed signature types: PNG, JPG, JPEG, PDF.')
+
+
+def _validate_pod_photo(file):
+    """L-22: delivery photos limited to 25 MB; PNG/JPG/JPEG/PDF only."""
+    from django.core.exceptions import ValidationError
+    if file.size > 25 * 1024 * 1024:
+        raise ValidationError('Photo exceeds 25 MB limit.')
+    allowed = {'.png', '.jpg', '.jpeg', '.pdf'}
+    name = (file.name or '').lower()
+    if not any(name.endswith(ext) for ext in allowed):
+        raise ValidationError('Allowed photo types: PNG, JPG, JPEG, PDF.')
 
 
 class ProofOfDeliveryForm(forms.ModelForm):
@@ -326,13 +410,13 @@ class ProofOfDeliveryForm(forms.ModelForm):
     def clean_received_by_signature(self):
         f = self.cleaned_data.get('received_by_signature')
         if f:
-            _validate_pod_image(f)
+            _validate_pod_signature(f)
         return f
 
     def clean_photo_attachment(self):
         f = self.cleaned_data.get('photo_attachment')
         if f:
-            _validate_pod_image(f)
+            _validate_pod_photo(f)
         return f
 
 
@@ -355,6 +439,16 @@ class SalesInvoiceForm(forms.ModelForm):
         if tenant is not None:
             self.fields['sales_order'].queryset = SalesOrder.objects.filter(tenant=tenant)
             self.fields['shipment'].queryset = Shipment.objects.filter(tenant=tenant)
+
+    def clean(self):
+        cleaned = super().clean()
+        inv_date = cleaned.get('invoice_date')
+        due_date = cleaned.get('due_date')
+        if inv_date and due_date and due_date < inv_date:
+            raise forms.ValidationError(
+                'Due date must be on or after Invoice date.',
+            )
+        return cleaned
 
 
 class SalesInvoiceLineForm(forms.ModelForm):
