@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.customer.name }}</span></h4>
+        <div class="text-muted small">
+            Order date {{ obj.order_date|date:"M j, Y" }} · Requested {{ obj.requested_delivery_date|default:"-" }}
+            {% if obj.customer_po_number %} · Customer PO {{ obj.customer_po_number }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'confirmed' or obj.status == 'in_production' %}primary-subtle text-primary{% elif obj.status == 'fulfilled' or obj.status == 'invoiced' or obj.status == 'closed' %}success-subtle text-success{% elif obj.status == 'on_hold' or obj.status == 'credit_check' %}warning-subtle text-warning{% elif obj.status == 'cancelled' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.credit_hold %}<span class="badge bg-warning-subtle text-warning me-2"><i class="ri-shield-cross-line me-1"></i>Credit Hold</span>{% endif %}
+        {% if obj.is_editable %}<a href="{% url 'sales:order_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lines</h5>
+                {% if obj.is_editable %}<a href="{% url 'sales:order_line_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Line</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>#</th><th>Product</th><th class="text-end">Qty</th><th>UoM</th><th class="text-end">Unit Price</th><th class="text-end">Disc %</th><th class="text-end">Tax %</th><th class="text-end">Total</th><th>MTO</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr>
+                        <td class="small">{{ l.line_no }}</td>
+                        <td class="small">{{ l.product.code }} - {{ l.product.name }}</td>
+                        <td class="text-end small">{{ l.qty_ordered }}</td>
+                        <td class="small">{{ l.unit_of_measure }}</td>
+                        <td class="text-end small">{{ l.unit_price }}</td>
+                        <td class="text-end small">{{ l.line_discount_pct }}</td>
+                        <td class="text-end small">{{ l.line_tax_pct }}</td>
+                        <td class="text-end small fw-semibold">{{ l.line_total }}</td>
+                        <td>{% if l.is_make_to_order %}<span class="badge bg-info-subtle text-info">MTO</span>{% endif %}</td>
+                        <td class="text-end">
+                            {% if obj.is_editable %}
+                            <a href="{% url 'sales:order_line_edit' l.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'sales:order_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="10" class="text-center text-muted py-3">No lines yet.</td></tr>{% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr><th colspan="7" class="text-end">Subtotal</th><th class="text-end">{{ obj.subtotal }}</th><th colspan="2"></th></tr>
+                    <tr><th colspan="7" class="text-end">Discount</th><th class="text-end">-{{ obj.discount_total }}</th><th colspan="2"></th></tr>
+                    <tr><th colspan="7" class="text-end">Tax</th><th class="text-end">{{ obj.tax_total }}</th><th colspan="2"></th></tr>
+                    <tr><th colspan="7" class="text-end">Shipping</th><th class="text-end">{{ obj.shipping_total }}</th><th colspan="2"></th></tr>
+                    <tr class="table-active"><th colspan="7" class="text-end">Grand Total</th><th class="text-end h5 mb-0">{{ obj.grand_total }} {{ obj.currency }}</th><th colspan="2"></th></tr>
+                </tfoot>
+            </table></div>
+        </div></div>
+
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-log">Workflow Log ({{ logs|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-revs">Revisions ({{ revisions|length }})</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-revise">Revise</a></li>
+        </ul>
+        <div class="tab-content border border-top-0 p-3 mb-3 bg-white">
+            <div class="tab-pane fade show active" id="tab-log">
+                <table class="table table-sm">
+                    <thead><tr><th>When</th><th>Action</th><th>From</th><th>To</th><th>By</th><th>Notes</th></tr></thead>
+                    <tbody>
+                    {% for l in logs %}
+                        <tr><td class="small">{{ l.performed_at|date:"M j, H:i" }}</td><td class="small">{{ l.get_action_display }}</td><td class="small">{{ l.from_status }}</td><td class="small">{{ l.to_status }}</td><td class="small">{{ l.performed_by|default:"-" }}</td><td class="small">{{ l.notes|truncatechars:80 }}</td></tr>
+                    {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No actions yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-revs">
+                <table class="table table-sm">
+                    <thead><tr><th>Version</th><th>When</th><th>By</th><th>Reason</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                    {% for r in revisions %}
+                        <tr><td class="small">v{{ r.version_no }}</td><td class="small">{{ r.revised_at|date:"M j, H:i" }}</td><td class="small">{{ r.revised_by|default:"-" }}</td><td class="small">{{ r.reason|truncatechars:60 }}</td><td class="text-end"><a href="{% url 'sales:order_revision_detail' r.pk %}" class="btn btn-sm btn-outline-primary">View</a></td></tr>
+                    {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No revisions yet.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="tab-pane fade" id="tab-revise">
+                {% if obj.can_revise %}
+                <form method="post" action="{% url 'sales:order_revise' obj.pk %}">{% csrf_token %}
+                    {{ revise_form|crispy }}
+                    <button class="btn btn-warning"><i class="ri-history-line me-1"></i> Snapshot current state</button>
+                </form>
+                {% else %}
+                <div class="text-muted">Revisions are only available when status is confirmed or in_production.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            {% if obj.can_submit %}<form method="post" action="{% url 'sales:order_submit' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-send-plane-2-line me-1"></i> Submit</button></form>{% endif %}
+            {% if obj.credit_hold and obj.status == 'credit_check' %}<form method="post" action="{% url 'sales:order_release_credit_hold' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-warning btn-sm w-100"><i class="ri-shield-check-line me-1"></i> Release Credit Hold</button></form>{% endif %}
+            {% if obj.can_confirm %}<form method="post" action="{% url 'sales:order_confirm' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-check-line me-1"></i> Confirm</button></form>{% endif %}
+            {% if obj.status != 'on_hold' and obj.status != 'closed' and obj.status != 'cancelled' and obj.status != 'draft' %}<form method="post" action="{% url 'sales:order_hold' obj.pk %}" class="mb-2" onsubmit="return confirm('Place on hold?');">{% csrf_token %}<button class="btn btn-outline-warning btn-sm w-100"><i class="ri-pause-circle-line me-1"></i> Hold</button></form>{% endif %}
+            {% if obj.status == 'on_hold' %}<form method="post" action="{% url 'sales:order_resume' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-outline-primary btn-sm w-100"><i class="ri-play-circle-line me-1"></i> Resume</button></form>{% endif %}
+            {% if obj.can_cancel %}<form method="post" action="{% url 'sales:order_cancel' obj.pk %}" class="mb-2" onsubmit="return confirm('Cancel this order?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-close-circle-line me-1"></i> Cancel</button></form>{% endif %}
+            {% if obj.status == 'draft' %}<form method="post" action="{% url 'sales:order_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete draft {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>{% endif %}
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Customer</h6>
+            <div><a href="{% url 'sales:customer_detail' obj.customer.pk %}">{{ obj.customer.name }}</a></div>
+            <dl class="row mb-0 small mt-2">
+                <dt class="col-sm-6">Credit limit</dt><dd class="col-sm-6">{{ obj.customer.credit_limit }}</dd>
+                <dt class="col-sm-6">Credit used</dt><dd class="col-sm-6">{{ obj.customer.credit_used }}</dd>
+                <dt class="col-sm-6">Available</dt><dd class="col-sm-6">{{ obj.customer.credit_available }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="mt-3"><a href="{% url 'sales:order_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a></div>
+    </div>
+</div>
+{% endblock %}
