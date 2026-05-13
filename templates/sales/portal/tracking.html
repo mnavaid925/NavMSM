@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}Tracking {{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{{ obj.code }} - Tracking</h4>
+    <div class="text-muted small">{{ obj.sales_order.code }} · Carrier {{ obj.carrier_name|default:"-" }}</div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8"><div class="card"><div class="card-body">
+        <h5 class="card-title">Status: {{ obj.get_status_display }}</h5>
+        <div class="text-muted small mb-3">Tracking number: <strong>{{ obj.tracking_number|default:"not yet assigned" }}</strong></div>
+
+        <div class="position-relative ms-3">
+            <div class="step {% if obj.status != 'planned' %}done{% endif %}">
+                <i class="ri-check-line"></i> <strong>Planned</strong>
+                <div class="text-muted small">Planned ship date: {{ obj.planned_ship_date|default:"-" }}</div>
+            </div>
+            <div class="step {% if obj.status == 'picked' or obj.status == 'packed' or obj.status == 'in_transit' or obj.status == 'delivered' %}done{% endif %} mt-3">
+                <i class="ri-check-line"></i> <strong>Picked</strong>
+            </div>
+            <div class="step {% if obj.status == 'packed' or obj.status == 'in_transit' or obj.status == 'delivered' %}done{% endif %} mt-3">
+                <i class="ri-check-line"></i> <strong>Packed</strong>
+            </div>
+            <div class="step {% if obj.status == 'in_transit' or obj.status == 'delivered' %}done{% endif %} mt-3">
+                <i class="ri-truck-line"></i> <strong>In Transit</strong>
+                <div class="text-muted small">Dispatched: {{ obj.actual_ship_date|default:"-" }}</div>
+            </div>
+            <div class="step {% if obj.status == 'delivered' %}done{% endif %} mt-3">
+                <i class="ri-checkbox-circle-line"></i> <strong>Delivered</strong>
+                <div class="text-muted small">Delivered: {{ obj.actual_delivery_date|default:"-" }}</div>
+            </div>
+        </div>
+    </div></div></div>
+
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h6 class="card-title">Shipment Info</h6>
+        <dl class="row mb-0 small">
+            <dt class="col-sm-6">Weight</dt><dd class="col-sm-6">{{ obj.weight_kg }} kg</dd>
+            <dt class="col-sm-6">Volume</dt><dd class="col-sm-6">{{ obj.volume_m3 }} m3</dd>
+            <dt class="col-sm-6">Expected Delivery</dt><dd class="col-sm-6">{{ obj.expected_delivery_date|default:"-" }}</dd>
+        </dl>
+        {% if pod %}
+        <hr>
+        <h6 class="card-title">Delivery Confirmation</h6>
+        <dl class="row mb-0 small">
+            <dt class="col-sm-6">Delivered at</dt><dd class="col-sm-6">{{ pod.delivered_at|date:"M j, Y H:i" }}</dd>
+            <dt class="col-sm-6">Received by</dt><dd class="col-sm-6">{{ pod.received_by_name|default:"-" }}</dd>
+        </dl>
+        {% endif %}
+        <div class="mt-3"><a href="{% url 'sales:portal_order_detail' obj.sales_order.pk %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to order</a></div>
+    </div></div></div>
+</div>
+{% endblock %}
