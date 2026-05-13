@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Sales Orders{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Sales Orders</h4><div class="text-muted small">Customer-facing order ledger.</div></div>
+    <a href="{% url 'sales:order_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Sales Order</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="SO code, customer PO, customer name..."></div>
+        <div class="col-md-2"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><select name="priority" class="form-select">
+            <option value="">Priority (any)</option>
+            {% for v,l in priority_choices %}<option value="{{ v }}" {% if request.GET.priority == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><select name="credit_hold" class="form-select">
+            <option value="">Credit hold (any)</option>
+            <option value="yes" {% if request.GET.credit_hold == 'yes' %}selected{% endif %}>On hold</option>
+            <option value="no" {% if request.GET.credit_hold == 'no' %}selected{% endif %}>Released</option>
+        </select></div>
+        <div class="col-md-2"><select name="customer" class="form-select">
+            <option value="">Customer (any)</option>
+            {% for c in customers %}<option value="{{ c.pk }}" {% if request.GET.customer == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-1"><button class="btn btn-primary w-100">Go</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Customer</th><th>Order Date</th><th>Requested</th><th>Status</th><th>Credit</th><th class="text-end">Grand Total</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for o in page_obj %}
+            <tr>
+                <td class="small fw-semibold"><a href="{% url 'sales:order_detail' o.pk %}">{{ o.code }}</a></td>
+                <td class="small">{{ o.customer.name }}</td>
+                <td class="small">{{ o.order_date|date:"M j, Y" }}</td>
+                <td class="small">{{ o.requested_delivery_date|default:"-" }}</td>
+                <td><span class="badge bg-{% if o.status == 'confirmed' or o.status == 'in_production' %}primary-subtle text-primary{% elif o.status == 'fulfilled' or o.status == 'invoiced' or o.status == 'closed' %}success-subtle text-success{% elif o.status == 'on_hold' or o.status == 'credit_check' %}warning-subtle text-warning{% elif o.status == 'cancelled' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ o.get_status_display }}</span></td>
+                <td>{% if o.credit_hold %}<span class="badge bg-warning-subtle text-warning"><i class="ri-shield-cross-line"></i> Hold</span>{% else %}<span class="badge bg-success-subtle text-success">OK</span>{% endif %}</td>
+                <td class="text-end small">{{ o.grand_total }} {{ o.currency }}</td>
+                <td class="text-end">
+                    <a href="{% url 'sales:order_detail' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                    {% if o.status == 'draft' %}
+                    <a href="{% url 'sales:order_edit' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    <form method="post" action="{% url 'sales:order_delete' o.pk %}" style="display:inline" onsubmit="return confirm('Delete draft {{ o.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No sales orders yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'sales/_pagination.html' %}
+</div></div>
+{% endblock %}
