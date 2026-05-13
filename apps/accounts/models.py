@@ -17,8 +17,10 @@ class User(AbstractUser):
         ('warehouse_staff', 'Warehouse Staff'),
         ('procurement', 'Procurement'),
         ('accountant', 'Accountant'),
+        ('sales', 'Sales'),
         ('viewer', 'Viewer'),
         ('supplier', 'Supplier (External)'),
+        ('customer', 'Customer (External)'),
     ]
 
     tenant = models.ForeignKey(
@@ -41,6 +43,15 @@ class User(AbstractUser):
         null=True, blank=True,
         related_name='portal_users',
         help_text="Set only when role='supplier'.",
+    )
+    # Module 17 - Sales: customer-portal users carry a FK to their Customer
+    # record so portal views can scope SOs / shipments / invoices.
+    customer_company = models.ForeignKey(
+        'sales.Customer',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='portal_users',
+        help_text="Set only when role='customer'.",
     )
 
     class Meta:
