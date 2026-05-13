@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard: {{ dashboard.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ dashboard.name }}</h4>
+        <div class="text-muted small">Period: {{ period_start }} &rarr; {{ period_end }} &middot; {{ dashboard.description|default:'No description' }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" action="{% url 'bi:dashboard_refresh' dashboard.pk %}">{% csrf_token %}
+            <button class="btn btn-sm btn-success"><i class="ri-refresh-line me-1"></i> Refresh all KPIs</button>
+        </form>
+        <a href="{% url 'bi:widget_create' dashboard.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add widget</a>
+        <a href="{% url 'bi:dashboard_edit' dashboard.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <a href="{% url 'bi:dashboard_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    {% for wv in widget_values %}
+        <div class="col-md-3 col-sm-6"><div class="card h-100"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="text-muted small">{{ wv.widget.title_override|default:wv.widget.kpi_definition.name }}</div>
+                    <h3 class="mb-0">{% if wv.snapshot %}{{ wv.snapshot.value|floatformat:2 }}{% else %}<span class="text-muted">-</span>{% endif %}</h3>
+                </div>
+                <span class="badge bg-{% if wv.snapshot and wv.snapshot.status == 'critical' %}danger{% elif wv.snapshot and wv.snapshot.status == 'warning' %}warning{% else %}success{% endif %}-subtle text-{% if wv.snapshot and wv.snapshot.status == 'critical' %}danger{% elif wv.snapshot and wv.snapshot.status == 'warning' %}warning{% else %}success{% endif %}">{% if wv.snapshot %}{{ wv.snapshot.get_status_display }}{% else %}No data{% endif %}</span>
+            </div>
+            <div class="small text-muted mt-2">
+                {{ wv.widget.kpi_definition.unit|default:'' }}
+                {% if wv.widget.compare_to_previous and wv.snapshot and wv.snapshot.prior_period_value %}
+                    &middot; prior: {{ wv.snapshot.prior_period_value|floatformat:2 }}
+                {% endif %}
+            </div>
+            <div class="mt-2 d-flex gap-1">
+                <a href="{% url 'bi:widget_edit' wv.widget.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'bi:widget_delete' wv.widget.pk %}" class="d-inline" onsubmit="return confirm('Remove widget?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            </div>
+        </div></div></div>
+    {% empty %}
+        <div class="col-12"><div class="card"><div class="card-body text-center text-muted py-4">No widgets yet. <a href="{% url 'bi:widget_create' dashboard.pk %}">Add the first widget</a>.</div></div></div>
+    {% endfor %}
+</div>
+{% endblock %}
