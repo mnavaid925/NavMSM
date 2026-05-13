@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Trend Analyses{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Trend Analyses</h4><div class="text-muted small">Sliding-window slope summaries across numeric time series.</div></div>
+    <a href="{% url 'bi:predictive_model_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+</div>
+
+<form method="get" class="card card-body bg-light mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small">Source</label>
+        <select name="source_metric" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in source_choices %}<option value="{{ c }}" {% if request.GET.source_metric == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label small">Direction</label>
+        <select name="direction" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in direction_choices %}<option value="{{ c }}" {% if request.GET.direction == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Apply</button></div>
+    <div class="col-md-4"><a href="{% url 'bi:trend_list' %}" class="btn btn-sm btn-outline-secondary">Reset</a></div>
+</div></form>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Trend</th><th>Source</th><th>Target</th><th>Window</th><th class="text-end">Slope</th><th class="text-end">R&sup2;</th><th>Direction</th></tr></thead>
+    <tbody>
+    {% for t in trends %}
+        <tr>
+            <td class="small fw-semibold">{{ t.trend_number }}</td>
+            <td class="small">{{ t.get_source_metric_display }}</td>
+            <td class="small">{{ t.target_label|default:t.target_pk|default:'-' }}</td>
+            <td class="small">{{ t.window_days }}d</td>
+            <td class="small text-end">{{ t.slope }}</td>
+            <td class="small text-end">{{ t.r_squared }}</td>
+            <td class="small"><span class="badge bg-{% if t.direction == 'improving' %}success{% elif t.direction == 'worsening' %}danger{% else %}secondary{% endif %}-subtle text-{% if t.direction == 'improving' %}success{% elif t.direction == 'worsening' %}danger{% else %}secondary{% endif %}">{{ t.get_direction_display }}</span></td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No trend analyses yet.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div></div>
+{% include 'bi/_pagination.html' %}
+{% endblock %}
