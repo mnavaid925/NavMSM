@@ -8,15 +8,18 @@
         -> inventory.StockMovement(shipment_out)
       Shipment.pre_delete
         -> reverse the shipment_out movements
-      SalesInvoice.status='paid'
-        -> atomic conditional UPDATE on Customer.credit_used
+
+Note: Customer.credit_used adjustments on invoice issue / paid are NOT
+done via post_save signals - they live in
+`apps.sales.services.invoicing.issue_invoice` and `.mark_invoice_paid`,
+which use conditional UPDATEs to guarantee the denorm is touched at
+most once per real transition. A prior signal here double-decremented
+on every save of an already-paid invoice; do not re-introduce it.
 """
 from __future__ import annotations
 
-from decimal import Decimal
-
 from django.db import transaction
-from django.db.models.signals import post_save, pre_delete, post_delete
+from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 
 
@@ -120,28 +123,6 @@ def _shipment_pre_delete_reverse(sender, instance, **kwargs):
             reverse_movement(mv, reason=f'Shipment {instance.code} deleted')
         except Exception:
             continue
-
-
-# ----------------------------------------------------------------------------
-# 17.4  SalesInvoice paid -> Customer.credit_used denorm down
-# ----------------------------------------------------------------------------
-
-@receiver(post_save, sender='sales.SalesInvoice', dispatch_uid='sales.invoice_paid_credit_used')
-def _invoice_paid_drop_credit_used(sender, instance, created, **kwargs):
-    """When an invoice flips to paid, atomically reduce the customer's
-    credit_used by the invoice grand_total via a conditional UPDATE."""
-    if instance.status != 'paid':
-        return
-    if not instance.sales_order_id:
-        return
-    from apps.sales.models import Customer
-    from django.db.models import F
-
-    Customer.all_objects.filter(
-        pk=instance.sales_order.customer_id,
-    ).update(
-        credit_used=F('credit_used') - (instance.grand_total or Decimal('0')),
-    )
 
 
 # ----------------------------------------------------------------------------
