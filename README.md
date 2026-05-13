@@ -2630,7 +2630,7 @@ The customer-facing counterpart to Module 9 (Procurement). Sales lives in [apps/
 - [`services/atp.py`](apps/sales/services/atp.py) — `compute_atp` reads on-hand + open PO arrivals − committed open SO; never writes.
 - [`services/ctp.py`](apps/sales/services/ctp.py) — `compute_ctp` walks released routing + work-center capacity to estimate completion; never alters the schedule.
 - [`services/shipping.py`](apps/sales/services/shipping.py) — `pick / pack / dispatch / confirm_delivery / cancel_shipment` with conditional UPDATE.
-- [`services/invoicing.py`](apps/sales/services/invoicing.py) — `generate_invoice_from_shipment` (idempotent on `(shipment_id)`) + `mark_invoice_paid`.
+- [`services/invoicing.py`](apps/sales/services/invoicing.py) — `generate_invoice_from_shipment` (idempotent on `(shipment_id)`) + `issue_invoice` + `mark_invoice_paid`. Both transition services adjust `Customer.credit_used` (issue → add, paid → subtract) via conditional UPDATE so the denorm is touched at most once per real status change.
 
 ### Cross-module hooks (apps/sales/signals.py)
 
@@ -2639,7 +2639,8 @@ The customer-facing counterpart to Module 9 (Procurement). Sales lives in [apps/
 | 1 | `SalesOrder.post_save(status='confirmed')` | For each `SalesOrderLine.is_make_to_order=True` that hasn't already spawned one, draft a `pps.ProductionOrder` | `pps.ProductionOrder.source_sales_line` FK |
 | 2 | `Shipment.post_save(status='delivered')` | Emit one `inventory.StockMovement(type='shipment_out')` per `ShipmentLine` | `StockMovement.source_shipment_line` FK |
 | 3 | `Shipment.pre_delete` | Reverse every shipment_out movement before the row vanishes | same key |
-| 4 | `SalesInvoice.post_save(status='paid')` | Atomic `F('credit_used') - grand_total` on `Customer` | per-paid-save |
+
+> The previous post-save signal that decremented `Customer.credit_used` on `SalesInvoice.status='paid'` was removed during the D-01 → D-15 defect remediation pass — it re-fired on every save of an already-paid invoice and double-counted. Credit increments/decrements now live in [`services/invoicing.py`](apps/sales/services/invoicing.py) inside conditional-UPDATE guards so they run exactly once per real transition.
 
 These additions are accompanied by:
 
