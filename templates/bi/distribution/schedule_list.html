@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Report Schedules{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Report Schedules</h4><div class="text-muted small">Scheduled report / dashboard email distributions.</div></div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'bi:delivery_list' %}" class="btn btn-sm btn-outline-info"><i class="ri-send-plane-line me-1"></i> Deliveries</a>
+        <a href="{% url 'bi:export_list' %}" class="btn btn-sm btn-outline-info"><i class="ri-folder-download-line me-1"></i> Exports</a>
+        <a href="{% url 'bi:schedule_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> New Schedule</a>
+    </div>
+</div>
+
+<form method="get" class="card card-body bg-light mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small">Search</label><input name="q" class="form-control form-control-sm" value="{{ q|default:'' }}" placeholder="number / name"></div>
+    <div class="col-md-3"><label class="form-label small">Status</label>
+        <select name="status" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in status_choices %}<option value="{{ c }}" {% if request.GET.status == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label small">Frequency</label>
+        <select name="frequency" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in frequency_choices %}<option value="{{ c }}" {% if request.GET.frequency == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Apply</button></div>
+    <div class="col-md-1"><a href="{% url 'bi:schedule_list' %}" class="btn btn-sm btn-outline-secondary w-100">Reset</a></div>
+</div></form>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Number</th><th>Name</th><th>Target</th><th>Frequency</th><th>Next run</th><th>Last run</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <tbody>
+    {% for s in schedules %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'bi:schedule_detail' s.pk %}">{{ s.schedule_number }}</a></td>
+            <td class="small">{{ s.name }}</td>
+            <td class="small text-muted">{% if s.report %}Report: {{ s.report.name|truncatechars:30 }}{% elif s.dashboard %}Dashboard: {{ s.dashboard.name|truncatechars:30 }}{% else %}-{% endif %}</td>
+            <td class="small">{{ s.get_frequency_display }}</td>
+            <td class="small">{{ s.next_run_at|date:'Y-m-d H:i' }}</td>
+            <td class="small text-muted">{{ s.last_run_at|date:'Y-m-d H:i'|default:'-' }}</td>
+            <td class="small"><span class="badge bg-{% if s.status == 'active' %}success{% elif s.status == 'paused' %}warning{% else %}secondary{% endif %}-subtle text-{% if s.status == 'active' %}success{% elif s.status == 'paused' %}warning{% else %}secondary{% endif %}">{{ s.get_status_display }}</span></td>
+            <td class="small text-end">
+                <a href="{% url 'bi:schedule_detail' s.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a>
+                <a href="{% url 'bi:schedule_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                <form method="post" action="{% url 'bi:schedule_run_now' s.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-success" title="Run now"><i class="ri-play-line"></i></button></form>
+                <form method="post" action="{% url 'bi:schedule_delete' s.pk %}" class="d-inline" onsubmit="return confirm('Delete schedule?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No schedules yet. <a href="{% url 'bi:schedule_create' %}">Create one</a>.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div></div>
+{% include 'bi/_pagination.html' %}
+{% endblock %}
