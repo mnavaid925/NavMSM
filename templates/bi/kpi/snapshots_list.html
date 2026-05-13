@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}KPI Snapshots{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>KPI Snapshots</h4><div class="text-muted small">Materialized period rollups.</div></div>
+    <a href="{% url 'bi:index' %}" class="btn btn-sm btn-outline-secondary">Back to BI</a>
+</div>
+
+<form method="get" class="card card-body bg-light mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small">KPI</label>
+        <select name="code" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in kpi_codes %}<option value="{{ c }}" {% if request.GET.code == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label small">Status</label>
+        <select name="status" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in status_choices %}<option value="{{ c }}" {% if request.GET.status == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label small">Scope</label>
+        <select name="scope_type" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in scope_choices %}<option value="{{ c }}" {% if request.GET.scope_type == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Apply</button></div>
+    <div class="col-md-1"><a href="{% url 'bi:kpi_snapshot_list' %}" class="btn btn-sm btn-outline-secondary w-100">Reset</a></div>
+</div></form>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <thead><tr><th>KPI</th><th>Period</th><th>Scope</th><th class="text-end">Value</th><th>Status</th><th class="text-muted small">Computed</th></tr></thead>
+    <tbody>
+    {% for s in snapshots %}
+        <tr>
+            <td class="small fw-semibold">{{ s.kpi_definition.code }}</td>
+            <td class="small">{{ s.period_start }} &rarr; {{ s.period_end }}</td>
+            <td class="small text-muted">{{ s.get_scope_type_display }}{% if s.scope_label %}: {{ s.scope_label }}{% endif %}</td>
+            <td class="small text-end">{{ s.value|floatformat:2 }}</td>
+            <td class="small"><span class="badge bg-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}-subtle text-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}">{{ s.get_status_display }}</span></td>
+            <td class="small text-muted">{{ s.computed_at|date:'Y-m-d H:i' }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No snapshots yet.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div></div>
+{% include 'bi/_pagination.html' %}
+{% endblock %}
