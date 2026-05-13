@@ -21,6 +21,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.core.models import TenantAwareModel, TimeStampedModel
+from apps.sales.services.numbering import next_code
 
 
 # ============================================================================
@@ -81,13 +82,14 @@ class PriceList(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                PriceList.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'PL-{seq:05d}'
+            self.code = next_code(PriceList, self.tenant, 'PL')
         super().save(*args, **kwargs)
+        # Enforce at most one is_default=True per tenant. Done post-save so
+        # a fresh insert participates in the clear; bypasses ourselves via pk.
+        if self.is_default and self.tenant_id:
+            PriceList.all_objects.filter(
+                tenant=self.tenant, is_default=True,
+            ).exclude(pk=self.pk).update(is_default=False)
 
 
 class PriceListItem(TenantAwareModel, TimeStampedModel):
@@ -207,12 +209,7 @@ class Customer(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                Customer.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'CUST-{seq:05d}'
+            self.code = next_code(Customer, self.tenant, 'CUST')
         super().save(*args, **kwargs)
 
     @property
@@ -311,12 +308,7 @@ class CommunicationLog(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                CommunicationLog.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'COMM-{seq:05d}'
+            self.code = next_code(CommunicationLog, self.tenant, 'COMM')
         super().save(*args, **kwargs)
 
     def is_locked(self) -> bool:
@@ -444,8 +436,16 @@ class SalesOrder(TenantAwareModel, TimeStampedModel):
     billing_address = models.TextField(blank=True)
     shipping_address = models.TextField(blank=True)
 
-    # Denorm totals - kept fresh by recompute_totals()
-    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
+    # Denorm totals - kept fresh by recompute_totals().
+    # NOTE: `subtotal` here stores the PRE-DISCOUNT gross (sum of qty*unit_price
+    # before any line discount). The detail template renders Subtotal followed
+    # by a separate "-Discount" row, so the math is internally consistent, but
+    # consumers wiring against this field should treat it as "items total /
+    # gross", not "post-discount pre-tax".
+    subtotal = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Sum of line gross (qty x unit_price), pre-discount.',
+    )
     discount_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
     tax_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
     shipping_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
@@ -472,12 +472,7 @@ class SalesOrder(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                SalesOrder.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'SO-{seq:05d}'
+            self.code = next_code(SalesOrder, self.tenant, 'SO')
         super().save(*args, **kwargs)
 
     def is_editable(self):
@@ -570,14 +565,15 @@ class SalesOrderLine(TenantAwareModel, TimeStampedModel):
         return f'{self.sales_order.code} L{self.line_no}'
 
     def save(self, *args, **kwargs):
-        # Auto-assign line_no within parent SO
-        if not self.line_no or self.line_no == 1:
+        # Auto-assign line_no only on first insert; never bump on edit.
+        # The previous guard `if self.line_no == 1` re-fired every time line 1
+        # was edited, drifting the value upward and breaking line ordering.
+        if self._state.adding:
             existing = (
                 SalesOrderLine.all_objects.filter(sales_order=self.sales_order)
                 .exclude(pk=self.pk).order_by('-line_no').first()
             )
-            if existing:
-                self.line_no = existing.line_no + 1
+            self.line_no = (existing.line_no + 1) if existing else 1
         # Compute denorm money columns
         gross = (self.qty_ordered or Decimal('0')) * (self.unit_price or Decimal('0'))
         self.line_discount = (gross * (self.line_discount_pct or Decimal('0')) / Decimal('100')).quantize(Decimal('0.01'))
@@ -697,12 +693,7 @@ class ATPCalculation(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                ATPCalculation.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'ATP-{seq:05d}'
+            self.code = next_code(ATPCalculation, self.tenant, 'ATP')
         super().save(*args, **kwargs)
 
 
@@ -744,12 +735,7 @@ class CTPCalculation(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                CTPCalculation.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'CTP-{seq:05d}'
+            self.code = next_code(CTPCalculation, self.tenant, 'CTP')
         super().save(*args, **kwargs)
 
 
@@ -823,12 +809,7 @@ class DeliveryRoute(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                DeliveryRoute.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'ROUTE-{seq:05d}'
+            self.code = next_code(DeliveryRoute, self.tenant, 'ROUTE')
         super().save(*args, **kwargs)
 
 
@@ -896,12 +877,7 @@ class Shipment(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                Shipment.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'SHP-{seq:05d}'
+            self.code = next_code(Shipment, self.tenant, 'SHP')
         super().save(*args, **kwargs)
 
     def is_editable(self):
@@ -994,12 +970,7 @@ class ProofOfDelivery(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                ProofOfDelivery.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'POD-{seq:05d}'
+            self.code = next_code(ProofOfDelivery, self.tenant, 'POD')
         super().save(*args, **kwargs)
 
 
@@ -1030,7 +1001,11 @@ class SalesInvoice(TenantAwareModel, TimeStampedModel):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
 
-    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
+    # See SalesOrder.subtotal note - this stores the pre-discount gross.
+    subtotal = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text='Sum of line gross (qty x unit_price), pre-discount.',
+    )
     discount_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
     tax_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
     shipping_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'))
@@ -1052,12 +1027,7 @@ class SalesInvoice(TenantAwareModel, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         if not self.code and self.tenant_id:
-            last = (
-                SalesInvoice.all_objects.filter(tenant=self.tenant)
-                .order_by('-id').first()
-            )
-            seq = (last.id + 1) if last else 1
-            self.code = f'SINV-{seq:05d}'
+            self.code = next_code(SalesInvoice, self.tenant, 'SINV')
         super().save(*args, **kwargs)
 
     def recompute_totals(self):
