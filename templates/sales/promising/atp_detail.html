@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="text-muted small">{{ obj.product.code }} - {{ obj.product.name }} · {{ obj.get_method_display }}</div>
+    </div>
+    <a href="{% url 'sales:atp_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Request</h5>
+        <dl class="row mb-0">
+            <dt class="col-sm-5">Product</dt><dd class="col-sm-7">{{ obj.product }}</dd>
+            <dt class="col-sm-5">Requested Qty</dt><dd class="col-sm-7">{{ obj.requested_qty }}</dd>
+            <dt class="col-sm-5">Requested Date</dt><dd class="col-sm-7">{{ obj.requested_date|date:"M j, Y" }}</dd>
+            <dt class="col-sm-5">Method</dt><dd class="col-sm-7">{{ obj.get_method_display }}</dd>
+            <dt class="col-sm-5">Computed</dt><dd class="col-sm-7">{{ obj.computed_at|date:"M j, Y H:i" }} by {{ obj.computed_by|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Result</h5>
+        <div class="display-6">{{ obj.available_qty }} / {{ obj.requested_qty }}</div>
+        <div class="mb-2"><span class="badge bg-{% if obj.result_status == 'fully_promised' %}success-subtle text-success{% elif obj.result_status == 'partially_promised' %}warning-subtle text-warning{% else %}danger-subtle text-danger{% endif %} fs-6">{{ obj.get_result_status_display }}</span></div>
+        <dl class="row mb-0">
+            <dt class="col-sm-5">Available Date</dt><dd class="col-sm-7">{{ obj.available_date|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title">Breakdown</h5>
+    <table class="table table-sm">
+        <tbody>
+        {% for k, v in obj.snapshot_json.items %}
+            <tr><th class="text-muted small" style="width:30%">{{ k }}</th><td class="small">{{ v }}</td></tr>
+        {% empty %}<tr><td class="text-muted py-3">No breakdown captured.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
+{% endblock %}
