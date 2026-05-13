@@ -55,6 +55,8 @@ def submit_sales_order(sales_order, performed_by=None, notes=''):
 
     if sales_order.status != 'draft':
         raise ValueError(f'Cannot submit from status {sales_order.status}')
+    if not sales_order.lines.exists():
+        raise ValueError('Cannot submit a sales order with no lines.')
 
     ok = _conditional_update(sales_order, from_status='draft', to_status='submitted')
     if not ok:
