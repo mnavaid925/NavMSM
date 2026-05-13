@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Delivery {{ delivery.delivery_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ delivery.delivery_number }}</h4><div class="text-muted small">{{ delivery.subject|default:'-' }}</div></div>
+    <a href="{% url 'bi:schedule_detail' delivery.schedule.pk %}" class="btn btn-sm btn-outline-secondary">Back to Schedule</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Schedule</div><div class="fw-semibold"><a href="{% url 'bi:schedule_detail' delivery.schedule.pk %}">{{ delivery.schedule.schedule_number }} - {{ delivery.schedule.name }}</a></div>
+        <div class="text-muted small mt-2">Recipient</div><div class="fw-semibold">{{ delivery.recipient.email }}</div>
+        <div class="text-muted small mt-2">Status</div><div class="fw-semibold">{{ delivery.get_status_display }}</div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Attempted at</div><div class="fw-semibold">{{ delivery.attempted_at|date:'Y-m-d H:i:s' }}</div>
+        <div class="text-muted small mt-2">Delivered at</div><div class="fw-semibold">{{ delivery.delivered_at|date:'Y-m-d H:i:s'|default:'-' }}</div>
+        <div class="text-muted small mt-2">Export</div><div class="fw-semibold">{% if delivery.export %}<a href="{% url 'bi:export_download' delivery.export.pk %}">{{ delivery.export.export_number }} ({{ delivery.export.format }})</a>{% else %}-{% endif %}</div>
+    </div></div></div>
+</div>
+
+{% if delivery.error_message %}<div class="alert alert-danger mt-3"><strong>Error:</strong> {{ delivery.error_message }}</div>{% endif %}
+{% endblock %}
