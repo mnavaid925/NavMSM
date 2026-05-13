@@ -364,6 +364,49 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarBI" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-bar-chart-box-line"></i> <span>Business Intelligence</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarBI" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'bi:index' %}" class="nav-link">BI Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:kpi_definition_list' %}" class="nav-link">KPI Definitions</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:dashboard_list' %}" class="nav-link">KPI Dashboards</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:kpi_snapshot_list' %}" class="nav-link">KPI Snapshots</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:data_source_list' %}" class="nav-link">Report Data Sources</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:report_list' %}" class="nav-link">Ad-Hoc Reports</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:report_run_list' %}" class="nav-link">Report Runs</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:predictive_model_list' %}" class="nav-link">Predictive Models</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:prediction_run_list' %}" class="nav-link">Prediction Runs</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:trend_list' %}" class="nav-link">Trend Analyses</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:mart_list' %}" class="nav-link">Data Marts</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:schedule_list' %}" class="nav-link">Report Schedules</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:delivery_list' %}" class="nav-link">Deliveries</a></li>
+                            <li class="nav-item"><a href="{% url 'bi:export_list' %}" class="nav-link">Exports</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
+                {% if request.user.role != 'supplier' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarSales" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-shopping-cart-2-line"></i> <span>Sales &amp; Customer Orders</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarSales" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'sales:index' %}" class="nav-link">Sales Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'sales:customer_list' %}" class="nav-link">Customers</a></li>
+                            <li class="nav-item"><a href="{% url 'sales:category_list' %}" class="nav-link">Customer Categories</a></li>
+                            <li class="nav-item"><a href="{% url 'sales:comm_list' %}" class="nav-link">Communications</a></li>
+                            <li class="nav-item"><a href="{% url 'sales:pricelist_list' %}" class="nav-link">Price Lists</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'supplier' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSupplierPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
