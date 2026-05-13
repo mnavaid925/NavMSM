@@ -32,6 +32,7 @@
                 <td class="text-end">
                     <a href="{% url 'sales:shipment_detail' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
                     {% if s.is_editable %}<a href="{% url 'sales:shipment_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                    {% if s.status == 'planned' or s.status == 'cancelled' %}<form method="post" action="{% url 'sales:shipment_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete shipment {{ s.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
                 </td>
             </tr>
         {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No shipments yet.</td></tr>{% endfor %}
