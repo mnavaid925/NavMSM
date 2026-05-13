@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Data Mart: {{ mart.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ mart.mart_number }} <small class="text-muted">{{ mart.name }}</small></h4>
+        <div class="text-muted small">{{ mart.description|default:mart.code }} &middot; Refresh: {{ mart.get_refresh_frequency_display }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" action="{% url 'bi:mart_refresh' mart.pk %}">{% csrf_token %}
+            <button class="btn btn-sm btn-success"><i class="ri-refresh-line me-1"></i> Refresh now</button>
+        </form>
+        <a href="{% url 'bi:mart_edit' mart.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'bi:mart_delete' mart.pk %}" class="d-inline" onsubmit="return confirm('Delete data mart?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button></form>
+        <a href="{% url 'bi:mart_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Last refreshed</div><div class="fw-semibold">{{ mart.last_refreshed_at|date:'Y-m-d H:i'|default:'-' }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Last row count</div><div class="fw-semibold">{{ mart.last_row_count }}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Active</div><div class="fw-semibold">{% if mart.is_active %}Yes{% else %}No{% endif %}</div></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">RLS field</div><div class="fw-semibold">{{ mart.row_level_security_field|default:'tenant only' }}</div></div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Columns</h6>
+        <form method="post" action="{% url 'bi:mart_column_create' mart.pk %}" class="row g-2 mb-3">{% csrf_token %}
+            <div class="col-md-4"><input name="code" class="form-control form-control-sm" placeholder="code" required></div>
+            <div class="col-md-4"><input name="display_name" class="form-control form-control-sm" placeholder="Display name" required></div>
+            <div class="col-md-3"><select name="data_type" class="form-select form-select-sm"><option value="text">Text</option><option value="int">Int</option><option value="decimal">Decimal</option><option value="date">Date</option><option value="datetime">DateTime</option><option value="bool">Bool</option></select></div>
+            <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+            <input type="hidden" name="position" value="{{ columns|length }}">
+        </form>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Code</th><th>Display</th><th>Type</th><th></th></tr></thead>
+            <tbody>{% for c in columns %}<tr>
+                <td class="small fw-semibold">{{ c.code }}</td>
+                <td class="small">{{ c.display_name }}</td>
+                <td class="small">{{ c.get_data_type_display }}</td>
+                <td class="small text-end"><form method="post" action="{% url 'bi:mart_column_delete' c.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form></td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No columns yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Latest snapshot rows {% if latest_snap %}<small class="text-muted">({{ latest_snap.snapshot_at|date:'Y-m-d H:i' }} &middot; {{ latest_snap.row_count }} rows)</small>{% endif %}</h6>
+        {% if rows %}
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Dimension Keys</th><th class="text-end">Measure Total</th></tr></thead>
+                <tbody>{% for r in rows %}<tr><td class="small text-muted">{{ r.dimension_keys }}</td><td class="small text-end">{{ r.measure_total }}</td></tr>{% endfor %}</tbody>
+            </table></div>
+        {% else %}
+            <div class="text-muted small">No snapshot rows yet. Click Refresh now to materialize.</div>
+        {% endif %}
+        <hr>
+        <h6 class="mb-2">Recent Snapshots</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>At</th><th class="text-end">Rows</th><th class="text-end">ms</th><th>By</th></tr></thead>
+            <tbody>{% for s in snapshots %}<tr>
+                <td class="small">{{ s.snapshot_at|date:'Y-m-d H:i' }}</td>
+                <td class="small text-end">{{ s.row_count }}</td>
+                <td class="small text-end">{{ s.duration_ms }}</td>
+                <td class="small text-muted">{{ s.get_triggered_by_display }}</td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No snapshots yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
