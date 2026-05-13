@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}KPI {{ definition.code }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ definition.code }} <small class="text-muted">{{ definition.name }}</small></h4>
+        <div class="text-muted small">{{ definition.description|default:'-' }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" action="{% url 'bi:kpi_definition_refresh' definition.pk %}">{% csrf_token %}
+            <button class="btn btn-sm btn-success"><i class="ri-refresh-line me-1"></i> Refresh snapshot</button>
+        </form>
+        <a href="{% url 'bi:kpi_definition_edit' definition.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'bi:kpi_definition_delete' definition.pk %}" class="d-inline" onsubmit="return confirm('Delete KPI?');">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button>
+        </form>
+        <a href="{% url 'bi:kpi_definition_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <div class="text-muted small">Unit</div><div class="fw-semibold">{{ definition.unit|default:'-' }}</div>
+        <div class="text-muted small mt-2">Direction</div><div class="fw-semibold">{{ definition.get_direction_display }}</div>
+        <div class="text-muted small mt-2">Target / Warning / Critical</div>
+        <div class="fw-semibold">{{ definition.target_value|default:'-' }} / {{ definition.warning_threshold|default:'-' }} / {{ definition.critical_threshold|default:'-' }}</div>
+    </div></div></div>
+    <div class="col-md-8"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Snapshots</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Period</th><th>Scope</th><th class="text-end">Value</th><th class="text-end">vs prior</th><th>Status</th></tr></thead>
+            <tbody>{% for s in recent_snaps %}<tr>
+                <td class="small">{{ s.period_start }} &rarr; {{ s.period_end }}</td>
+                <td class="small text-muted">{{ s.get_scope_type_display }}{% if s.scope_label %}: {{ s.scope_label }}{% endif %}</td>
+                <td class="small text-end">{{ s.value|floatformat:2 }}</td>
+                <td class="small text-end text-muted">{% if s.delta_pct_vs_prior %}{{ s.delta_pct_vs_prior|floatformat:1 }}%{% else %}-{% endif %}</td>
+                <td class="small"><span class="badge bg-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}-subtle text-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}">{{ s.get_status_display }}</span></td>
+            </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No snapshots yet. Click Refresh.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
