@@ -31,7 +31,10 @@
                 <td class="text-end small">{{ i.amount_paid }}</td>
                 <td class="text-end">
                     <a href="{% url 'sales:invoice_detail' i.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
-                    {% if i.status == 'draft' %}<a href="{% url 'sales:invoice_edit' i.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                    {% if i.status == 'draft' %}
+                    <a href="{% url 'sales:invoice_edit' i.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    <form method="post" action="{% url 'sales:invoice_delete' i.pk %}" style="display:inline" onsubmit="return confirm('Delete draft invoice {{ i.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
                 </td>
             </tr>
         {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No invoices yet.</td></tr>{% endfor %}
