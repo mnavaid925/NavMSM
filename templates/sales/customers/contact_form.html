@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}Add Contact{% else %}Edit Contact{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}Add Contact{% else %}Edit Contact{% endif %}</h4>
+    <div class="text-muted small">Customer: {{ customer.name }}</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:780px">
+    {{ form.full_name|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.designation|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.role|as_crispy_field }}</div>
+    </div>
+    {{ form.email|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.phone_primary|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.phone_alt|as_crispy_field }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6"><div class="form-check">{{ form.is_primary }} <label class="form-check-label" for="{{ form.is_primary.id_for_label }}">Primary contact</label></div></div>
+        <div class="col-md-6"><div class="form-check">{{ form.is_active }} <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label></div></div>
+    </div>
+    {{ form.notes|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'sales:customer_detail' customer.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
