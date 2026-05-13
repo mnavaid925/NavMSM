@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Revision v{{ rev.version_no }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">Revision v{{ rev.version_no }} · {{ order.code }}</h4>
+        <div class="text-muted small">Snapshot at {{ rev.revised_at|date:"M j, Y H:i" }} by {{ rev.revised_by|default:"-" }}</div>
+    </div>
+    <a href="{% url 'sales:order_detail' order.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back to Order</a>
+</div>
+
+{% if rev.reason %}<div class="alert alert-secondary"><strong>Reason:</strong> {{ rev.reason }}</div>{% endif %}
+
+<div class="card mb-3"><div class="card-body">
+    <h5 class="card-title">Header snapshot</h5>
+    <pre class="small mb-0">{{ rev.snapshot_json.header|default:""|stringformat:"s" }}</pre>
+</div></div>
+
+<div class="card"><div class="card-body">
+    <h5 class="card-title">Lines snapshot ({{ rev.snapshot_json.lines|length }})</h5>
+    <div class="table-responsive"><table class="table table-sm">
+        <thead><tr><th>#</th><th>Product ID</th><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit Price</th><th class="text-end">Disc %</th><th class="text-end">Tax %</th><th class="text-end">Line Total</th><th>MTO</th></tr></thead>
+        <tbody>
+        {% for l in rev.snapshot_json.lines %}
+            <tr>
+                <td>{{ l.line_no }}</td>
+                <td>{{ l.product_id }}</td>
+                <td>{{ l.description|default:"-" }}</td>
+                <td class="text-end">{{ l.qty_ordered }}</td>
+                <td class="text-end">{{ l.unit_price }}</td>
+                <td class="text-end">{{ l.line_discount_pct }}</td>
+                <td class="text-end">{{ l.line_tax_pct }}</td>
+                <td class="text-end">{{ l.line_total }}</td>
+                <td>{% if l.is_make_to_order %}Yes{% endif %}</td>
+            </tr>
+        {% empty %}<tr><td colspan="9" class="text-center text-muted py-3">Empty snapshot.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+{% endblock %}
