@@ -92,7 +92,7 @@ A fresh re-run of `seed_sales --flush` will recreate the 17.1 data and seeded SO
 
 ### 2.7 Portal user setup
 
-The portal at `/sales/portal/` requires `request.user.customer_company` to be set ([apps/sales/views.py:1454](apps/sales/views.py#L1454)). The default seeder does NOT link any user to a customer. To exercise the portal, in a Django shell:
+The portal at `/sales/portal/` requires `request.user.customer_company` to be set ([apps/sales/views.py:1454-1460](apps/sales/views.py#L1454-L1460)). The default seeder does NOT link any user to a customer. To exercise the portal, in a Django shell:
 
 ```powershell
 python manage.py shell
@@ -195,10 +195,10 @@ u.save()
 
 | ID | Title | Pre-condition | Steps | Test Data | Expected Result | Pass/Fail | Notes |
 |---|---|---|---|---|---|---|---|
-| TC-AUTH-01 | Anonymous redirect — Customers list | Logged out | 1. Open `/sales/customers/` | — | Redirected to `/login/?next=/sales/customers/` | | |
-| TC-AUTH-02 | Anonymous redirect — Sales Orders list | Logged out | 1. Open `/sales/orders/` | — | Redirected to `/login/?next=/sales/orders/` | | |
-| TC-AUTH-03 | Anonymous redirect — Shipments | Logged out | 1. Open `/sales/shipments/` | — | Redirected to login | | |
-| TC-AUTH-04 | Anonymous redirect — Portal | Logged out | 1. Open `/sales/portal/` | — | Redirected to login | | |
+| TC-AUTH-01 | Anonymous redirect — Customers list | Logged out | 1. Open `/sales/customers/` | — | Redirected to `/accounts/login/?next=/sales/customers/` (per `LOGIN_URL` in [config/settings.py:119](config/settings.py#L119)) | | |
+| TC-AUTH-02 | Anonymous redirect — Sales Orders list | Logged out | 1. Open `/sales/orders/` | — | Redirected to `/accounts/login/?next=/sales/orders/` | | |
+| TC-AUTH-03 | Anonymous redirect — Shipments | Logged out | 1. Open `/sales/shipments/` | — | Redirected to `/accounts/login/?next=/sales/shipments/` | | |
+| TC-AUTH-04 | Anonymous redirect — Portal | Logged out | 1. Open `/sales/portal/` | — | Redirected to `/accounts/login/?next=/sales/portal/` | | |
 | TC-AUTH-05 | Superuser sees empty lists | Logged in as `admin` (superuser) | 1. Open `/sales/customers/`<br>2. Open `/sales/orders/`<br>3. Open `/sales/shipments/` | — | All three lists are empty (BY DESIGN — `request.tenant is None`) | | |
 | TC-AUTH-06 | Tenant admin sees full data | Logged in as `admin_acme` | 1. Open `/sales/customers/` | — | At least 8 customers visible | | |
 | TC-AUTH-07 | Toggle-active is POST-only | Tenant admin | 1. Browse to `/sales/customers/1/toggle-active/` via GET | — | Redirect to customer detail without status change | | |
@@ -227,7 +227,7 @@ u.save()
 
 ### 4.3 CREATE
 
-#### Customer ([apps/sales/views.py:128](apps/sales/views.py#L128))
+#### Customer ([apps/sales/views.py:128-142](apps/sales/views.py#L128-L142))
 
 | ID | Title | Pre-condition | Steps | Test Data | Expected Result | Pass/Fail | Notes |
 |---|---|---|---|---|---|---|---|
@@ -628,7 +628,7 @@ Severity scale: Critical (data loss / security / 500 on common path) · High (wo
 - POD file validator: [apps/sales/forms.py:303-311](apps/sales/forms.py#L303)
 - Customer dropdown excludes blacklisted: [apps/sales/forms.py:162-164](apps/sales/forms.py#L162)
 - Customer.clean() rejects blacklisted: [apps/sales/forms.py:170-177](apps/sales/forms.py#L170)
-- Portal user scoping: [apps/sales/views.py:1454-1460](apps/sales/views.py#L1454)
+- Portal user scoping: [apps/sales/views.py:1454-1460](apps/sales/views.py#L1454-L1460)
 - CommunicationLog 24h lock: [apps/sales/models.py:322-326](apps/sales/models.py#L322)
 - Seed command + customer fixtures: [apps/sales/management/commands/seed_sales.py:56-65](apps/sales/management/commands/seed_sales.py#L56)
 - Tenant fixtures + admin usernames: [apps/tenants/management/commands/seed_tenants.py:23-87](apps/tenants/management/commands/seed_tenants.py#L23)
