@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{{ obj.code }}</h4>
+    <div class="text-muted small">{{ obj.sales_order.code }} · Invoice {{ obj.invoice_date|date:"M j, Y" }} · Status {{ obj.get_status_display }}</div>
+</div>
+
+<div class="card"><div class="card-body">
+    <h5 class="card-title">Lines</h5>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Line Total</th></tr></thead>
+        <tbody>
+        {% for l in lines %}
+            <tr>
+                <td class="small">{{ l.description }}</td>
+                <td class="text-end small">{{ l.qty }}</td>
+                <td class="text-end small">{{ l.unit_price }}</td>
+                <td class="text-end small">{{ l.line_total }}</td>
+            </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><th colspan="3" class="text-end">Subtotal</th><th class="text-end">{{ obj.subtotal }}</th></tr>
+            <tr><th colspan="3" class="text-end">Tax</th><th class="text-end">{{ obj.tax_total }}</th></tr>
+            <tr><th colspan="3" class="text-end">Shipping</th><th class="text-end">{{ obj.shipping_total }}</th></tr>
+            <tr class="table-active"><th colspan="3" class="text-end">Grand Total</th><th class="text-end">{{ obj.grand_total }}</th></tr>
+            <tr><th colspan="3" class="text-end">Amount Paid</th><th class="text-end">{{ obj.amount_paid }}</th></tr>
+        </tfoot>
+    </table>
+    <div class="mt-3"><a href="{% url 'sales:portal_invoice_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to invoices</a></div>
+</div></div>
+{% endblock %}
