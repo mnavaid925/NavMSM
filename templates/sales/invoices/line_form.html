@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Add Invoice Line{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}Add Invoice Line{% else %}Edit Invoice Line{% endif %}</h4>
+    <div class="text-muted small">Invoice: {{ invoice.code }}</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:780px">
+    {{ form|crispy }}
+    <div class="mt-3">
+        <button class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'sales:invoice_detail' invoice.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
