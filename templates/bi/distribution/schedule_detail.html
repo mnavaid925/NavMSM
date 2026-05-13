@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Schedule {{ schedule.schedule_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ schedule.schedule_number }} <small class="text-muted">{{ schedule.name }}</small></h4>
+        <div class="text-muted small">{{ schedule.description|default:'-' }}</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <form method="post" action="{% url 'bi:schedule_run_now' schedule.pk %}">{% csrf_token %}
+            <button class="btn btn-sm btn-success"><i class="ri-play-line me-1"></i> Run now</button>
+        </form>
+        {% if schedule.is_pausable %}<form method="post" action="{% url 'bi:schedule_pause' schedule.pk %}">{% csrf_token %}<button class="btn btn-sm btn-warning"><i class="ri-pause-line me-1"></i> Pause</button></form>{% endif %}
+        {% if schedule.is_resumable %}<form method="post" action="{% url 'bi:schedule_resume' schedule.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="ri-play-circle-line me-1"></i> Resume</button></form>{% endif %}
+        <a href="{% url 'bi:schedule_disable' schedule.pk %}" class="btn btn-sm btn-outline-danger"><i class="ri-forbid-line me-1"></i> Disable</a>
+        <a href="{% url 'bi:schedule_edit' schedule.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <a href="{% url 'bi:schedule_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Status</div><h5 class="mb-0"><span class="badge bg-{% if schedule.status == 'active' %}success{% elif schedule.status == 'paused' %}warning{% else %}secondary{% endif %}-subtle text-{% if schedule.status == 'active' %}success{% elif schedule.status == 'paused' %}warning{% else %}secondary{% endif %}">{{ schedule.get_status_display }}</span></h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Frequency</div><h5 class="mb-0">{{ schedule.get_frequency_display }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Next Run</div><h6 class="mb-0">{{ schedule.next_run_at|date:'Y-m-d H:i' }}</h6></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Last Run</div><h6 class="mb-0">{{ schedule.last_run_at|date:'Y-m-d H:i'|default:'Never' }}</h6></div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Recipients</h6>
+        <form method="post" action="{% url 'bi:recipient_create' schedule.pk %}" class="row g-2 mb-3">{% csrf_token %}
+            <div class="col-md-4"><input name="email" type="email" class="form-control form-control-sm" placeholder="email@example.com" required></div>
+            <div class="col-md-5"><input name="name" class="form-control form-control-sm" placeholder="Name (optional)"></div>
+            <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i> Add</button></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Email</th><th>Name</th><th>Active</th><th></th></tr></thead>
+            <tbody>{% for r in recipients %}<tr>
+                <td class="small fw-semibold">{{ r.email }}</td>
+                <td class="small">{{ r.name|default:'-' }}</td>
+                <td class="small">{% if r.is_active %}Yes{% else %}No{% endif %}</td>
+                <td class="small text-end"><form method="post" action="{% url 'bi:recipient_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Remove recipient?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form></td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No recipients yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Recent Deliveries</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Delivery</th><th>Recipient</th><th>Attempted</th><th>Status</th></tr></thead>
+            <tbody>{% for d in recent_deliveries %}<tr>
+                <td class="small fw-semibold"><a href="{% url 'bi:delivery_detail' d.pk %}">{{ d.delivery_number }}</a></td>
+                <td class="small">{{ d.recipient.email }}</td>
+                <td class="small text-muted">{{ d.attempted_at|date:'Y-m-d H:i' }}</td>
+                <td class="small"><span class="badge bg-{% if d.status == 'sent' %}success{% elif d.status == 'failed' %}danger{% elif d.status == 'bounced' %}warning{% else %}secondary{% endif %}-subtle text-{% if d.status == 'sent' %}success{% elif d.status == 'failed' %}danger{% elif d.status == 'bounced' %}warning{% else %}secondary{% endif %}">{{ d.get_status_display }}</span></td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No deliveries yet.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
