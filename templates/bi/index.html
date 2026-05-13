@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}Business Intelligence & Analytics{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4>Business Intelligence &amp; Analytics</h4>
+        <div class="text-muted small">Module 16 - KPI dashboards, ad-hoc reports, predictions, data marts, distribution.</div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'bi:dashboard_list' %}" class="btn btn-sm btn-outline-primary"><i class="ri-dashboard-line me-1"></i> Dashboards</a>
+        <a href="{% url 'bi:report_list' %}" class="btn btn-sm btn-outline-success"><i class="ri-file-chart-line me-1"></i> Reports</a>
+        <a href="{% url 'bi:schedule_list' %}" class="btn btn-sm btn-outline-info"><i class="ri-calendar-event-line me-1"></i> Schedules</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">KPI Definitions</div>
+        <h4 class="mb-0">{{ kpi.definition_count|default:0 }}</h4>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Dashboards</div>
+        <h4 class="mb-0">{{ kpi.dashboard_count|default:0 }}</h4>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Reports</div>
+        <h4 class="mb-0">{{ kpi.report_count|default:0 }}</h4>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Active Schedules</div>
+        <h4 class="mb-0">{{ kpi.active_schedules|default:0 }}</h4>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Runs (30d)</div>
+        <h4 class="mb-0">{{ kpi.recent_runs_30d|default:0 }}</h4>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Active Marts</div>
+        <h4 class="mb-0">{{ kpi.active_marts|default:0 }}</h4>
+    </div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-7"><div class="card"><div class="card-body">
+        <h6 class="mb-2">OEE Trend (last 30 days)</h6>
+        <div id="oee-chart" style="height:280px"></div>
+    </div></div></div>
+    <div class="col-md-5"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Predictions</h6>
+        <ul class="list-group list-group-flush">
+        {% for r in recent_predictions %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                    <a href="{% url 'bi:prediction_run_detail' r.pk %}" class="fw-semibold">{{ r.run_number }}</a>
+                    <span class="text-muted small">{{ r.predictive_model.name }}</span>
+                </span>
+                <span class="badge bg-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}-subtle text-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ r.get_status_display }}</span>
+            </li>
+        {% empty %}
+            <li class="list-group-item text-muted small">No prediction runs yet.</li>
+        {% endfor %}
+        </ul>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent KPI Snapshots</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>KPI</th><th>Period</th><th class="text-end">Value</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for s in recent_snapshots %}
+                <tr>
+                    <td class="small fw-semibold">{{ s.kpi_definition.code }}</td>
+                    <td class="small text-muted">{{ s.period_start }} &rarr; {{ s.period_end }}</td>
+                    <td class="small text-end">{{ s.value|floatformat:2 }}</td>
+                    <td class="small">
+                        <span class="badge bg-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}-subtle text-{% if s.status == 'critical' %}danger{% elif s.status == 'warning' %}warning{% else %}success{% endif %}">{{ s.get_status_display }}</span>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">No snapshots yet. Refresh a KPI to populate.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-3">Recent Report Runs</h6>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Run</th><th>Report</th><th class="text-end">Rows</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for r in recent_runs %}
+                <tr>
+                    <td class="small fw-semibold"><a href="{% url 'bi:report_run_detail' r.pk %}">{{ r.run_number }}</a></td>
+                    <td class="small text-muted">{{ r.report.name|truncatechars:32 }}</td>
+                    <td class="small text-end">{{ r.row_count }}</td>
+                    <td class="small">
+                        <span class="badge bg-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}-subtle text-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ r.get_status_display }}</span>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">No report runs yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+
+{{ oee_trend|json_script:"oee-trend-data" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+(function(){
+    var data = JSON.parse(document.getElementById('oee-trend-data').textContent);
+    new ApexCharts(document.getElementById('oee-chart'), {
+        chart: {type:'area', height:280, toolbar:{show:false}},
+        series: [{name:'OEE %', data: data.map(function(r){return r.value;})}],
+        xaxis: {categories: data.map(function(r){return r.day;})},
+        colors: ['#2563eb'],
+        stroke: {curve:'smooth', width:2},
+        fill: {type:'gradient', gradient:{shadeIntensity:1, opacityFrom:0.35, opacityTo:0.05}}
+    }).render();
+})();
+</script>
+{% endblock %}
