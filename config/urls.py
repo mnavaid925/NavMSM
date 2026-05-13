@@ -23,6 +23,8 @@ urlpatterns = [
     path('utility/', include('apps.utility.urls')),
     path('compliance/', include('apps.compliance.urls')),
     path('iot/', include('apps.iot.urls')),
+    path('bi/', include('apps.bi.urls')),
+    path('sales/', include('apps.sales.urls')),
 ]
 
 if settings.DEBUG:
