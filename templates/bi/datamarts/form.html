@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Data Mart{% endblock %}
+{% block content %}
+<div class="page-title"><h4>{% if mode == 'edit' %}Edit{% else %}New{% endif %} Data Mart</h4>
+    <div class="text-muted small">The <code>source_definition</code> JSON declares which model to aggregate. Example:<br>
+    <code>{"model_label": "mes.ProductionReport", "group_by": ["operation__work_order__production_order__product__sku"], "measures": {"good_qty_sum": {"field": "good_qty", "agg": "sum"}}, "date_field": "reported_at", "lookback_days": 30}</code></div>
+</div>
+<form method="post" class="card card-body">{% csrf_token %}
+    {{ form|crispy }}
+    <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-primary">Save</button>
+        <a href="{% url 'bi:mart_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
