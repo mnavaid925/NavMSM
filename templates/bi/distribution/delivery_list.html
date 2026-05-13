@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Report Deliveries{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Report Deliveries</h4><div class="text-muted small">Every send attempt.</div></div>
+    <a href="{% url 'bi:schedule_list' %}" class="btn btn-sm btn-outline-secondary">Back to Schedules</a>
+</div>
+
+<form method="get" class="card card-body bg-light mb-3"><div class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small">Status</label>
+        <select name="status" class="form-select form-select-sm"><option value="">All</option>
+            {% for c, label in status_choices %}<option value="{{ c }}" {% if request.GET.status == c %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Apply</button></div>
+    <div class="col-md-7"><a href="{% url 'bi:delivery_list' %}" class="btn btn-sm btn-outline-secondary">Reset</a></div>
+</div></form>
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Number</th><th>Schedule</th><th>Recipient</th><th>Attempted</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for d in deliveries %}
+        <tr>
+            <td class="small fw-semibold"><a href="{% url 'bi:delivery_detail' d.pk %}">{{ d.delivery_number }}</a></td>
+            <td class="small">{{ d.schedule.name|truncatechars:40 }}</td>
+            <td class="small">{{ d.recipient.email }}</td>
+            <td class="small text-muted">{{ d.attempted_at|date:'Y-m-d H:i' }}</td>
+            <td class="small"><span class="badge bg-{% if d.status == 'sent' %}success{% elif d.status == 'failed' %}danger{% elif d.status == 'bounced' %}warning{% else %}secondary{% endif %}-subtle text-{% if d.status == 'sent' %}success{% elif d.status == 'failed' %}danger{% elif d.status == 'bounced' %}warning{% else %}secondary{% endif %}">{{ d.get_status_display }}</span></td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No deliveries yet.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div></div>
+{% include 'bi/_pagination.html' %}
+{% endblock %}
