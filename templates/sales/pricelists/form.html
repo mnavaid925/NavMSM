@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Price List{% else %}Edit {{ obj.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}New Price List{% else %}Edit {{ obj.name }}{% endif %}</h4>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:780px">
+    {{ form.name|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-4">{{ form.currency|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.effective_from|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.effective_to|as_crispy_field }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6"><div class="form-check">{{ form.is_default }} <label class="form-check-label" for="{{ form.is_default.id_for_label }}">Tenant-wide default (used as fallback)</label></div></div>
+        <div class="col-md-6"><div class="form-check">{{ form.is_active }} <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label></div></div>
+    </div>
+    {{ form.notes|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% if obj %}{% url 'sales:pricelist_detail' obj.pk %}{% else %}{% url 'sales:pricelist_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
