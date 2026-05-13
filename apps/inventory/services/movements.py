@@ -67,7 +67,7 @@ def post_movement(
         raise ValueError('post_movement: qty must be positive')
 
     require_to = movement_type in {'receipt', 'production_in'}
-    require_from = movement_type in {'issue', 'production_out', 'scrap'}
+    require_from = movement_type in {'issue', 'production_out', 'scrap', 'shipment_out'}
     require_both = movement_type == 'transfer'
     require_one = movement_type in {'adjustment', 'cycle_count'}
 
@@ -147,6 +147,7 @@ def reverse_movement(movement, *, reason='reversal', posted_by=None):
         'transfer': 'transfer',
         'adjustment': 'adjustment',
         'cycle_count': 'cycle_count',
+        'shipment_out': 'receipt',
     }
     return post_movement(
         tenant=movement.tenant,
