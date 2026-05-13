@@ -380,6 +380,7 @@ class StockMovement(TenantAwareModel, TimeStampedModel):
         ('production_out', 'Production Out'),
         ('scrap', 'Scrap'),
         ('cycle_count', 'Cycle Count Variance'),
+        ('shipment_out', 'Sales Shipment Out'),
     ]
 
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPE_CHOICES)
@@ -418,6 +419,16 @@ class StockMovement(TenantAwareModel, TimeStampedModel):
     )
     grn_line = models.ForeignKey(
         GRNLine, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='stock_movements',
+    )
+    # Module 17 - Sales: emitted by Shipment.status='delivered' signal.
+    # Idempotency key for the post_save handler in apps/sales/signals.py.
+    source_shipment = models.ForeignKey(
+        'sales.Shipment', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='stock_movements',
+    )
+    source_shipment_line = models.ForeignKey(
+        'sales.ShipmentLine', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='stock_movements',
     )
     posted_by = models.ForeignKey(
