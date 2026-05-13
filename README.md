@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, and **Module 15 — IoT & SCADA Integration**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, **Module 15 — IoT & SCADA Integration**, **Module 16 — Business Intelligence & Analytics**, and **Module 17 — Sales & Customer Order Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -34,13 +34,15 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 24. [Module 13 — Compliance & Regulatory Management](#module-13--compliance--regulatory-management)
 25. [Module 14 — Energy & Utility Management](#module-14--energy--utility-management)
 26. [Module 15 — IoT & SCADA Integration](#module-15--iot--scada-integration)
-27. [UI / Theme Customization](#ui--theme-customization)
-28. [Management Commands](#management-commands)
-29. [Payment Gateway Integration](#payment-gateway-integration)
-30. [Security Notes](#security-notes)
-31. [Roadmap](#roadmap)
-32. [Troubleshooting](#troubleshooting)
-33. [License](#license)
+27. [Module 16 — Business Intelligence & Analytics](#module-16--business-intelligence--analytics)
+28. [Module 17 — Sales & Customer Order Management](#module-17--sales--customer-order-management)
+29. [UI / Theme Customization](#ui--theme-customization)
+30. [Management Commands](#management-commands)
+31. [Payment Gateway Integration](#payment-gateway-integration)
+32. [Security Notes](#security-notes)
+33. [Roadmap](#roadmap)
+34. [Troubleshooting](#troubleshooting)
+35. [License](#license)
 
 ---
 
@@ -63,6 +65,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 11 — Labor & Workforce Management** — workforce master with auto-numbered `EMP-00001` employees, departments + positions + skills + certifications with expiry tracking; time & attendance with shifts, rosters, attendance records, leave types, leave requests (auto `LR-00001`) with `draft → submitted → approved / rejected → cancelled` workflow, and a tenant-level holiday calendar; labor cost allocation with cost centers, employee labor rates, and an append-only `LaborBooking` ledger (auto `LB-00001`) auto-emitted from `mes.OperatorTimeLog stop_job` (direct labor) and `eam.MWOLaborLog` (indirect labor) — both idempotent via natural-key dedup; training & competency management with programs, per-employee training plans, sessions (auto `TS-00001`) with attendance tracking, and competency assessments (auto `CA-00001`) with skill-gap analysis; incentive & piece-rate calculation with schemes, per-product / per-operation piece rates, monthly periods (`open → locked → paid`), and runs (auto `INC-00001`) that scan `mes.ProductionReport` rows and accumulate `IncentiveLine` totals with idempotent rerun; cross-module hooks: `mes.ShopFloorOperator.employee → labor.Employee` (soft link), `plm.Product.cost_center → labor.CostCenter`, `eam.Asset.cost_center → labor.CostCenter`. ApexCharts dashboard with attendance % trend (30d) + labor-cost-by-cost-center donut.
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Module 15 — IoT & SCADA Integration** — device connectivity hub with shared `DeviceProtocol` catalog (MQTT / OPC-UA / Modbus TCP+RTU / HTTP polling / CoAP), tenant-scoped `DeviceBroker` (auto `BRK-00001`) with TLS / username-password / cert / token auth, `Device` (auto `DEV-00001`) optionally linked to `eam.Asset`, and `DeviceTag` whose optional `eam.ConditionMonitoringPoint` FK drives the IoT→EAM cascade; real-time data acquisition with append-only `IoTReading` ledger (auto `IR-00001`), `IoTReadingBatch` envelope for JSON/CSV ingest via `services/ingestion.bulk_ingest`, pure-function `EdgeProcessor` transforms, and `StreamMetric` 1-to-1 denorm (latest value + 24h min/max/avg + count) refreshed by post-save signal; digital twin configuration with `DigitalTwin` (auto `DT-00001`), `TwinStateAttribute` (state / measurement / derived) using a security-critical whitelist-only formula evaluator (`services/twin._safe_eval` — never `eval()`/`exec()`), `TwinSimulationScenario` (auto `TSC-00001`) run by a pure-function simulator that never mutates persisted state, and `TwinStateSnapshot` for time-travel debugging; OEE monitoring with `MachineStateLog` (auto-idempotent on `eam.DowntimeEvent` cascades) feeding Availability, `mes.ProductionReport` feeding Performance + Quality, `pps.RoutingOperation.cycle_seconds` providing ideal cycle, all rolled up to `OEEPeriod` (auto `OEEP-00001`) with A × P × Q × OEE % computed in `save()`, and a `LossReason` Pareto driving the OEE dashboard; alert & anomaly detection with `AlertRule` (auto `AR-00001`) supporting threshold_high / threshold_low / range_outside / rate_of_change / missing_data / rolling z-score / IQR / Western-Electric runs rule (heuristic-only, no ML deps), XOR-validated scope (tag / device / asset), per-channel notification routing (`in_app / email / mes_andon`), and cooldown suppression; append-only `AnomalyDetection` (auto `AD-00001`) with `new → acknowledged → resolved | false_positive` workflow (resolution notes required at terminal transitions per L-14); cross-module hooks: `IoTReading.post_save → eam.ConditionReading` (when tag has `condition_point`), `AnomalyDetection.post_save → mes.AndonAlert` (severity ≥ high + `mes_andon` channel), `AnomalyDetection.post_save → eam.FailurePrediction` (severity = critical), `mes.ProductionReport.post_save → OEEPeriod` denorm refresh, `eam.DowntimeEvent.post_save → MachineStateLog` (idempotent on `source_downtime`). **Security flags:** `DeviceBroker.password_hash` is a stop-gap stable token (rotate to KMS / Vault for production); twin formulas evaluated by `_safe_eval` (whitelist of `+ - * / ()`, `min/max/abs`, variable refs, decimal numbers) — `eval()` / `exec()` are never called.
+- **Module 16 — Business Intelligence & Analytics** — KPI definitions catalog (9 built-in: OEE / throughput / first-pass yield / scrap rate / on-time delivery / supplier OTD / gross margin / energy intensity / carbon intensity) with `higher_is_better` / `lower_is_better` direction + warning / critical thresholds, dispatched via a pluggable [`KPI_REGISTRY`](apps/bi/services/kpi.py) of pure-function calculators; named `KPIDashboard` surfaces grouping `KPIWidget` placements (chart_type ∈ kpi_card / line / bar / donut / gauge / sparkline) with `default_period` (last_7d / last_30d / mtd / qtd / ytd / custom) + `auto_refresh_minutes`; materialized `KPISnapshot` per (definition, period, scope) so widgets render in O(1); form-based ad-hoc report builder over a static whitelist of registered data sources (`production_orders` / `production_reports` / `non_conformance_reports` / `supplier_invoices` / `utility_consumption` / `failure_predictions` / `oee_periods` / `gross_margin_reports` / `cogm_reports` / `stock_movements` / `carbon_emissions` / `supplier_metric_events`), executor (`services/reports.execute_report`) builds Django ORM queries from `ReportField` + `ReportFilter` rows scoped to `tenant=request.tenant`, never raw SQL, never an un-whitelisted field; pure-Python heuristic predictors (no NumPy / scikit-learn): linear-regression demand forecast, rolling-failure-rate likelihood, SPC chart trend; `PredictionRun` + `PredictionResult` ledger plus `TrendAnalysis` slope/r-squared/direction summaries (auto `PR-` / `TA-`); tenant-isolated data marts with admin-defined `source_definition` JSON (model_label + group_by + measures + lookback_days), refresh service (`services/datamart.refresh_mart`) wipes prior snapshot rows inside an atomic block then materializes a fresh `DataMartSnapshot` + child `DataMartRow` rows; automated `ReportSchedule` (auto `SCH-`) with `daily / weekly / monthly / custom` frequencies, XOR-validated bind to a Report or Dashboard, fan-out `ReportRecipient` rows, `ReportDelivery` ledger with status, generated `ReportExport` artifacts (CSV / xlsx / pdf_html / inline_email with allowlist + 25 MB cap), sent via Django `send_mail`; cron-style `run_report_schedules` management command; cross-module hook on `cost.AccountingPeriod` going to `status='closed'` refreshes all active KPI snapshots for the period. **93 tests** in [`apps/bi/tests/`](apps/bi/tests/) covering models, forms (L-01 / L-14 / XOR), services (registry whitelist, KPI classification, linear regression, rolling avg, chart trend), signals (L-18 dispatch_uid), HTTP CRUD smoke, multi-tenant IDOR (cross-tenant 404 on every detail URL), RBAC matrix (staff blocked from create/delete), anonymous-redirect on every list URL, and seeder idempotency.
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -391,6 +394,28 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 | `/iot/alerts/rules/` and CRUD + `/<pk>/activate/` + `/deactivate/` | AlertRule (auto `AR-00001`) with XOR-validated scope (tag / device / asset) and condition_type ∈ threshold_high / threshold_low / range_outside / rate_of_change / missing_data / zscore / iqr / runs_rule |
 | `/iot/alerts/detections/` and detail + `/<pk>/acknowledge/` + `/resolve/` + `/false-positive/` | Append-only AnomalyDetection ledger (auto `AD-00001`) with workflow new → acknowledged → resolved \| false_positive (resolution_notes required per L-14) |
 | `/iot/alerts/notifications/` | Append-only fanout log of notifications per detection per channel (in_app / email / mes_andon) |
+| `/bi/` | Business Intelligence dashboard — KPI cards (definitions, dashboards, reports, active schedules, recent runs, marts) + ApexCharts area chart of 30-day OEE trend, recent KPI snapshots, recent report runs, recent prediction runs |
+| `/bi/kpi/definitions/` and CRUD | KPI definitions list with search / active filter + refresh-snapshot action |
+| `/bi/kpi/definitions/<pk>/refresh/` | POST — recompute KPI snapshot for the last 30 days at tenant scope |
+| `/bi/kpi/snapshots/` | Materialized snapshot ledger filterable by KPI code / scope / status (on_target / warning / critical) |
+| `/bi/dashboards/` and CRUD | Dashboard list + detail with widget tiles (KPI value + prior-period delta + status badge), refresh-all action |
+| `/bi/dashboards/<dashboard_pk>/widgets/new/` and edit/delete | Widget inline CRUD on a dashboard |
+| `/bi/reports/data-sources/` and CRUD | Tenant catalog of registered report data sources (whitelisted in [`services/registry.py`](apps/bi/services/registry.py)) |
+| `/bi/reports/` and CRUD | Ad-hoc report definitions list with data-source filter; create new report from any registered source |
+| `/bi/reports/<pk>/` | Report detail with inline Fields + Filters CRUD, Run-now + Run+CSV download actions, recent runs table |
+| `/bi/reports/<pk>/run/` | POST — execute the report (validates every field against the static whitelist), persists `ReportRun` + result preview |
+| `/bi/reports/runs/` and `<pk>/` | Run list / detail with row count, duration, status, JSON preview of first 50 rows |
+| `/bi/predictive/models/` and CRUD | Predictive-model catalog (demand_forecast / failure_likelihood / quality_trend / scrap_drift / cost_drift / energy_drift) with run-now action |
+| `/bi/predictive/models/<pk>/run/` | POST — execute the heuristic predictor (pure-Python linear regression / rolling failure rate / SPC slope); writes `PredictionRun` + `PredictionResult` rows |
+| `/bi/predictive/runs/` and `<pk>/` | Run list / detail with cancel action (L-14: reason required) |
+| `/bi/predictive/trends/` | Trend analysis ledger filterable by source / direction |
+| `/bi/marts/` and CRUD | Data mart list / detail with admin `source_definition` JSON, refresh-now action, snapshot history + latest-rows preview |
+| `/bi/marts/<pk>/refresh/` | POST — refreshes the mart (atomic: deletes prior rows, creates new `DataMartSnapshot`, bulk-creates `DataMartRow` set) |
+| `/bi/schedules/` and CRUD | Report schedule list filterable by status / frequency; XOR Report or Dashboard binding |
+| `/bi/schedules/<pk>/run/` · `/pause/` · `/resume/` · `/disable/` | POST — schedule lifecycle (disable requires reason per L-14) |
+| `/bi/schedules/<schedule_pk>/recipients/new/` and delete | Recipient inline CRUD on a schedule |
+| `/bi/deliveries/` and `<pk>/` | Delivery ledger (one per recipient per execution) with status + error_message |
+| `/bi/exports/` and `<pk>/download/` | Rendered export list + auth-gated CSV / xlsx / PDF download |
 
 ---
 
@@ -904,6 +929,45 @@ NavMSM/
 │   │                             # 7d × 3 assets of OEE periods + 5 edge
 │   │                             # processors)
 │   │
+│   ├── bi/                       # MODULE 16 — Business Intelligence & Analytics
+│   │   ├── models.py             # KPIDefinition, KPIDashboard, KPIWidget,
+│   │   │                         # KPISnapshot, ReportDataSource,
+│   │   │                         # ReportDefinition, ReportField, ReportFilter,
+│   │   │                         # ReportRun, PredictiveModel, PredictionRun,
+│   │   │                         # PredictionResult, TrendAnalysis,
+│   │   │                         # DataMart, DataMartColumn, DataMartSnapshot,
+│   │   │                         # DataMartRow, ReportSchedule, ReportRecipient,
+│   │   │                         # ReportExport, ReportDelivery (21 models)
+│   │   ├── services/
+│   │   │   ├── registry.py       # REGISTERED_SOURCES whitelist (12 sources)
+│   │   │   ├── kpi.py            # 9 KPI calculators + KPI_REGISTRY +
+│   │   │   │                     # classify_value, refresh_snapshot
+│   │   │   ├── reports.py        # execute_report, run_and_persist,
+│   │   │   │                     # rows_to_csv (safe ORM builder)
+│   │   │   ├── predictions.py    # linear_regression, linear_regression_forecast,
+│   │   │   │                     # rolling_average, rolling_failure_rate,
+│   │   │   │                     # naive_seasonal, chart_trend,
+│   │   │   │                     # run_demand_forecast, run_failure_likelihood,
+│   │   │   │                     # run_quality_trend + PREDICTION_REGISTRY
+│   │   │   ├── datamart.py       # refresh_mart (atomic delete+insert)
+│   │   │   └── scheduler.py      # due_schedules, run_schedule, sweep_due
+│   │   ├── signals.py            # Audit factory (L-18 weak=False) for
+│   │   │                         # 10 audited models;
+│   │   │                         # cost.AccountingPeriod(status='closed')
+│   │   │                         # post_save -> refresh all KPI snapshots
+│   │   ├── forms.py              # 13 ModelForms + 2 workflow forms (L-01 /
+│   │   │                         # L-14 / L-22 / XOR Report-or-Dashboard)
+│   │   ├── views.py              # ~50 CBVs across all 5 sub-modules
+│   │   ├── urls.py               # 50+ URL patterns
+│   │   ├── admin.py
+│   │   ├── tests/                # conftest + test_models / test_forms /
+│   │   │                         # test_services / test_security /
+│   │   │                         # test_views / test_signals / test_seeder
+│   │   │                         # (93 tests, ~110s)
+│   │   └── management/commands/
+│   │       ├── seed_bi.py        # Idempotent demo seeder
+│   │       └── run_report_schedules.py # Cron-style schedule sweeper
+│   │
 │   └── qms/                      # MODULE 7 — Quality Management (QMS)
 │       ├── models.py             # IncomingInspectionPlan, InspectionCharacteristic,
 │       │                         # IncomingInspection, InspectionMeasurement,
@@ -959,7 +1023,8 @@ NavMSM/
 │   ├── labor/                    # index, departments/, positions/, employees/, skills/, skills_matrix/, certifications/, employee_certifications/, employee_documents/, employee_skills/, shifts/, shift_rosters/, attendance/, leave_types/, leave_requests/, holidays/, cost_centers/, labor_rates/, labor_bookings/, training_programs/, training_plans/, training_sessions/, training_attendance/, competency_assessments/, incentive_schemes/, piece_rates/, incentive_periods/, incentive_runs/
 │   ├── cost/                     # index, standard_versions/, standard_costs/, actual_costs/, variances/, jobs/, wip_entries/, cost_drivers/, overhead_pools/, overhead_rates/, driver_actuals/, overhead_allocations/, periods/, cogm/, gross_margin/, plant_pnl/
 │   ├── utility/                  # index, types/, meters/, consumption/, tariffs/, allocations/, dr_events/, peak/, factors/, emissions/, sustainability/, benchmarks/, reports/
-│   └── iot/                      # index, protocols/, brokers/, devices/, tags/, readings/, batches/, edge_processors/, stream_metrics/, twins/, twin_attributes/, twin_scenarios/, oee/{dashboard,periods,state_logs,loss_reasons}, alerts/{rules,detections,notifications}
+│   ├── iot/                      # index, protocols/, brokers/, devices/, tags/, readings/, batches/, edge_processors/, stream_metrics/, twins/, twin_attributes/, twin_scenarios/, oee/{dashboard,periods,state_logs,loss_reasons}, alerts/{rules,detections,notifications}
+│   └── bi/                       # index, _pagination, kpi/{definitions_list,definition_form,definition_detail,snapshots_list}, dashboards/{list,form,detail}, widgets/{form}, reports/{data_source_list,data_source_form,definitions_list,definition_form,definition_detail,run_list,run_detail}, predictive/{models_list,model_form,model_detail,run_list,run_detail,run_cancel,trend_list}, datamarts/{list,form,detail}, distribution/{schedule_list,schedule_form,schedule_detail,schedule_disable,delivery_list,delivery_detail,export_list}
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -1107,6 +1172,7 @@ Running `python manage.py seed_data` creates:
 - **Per tenant (Module 10 — EAM)** — 6 `AssetCategory` rows (Pumps, Motors, CNC Machines, Conveyor Systems, HVAC Equipment, Tooling); 10 `Asset` rows (auto `ASSET-00001`+) across 5 categories with mixed criticality (`PUMP-01`, `PUMP-02`, `MOTOR-01`, `MOTOR-02`, `CNC-LATHE-01` with `SPINDLE-01` as a sub-asset, `CNC-MILL-01`, `CONV-01`, `HVAC-01`, `COMP-01`); ~12 `AssetSparePart` rows linking critical/high assets to seeded `plm.Product` rows; 180 `AssetMeterReading` rows (30 days × 6 metered assets); 4 `MaintenancePlan`s (calendar / meter / both triggers) with 13 total `MaintenanceTask` rows + 3 future `PMSchedule` rows per plan via `generate_upcoming_pm`; 6 `ConditionMonitoringPoint`s on critical assets with 25 normal `ConditionReading` rows each, plus 1 deliberately critical reading on the first point so the post-save signal **auto-spawns a `FailurePrediction(status='open')`** (1 prediction per tenant); 3 `MaintenanceWorkOrder`s — 1 completed breakdown on a pump with full `MWOLaborLog` + `MWOMaterialLog` + `DowntimeEvent` (240 min unplanned downtime), 1 scheduled corrective on a motor, 1 in-progress preventive on a CNC; 2 `Tool` rows — 1 cutting tool (`TOOL-00001`) with 1 sharpening `ToolMaintenanceRecord` + 1 `ToolUsageLog`, plus 1 mold (`TOOL-00002`) with 4 `MoldCavityHistory` rows (one repaired, three active) + 1 cleaning `ToolMaintenanceRecord`.
 - **Per tenant (Module 12 — Cost)** — 3 `AccountingPeriod` rows (prev month closed, current month open, next month open), 5 `CostDriver` rows (machine_hours / direct_labor_hours / units / sq_ft / kwh), 5 `OverheadPool` rows (Factory Rent / Utilities / Supervision / Indirect Materials / Plant Insurance), `OverheadRate` rows for both prior and current period (10 total), 1 active `StandardCostVersion` (`SCV-00001`) with one `StandardCost` row per finished_good / sub_assembly product (~13 per tenant — pulled from `bom.BOMCostRollup` where present, else fallback Decimals); `JobCost` rows for every released / in-progress / completed `pps.ProductionOrder` (~4 per tenant) with seeded `WIPEntry` chains (material_issued + labor_applied + overhead_applied + completion on closed jobs); `apply_overhead(prev_period)` invoked to materialize ~11 `OverheadAllocation` rows; 1 `CostVariance` (`VAR-00001`) per closed-period job; `ActualCost` rollups for every job; 1 `COGMReport` (`COGM-00001`) for the prior period; 1 `PlantPnLReport` with seeded SG&A inputs (selling=800, G&A=1200, unallocated=200).
 - **Per tenant (Module 14 — Utility)** — 6 `UtilityType` rows (electricity / water / natural_gas / steam / compressed_air / fuel_oil; electricity bridged to `cost.CostDriver` `KWH` when present), 4 `UtilityMeter` rows (`MAIN-ELEC-01` linked to first seeded `eam.Asset`, `MAIN-WATER-01`, `MAIN-GAS-01`, plus a `LINE-2-ELEC-01` sub-meter under `MAIN-ELEC-01`), 5 `UtilityTariff` rows (one per type except fuel_oil) with flat-rate USD pricing anchored to the current accounting period, 4 `TOURateBand` rows on the electricity tariff (peak / shoulder / off_peak weekday + off_peak weekend), 1 `DemandResponseEvent` (`DRE-00001`, voluntary, scheduled tomorrow 14:00–17:00, 15 % target reduction, $500 incentive), 5 `EmissionFactor` rows (electricity_grid Scope 2, natural_gas Scope 1, water Scope 3, fuel_oil Scope 1, employee_commute Scope 3 — citing GHG Protocol / DEFRA), ~120 `UtilityConsumption` rows (~30 days × 4 meters spanning prior + current periods — electricity meters write `eam.AssetMeterReading` so the **EAM auto-feed signal** cascades a `UtilityConsumption` proving the cross-module hook; water / gas write directly via `services.meters.post_consumption`), each consumption auto-cascading a `CarbonEmission` row via `UtilityConsumption.post_save`, 1 `UtilityAllocation` (`UAL-00001`) per metered cost-center for the current period via `services/allocation.post_allocation` (which writes the matching `cost.DriverActuals` row), 2 `SustainabilityKPI` snapshots (one per period), 2 `BenchmarkSnapshot` rows (one per period), 1 `BenchmarkComparison` (`BCR-00001`, period-over-period: prior vs. current).
+- **Per tenant (Module 16 — BI & Analytics)** — 9 `KPIDefinition` rows (OEE / throughput / yield / scrap_rate / on_time_delivery / supplier_otd / gross_margin / energy_intensity / carbon_intensity) with seeded `target_value` / `warning_threshold` / `critical_threshold`; 1 `KPIDashboard` ("Plant Operations") with 6 `KPIWidget` tiles (OEE / throughput / yield / scrap_rate as `kpi_card`, on_time_delivery as `gauge`, gross_margin as `kpi_card`); 9 tenant-scope `KPISnapshot` rows materialized via `services/kpi.refresh_snapshot()` for the last 30 days (each carries `value`, `status`, `sample_size`); 6 `ReportDataSource` catalog rows (production_orders / production_reports / non_conformance_reports / oee_periods / supplier_invoices / utility_consumption) bound to the static `REGISTERED_SOURCES` whitelist; 1 `ReportDefinition` ("Daily Production Summary") with 4 `ReportField` columns + 1 completed `ReportRun` (results coerced to JSON-safe shapes for inline preview); 2 `PredictiveModel` rows (demand_forecast + failure_likelihood) with 1 completed `PredictionRun`; 1 `DataMart` ("Production Daily") with 5 `DataMartColumn` rows + 1 `DataMartSnapshot` + materialized `DataMartRow` set scoped to the tenant; 1 active `ReportSchedule` (weekly, due tomorrow) with 1 `ReportRecipient`. Idempotent — re-running `seed_bi` skips a tenant if any KPI definition already exists; use `--flush` to wipe + re-seed.
 - **Per tenant (Module 15 — IoT & SCADA)** — 6 shared `DeviceProtocol` rows (mqtt / opc_ua / modbus_tcp / modbus_rtu / http_polling / coap; created once and reused across tenants), 2 `DeviceBroker` rows (`MQTT-LOCAL` + `OPCUA-LOCAL`, both `active`), 6 `Device` rows linked to the first seeded `eam.Asset` rows (`SENSOR-PUMP-01`, `SENSOR-MOTOR-01`, `PLC-CNC-LATHE-01`, `PLC-CNC-MILL-01`, `SENSOR-CONV-01`, `GATEWAY-HVAC-01`), 30 `DeviceTag` rows (5 per device: temperature / vibration_x / pressure / electrical_load / machine_state), 5 `LossReason` rows (PLANNED_MAINT / BREAKDOWN / STARVED / MICRO_STOP / SETUP_CHANGEOVER), 4 `AlertRule` rows (High Temperature, High Vibration, Electrical Z-Score, Missing Data Watchdog), ~120 `IoTReading` rows (24h × 4 tags × 6 devices) seeded with normal-noise values, plus 2 deliberately anomalous rows (92.5°C temp, 15.2 mm/s vibration) that auto-cascade into `AnomalyDetection` + `AlertNotification` proving the post-save signal pipeline, 3 `DigitalTwin` rows on the first 3 metered devices with 4 attributes each (3 measurement + 1 derived `health_score = 100 - (temperature - 60) * 2`) plus 1 completed `TwinSimulationScenario` and 1 `TwinStateSnapshot` on the first twin, 7 days × 3 assets of `OEEPeriod` rows (~21 rows) with seeded run-minutes / total-count / good-count, ~21 corresponding `MachineStateLog` rows, and 2 `EdgeProcessor` rows (5-min rolling avg + threshold count). The `StreamMetric` denorm rows (latest value + 24h aggregates) materialize automatically via `IoTReading.post_save`.
 - **Global (shared) catalog** — 8 `ComplianceStandard` records (ISO 9001, ISO 14001, RoHS, REACH, CE, UL, FCC, IPC) + 6 `DeviceProtocol` rows (MQTT, OPC-UA, Modbus TCP/RTU, HTTP, CoAP).
 
@@ -2399,6 +2465,184 @@ See the [Screenshots / UI Tour](#screenshotsui-tour) routes table — every `/io
 
 ---
 
+## Module 16 — Business Intelligence & Analytics
+
+Module 16 is implemented in [`apps/bi/`](apps/bi/) with full CRUD across all 5 sub-modules. **Read-mostly** over the rest of the platform — it never writes back into modules it sources data from. Every model is `TenantAwareModel`; cross-module access uses string FKs (`'mes.ProductionReport'`, `'cost.GrossMarginReport'`, etc.) so the app can be unmounted without breaking other modules.
+
+### Sub-module 16.1 — Manufacturing KPI Dashboards
+
+- **`KPIDefinition`** — tenant catalog of KPI recipes. `code` ∈ `oee` / `throughput` / `yield` / `scrap_rate` / `on_time_delivery` / `supplier_otd` / `gross_margin` / `energy_intensity` / `carbon_intensity` is the dispatch key into the [`KPI_REGISTRY`](apps/bi/services/kpi.py) in `services/kpi.py`. Carries `direction` (`higher_is_better` / `lower_is_better`), `target_value`, `warning_threshold`, `critical_threshold` — the [`classify_value`](apps/bi/services/kpi.py) helper maps a Decimal into `on_target` / `warning` / `critical` honoring direction.
+- **`KPIDashboard`** — a named dashboard surface scoped to a tenant (optional `owner` user, `is_shared` flag). `default_period` ∈ `last_7d` / `last_30d` / `mtd` / `qtd` / `ytd` / `custom`, `auto_refresh_minutes`. Slug unique per `(tenant, slug)`.
+- **`KPIWidget`** — a placement of a KPI on a dashboard with `chart_type` (`kpi_card` / `line` / `bar` / `donut` / `gauge` / `sparkline`), `scope_filter` JSON, `compare_to_previous` flag, `position`.
+- **`KPISnapshot`** — materialized per-period rollup `(kpi_definition, period_start, period_end, scope_type, scope_pk)` so dashboard widgets render in O(1). Carries `value`, `prior_period_value`, `status`, `sample_size`, `computed_at`. `delta_vs_prior` + `delta_pct_vs_prior` properties for percentage-change display. `PROTECT` on `kpi_definition` (Lesson L-17).
+- **KPI calculators** (pure functions in [`services/kpi.py`](apps/bi/services/kpi.py)): aggregate `iot.OEEPeriod` for OEE, `mes.ProductionReport` for throughput / yield / scrap, `procurement.SupplierMetricEvent` for OTD, `cost.GrossMarginReport` for gross margin, `utility.UtilityConsumption + mes.ProductionReport` for energy intensity, `utility.CarbonEmission + mes.ProductionReport` for carbon intensity. Each returns `(Decimal, sample_size)`; `refresh_snapshot()` upserts the matching `KPISnapshot` row.
+
+### Sub-module 16.2 — Ad-Hoc Report Builder
+
+- **`ReportDataSource`** — tenant catalog binding a slug to a Django `model_label` plus `allowed_fields` JSON. The slug must exist in the static [`REGISTERED_SOURCES`](apps/bi/services/registry.py) whitelist — 12 sources are registered: `production_orders`, `production_reports`, `non_conformance_reports`, `supplier_invoices`, `supplier_metric_events`, `utility_consumption`, `carbon_emissions`, `failure_predictions`, `oee_periods`, `stock_movements`, `gross_margin_reports`, `cogm_reports`.
+- **`ReportDefinition`** — auto-numbered `RPT-00001`. Carries `data_source` FK, `created_by`, `is_shared`, optional `group_by_field`, `sort_field` + `sort_direction`, `row_limit`. Unique per `(tenant, name)`.
+- **`ReportField`** — per-report column selection with `aggregation` ∈ `none` / `sum` / `avg` / `count` / `min` / `max` and `position` for column order.
+- **`ReportFilter`** — per-report where-clause with `operator` ∈ `eq` / `ne` / `gt` / `gte` / `lt` / `lte` / `contains` / `startswith` / `endswith` / `in` / `between` / `isnull`. `between` requires `value_to`.
+- **`ReportRun`** — auto-numbered `RR-00001` ledger of every execution with `status`, `row_count`, `duration_ms`, `parameters`, `result_preview` (first 50 rows, Decimal/date coerced to JSON).
+- **Safe executor** ([`services/reports.execute_report`](apps/bi/services/reports.py)) — reads the report definition + children, validates **every** field name (project, filter, group_by, sort) against the source's `allowed_fields` whitelist via [`assert_field_allowed`](apps/bi/services/registry.py), then builds a `QuerySet.filter(...).values(...).annotate(...)` programmatically. Never builds raw SQL. Always applies `tenant=request.tenant`. Prevents SQL injection and field-disclosure attacks. Result rows are coerced to JSON-safe shapes before being persisted as `result_preview`.
+
+### Sub-module 16.3 — Predictive Analytics
+
+- **`PredictiveModel`** — heuristic prediction recipe. `code` ∈ `demand_forecast` (linear regression on `mes.ProductionReport.good_qty` per product), `failure_likelihood` (rolling failure rate on `eam.MaintenanceWorkOrder(wo_type='breakdown')`), `quality_trend` (slope on `qms.ControlChartPoint` rows), plus `scrap_drift` / `cost_drift` / `energy_drift` (alias to the linear-regression core for v1). Carries `lookback_days`, `forecast_horizon_days`, `parameters` JSON, `is_active`. Unique per `(tenant, code, name)`.
+- **`PredictionRun`** — auto-numbered `PR-00001` with `status` (`queued` / `running` / `completed` / `failed` / `cancelled`). Cancellable while `queued` or `running`; reason required (Lesson L-14).
+- **`PredictionResult`** — one row per (target, period) projected by a run with `target_type` ∈ `product` / `asset` / `supplier` / `spc_chart` / `cost_center` / `tenant`, `predicted_value`, `lower_bound`, `upper_bound`, `confidence_pct` (0–100). `PROTECT` on the parent run (L-17).
+- **`TrendAnalysis`** — auto-numbered `TA-00001` sliding-window slope summary. Carries `source_metric`, `slope`, `intercept`, `r_squared` (0–1), `direction` ∈ `improving` / `steady` / `worsening`. Reusable across KPIs and SPC series.
+- **Heuristics** (pure functions, [`services/predictions.py`](apps/bi/services/predictions.py)) — `linear_regression(values) → (slope, intercept, r_squared)`, `linear_regression_forecast(values, horizon)` with residual-standard-error confidence bands, `rolling_average(values, window)`, `rolling_failure_rate(event_dates, window_days, anchor)`, `naive_seasonal(values, period_length, horizon)`, `chart_trend(points) → (slope, r2, last, direction)`. **No NumPy / pandas / scikit-learn dependency** — every routine uses `decimal.Decimal` arithmetic so behaviour is platform-stable and deploy-light.
+
+### Sub-module 16.4 — Tenant-Isolated Data Warehouse
+
+- **`DataMart`** — auto-numbered `DM-00001`. Carries `code`, `name`, `source_definition` JSON (declares `model_label`, `group_by`, `measures`, optional `date_field` + `lookback_days`), `refresh_frequency` (`on_demand` / `hourly` / `daily` / `weekly` / `monthly`), `last_refreshed_at`, `last_row_count`, optional `row_level_security_field` for an additional scope beyond tenant.
+- **`DataMartColumn`** — typed column metadata (`text` / `int` / `decimal` / `date` / `datetime` / `bool`), `is_dimension` / `is_measure` discriminator, `aggregation_hint`, `position`.
+- **`DataMartSnapshot`** — one refresh marker with `snapshot_at`, `row_count`, `duration_ms`, `triggered_by` (`manual` / `schedule` / `signal` / `seed`). `PROTECT` on `data_mart` (L-17).
+- **`DataMartRow`** — one materialized row carrying `row_data` (full column → value dict), `dimension_keys` (denormalized for fast filtering), `measure_total` (pre-computed scalar for sort/filter speed). Every row is `TenantAwareModel` → cross-tenant queries auto-filter via the default manager. Cross-tenant industry-average rows (when implemented) follow the [`apps/utility/`](apps/utility/) `tenant=NULL` + custom `for_tenant` manager pattern (D-10 lesson).
+- **Refresh service** ([`services/datamart.refresh_mart`](apps/bi/services/datamart.py)) — one atomic transaction: reads `mart.source_definition`, executes the aggregation against the source model scoped to `mart.tenant`, deletes every prior `DataMartRow` for the mart, creates a fresh `DataMartSnapshot`, bulk-inserts new rows. Idempotent. Decimal / date / datetime values are JSON-coerced before storage.
+
+### Sub-module 16.5 — Automated Report Distribution
+
+- **`ReportSchedule`** — auto-numbered `SCH-00001`. Binds exactly one of `report` FK / `dashboard` FK (XOR enforced in the form). `frequency` ∈ `daily` / `weekly` / `monthly` / `custom`; custom requires a 5-field `cron_expression`. Carries `timezone_name`, `next_run_at`, `last_run_at`, `last_status`, `format` (`csv` / `xlsx` / `pdf_html` / `inline_email`), `status` (`active` / `paused` / `disabled`), `disabled_reason`. Disable transition requires a reason (Lesson L-14).
+- **`ReportRecipient`** — per-schedule recipient row with `email`, optional `user` FK + `name`, `notify_on_failure` flag. Unique per `(tenant, schedule, email)`.
+- **`ReportExport`** — auto-numbered `EXP-00001` rendered artifact with `file` FileField (allowlist `.csv .xlsx .pdf .html`, 25 MB cap per Lesson L-22), `row_count`, `file_size_bytes`, `status` (`pending` / `rendering` / `ready` / `failed` / `expired`), `generated_at`, `generated_by`.
+- **`ReportDelivery`** — auto-numbered `DLV-00001` ledger of every delivery attempt with `status` (`pending` / `sent` / `failed` / `cancelled` / `bounced`), `attempted_at`, `delivered_at`, `error_message`, `message_id`. `PROTECT` on `schedule`, `recipient`, `export` (L-17).
+- **Distribution service** ([`services/scheduler.py`](apps/bi/services/scheduler.py)) — `due_schedules(now)` returns schedules whose `next_run_at <= now`; `run_schedule(schedule, now)` renders the bound report (or dashboard widget snapshot CSV), persists a `ReportExport`, fans out `ReportDelivery` rows, sends emails via Django `send_mail`, and advances `next_run_at` from the frequency. Idempotent at second-precision: a `last_run_at` within 1 s of `next_run_at` is treated as already-run. The management command `run_report_schedules` calls `sweep_due()`; intended for cron / Windows Task Scheduler — see [Management Commands](#management-commands).
+
+### Cross-module hooks
+
+| # | From | Trigger | To | Idempotency |
+|---|---|---|---|---|
+| 1 | `cost.AccountingPeriod.post_save (status='closed')` | period closes | refresh every active `KPISnapshot` for the period at tenant scope via [`services.kpi.refresh_snapshot`](apps/bi/services/kpi.py) | `(kpi_definition, period_start, scope_type, scope_pk)` |
+
+Read-only against every other module — Module 16 **never writes back** into MES, IoT, Cost, Utility, Procurement, EAM, MRP, Inventory, or QMS.
+
+### Audit signals
+
+[`apps/bi/signals.py`](apps/bi/signals.py) wires the `_make_audit_handler` + `AUDITED_MODELS` factory used by IoT / Utility / EAM / Labor / Cost. **All factory-registered handlers connect with `weak=False` and a unique `dispatch_uid` per model** (Lesson L-18). Audited models: `KPIDefinition`, `KPIDashboard`, `KPIWidget`, `ReportDefinition`, `ReportRun`, `PredictiveModel`, `PredictionRun`, `DataMart`, `ReportSchedule`, `ReportDelivery`. Audit actions follow `bi.<ModelName>.<created|updated>`. The audit handler swallows exceptions (best-effort) so a BI save never fails because of audit-log issues — failures log a `WARNING` instead.
+
+### Validation guards (apply Lessons L-01, L-02, L-14, L-17, L-22)
+
+- L-01: every form whose `Meta.fields` excludes `tenant` performs its own `(tenant, ...)` uniqueness check — `KPIDefinitionForm` (on `code`), `KPIDashboardForm` (on `slug`), `ReportDataSourceForm` (on `code`, also gated against the static `REGISTERED_SOURCES` whitelist), `ReportDefinitionForm` (on `name`), `ReportFilterForm` (between operator requires `value_to`), `PredictiveModelForm` (on `(code, name)`), `DataMartForm` (on `code` + `source_definition` JSON shape), `DataMartColumnForm` (on `(data_mart, code)`, also rejects `is_dimension=True` AND `is_measure=True`), `ReportScheduleForm` (XOR `report` / `dashboard`, on `name`, custom-frequency cron required), `ReportRecipientForm` (on `(schedule, email)`).
+- L-02: every Decimal carries explicit validators — `target_value` / `warning_threshold` / `critical_threshold` (signed), `value` / `prior_period_value` (signed), `predicted_value` / `lower_bound` / `upper_bound` (signed), `confidence_pct` (0–100), `r_squared` (0–1), `slope` / `intercept` (signed).
+- L-14: per-workflow required reasons — `PredictionRunCancelForm.clean_cancellation_reason()`, `ReportScheduleDisableForm.clean_disabled_reason()`.
+- L-17: `PROTECT` on audit-trail children — `KPISnapshot.kpi_definition`, `KPIWidget.kpi_definition`, `ReportDefinition.data_source`, `ReportRun.report`, `PredictiveModel`-on-`PredictionRun`, `PredictionResult.run`, `DataMartSnapshot.data_mart`, `DataMartRow.snapshot`, `ReportSchedule.report` / `ReportSchedule.dashboard`, `ReportDelivery.schedule` / `.recipient` / `.export`.
+- L-22: `ReportExportForm.clean_file()` enforces `.csv / .xlsx / .pdf / .html` allowlist + 25 MB upload cap.
+
+### RBAC (L-10)
+
+| Surface | Required role | Mixin |
+|---|---|---|
+| Dashboard, all list pages, detail pages, run-own-report | Authenticated tenant user | `TenantRequiredMixin` |
+| KPI / Dashboard / Widget / Report / Data Source / Predictive / Mart / Schedule / Recipient CRUD; refresh + run-now + pause + resume + disable + cancel + export download | Tenant admin | `TenantAdminRequiredMixin` |
+
+### Test suite
+
+Run with `pytest apps/bi/tests/` — **93 tests, ~110 s** across [`test_models.py`](apps/bi/tests/test_models.py) (auto-numbering for RPT / RR / PR / TA / DM / SCH / EXP / DLV, snapshot delta math, unique-per-tenant constraints, cross-tenant slug reuse, workflow predicates), [`test_forms.py`](apps/bi/tests/test_forms.py) (L-01 dedup, L-14 required reasons, XOR Report-or-Dashboard, custom-cron requirement, registry-gated data-source code), [`test_services.py`](apps/bi/tests/test_services.py) (registry whitelist accept/reject, KPI classification both directions, linear regression on flat / perfect / short series, rolling average, chart trend improving / worsening / steady, naive_seasonal short-input fallback), [`test_signals.py`](apps/bi/tests/test_signals.py) (L-18 `dispatch_uid` presence, audit emit on save), [`test_views.py`](apps/bi/tests/test_views.py) (HTTP CRUD smoke on every list URL + 3 create handlers + KPI refresh), [`test_security.py`](apps/bi/tests/test_security.py) (anonymous-redirect on 14 list URLs, multi-tenant IDOR cross-tenant 404 on 6 detail URLs, RBAC matrix on 4 admin-only endpoints + staff-allowed list pages), [`test_seeder.py`](apps/bi/tests/test_seeder.py) (seed_bi creates the expected row counts, is idempotent across two runs, and re-populates after `--flush`).
+
+### Out of scope (deferred to v2+)
+
+- **Drag-and-drop report designer** — v1 ships a form-based builder. JS designer (Power BI / Looker style) is v2.
+- **scikit-learn / ML models** — v1 is pure-Python heuristics. v2 can plug `IsolationForest` / `LinearRegression` behind the same `PredictiveModel.code` registry without schema change.
+- **Real cron daemon** — `run_report_schedules` is a management command intended for cron / Task Scheduler. Celery / RQ workers are out of scope.
+- **Real-time push to dashboards** — dashboards poll on `auto_refresh_minutes`; WebSocket / SSE is deferred.
+- **Cross-tenant industry-average aggregator** — `DataMartRow(tenant=NULL)` rows are modelled but the aggregation command is gated on ≥ 5 production tenants (k-anonymity threshold), matching the [`apps/utility/`](apps/utility/) deferral.
+- **True server-side PDF rendering** — exports use HTML "print to PDF" via browser print. WeasyPrint / wkhtmltopdf is v2.
+- **Live data warehouse to external BI tool** — Tableau / Power BI / Looker connectors are v2. `DataMartRow` rows are Django-resident; export is via CSV / xlsx only.
+
+---
+
+## Module 17 — Sales & Customer Order Management
+
+The customer-facing counterpart to Module 9 (Procurement). Sales lives in [apps/sales/](apps/sales/) and is mounted at `/sales/`.
+
+### Sub-modules
+
+| # | Sub-module | What you get |
+|---|---|---|
+| 17.1 | Customer Master & CRM Lite | Customer profiles, contacts, communication log, document repository, customer categories, price lists with tier breaks |
+| 17.2 | Sales Order Processing | Auto-numbered SO with full draft → submitted → credit_check → confirmed → in_production → fulfilled → invoiced → closed workflow; immutable revisions; per-line make-to-order flag |
+| 17.3 | Order Promising & ATP/CTP | Available-to-Promise (on-hand stock + open PO arrivals − committed) and Capable-to-Promise (BOM + routing capacity walk); pure-read snapshots |
+| 17.4 | Delivery Scheduling & Dispatch | Shipments + lines, delivery routes, Proof-of-Delivery, sales invoices auto-generated from shipments, signal-driven `inventory.StockMovement(shipment_out)` emission |
+| 17.5 | Customer Portal | `/sales/portal/...` self-service for users whose `customer_company` FK is set; sees their own orders, shipment tracking, and invoices only |
+
+### Models
+
+- **17.1** — `CustomerCategory` (hierarchical), `PriceList` (auto `PL-00001`), `PriceListItem` (tier breaks + effective window), `Customer` (auto `CUST-00001`), `CustomerContact`, `CommunicationLog` (auto `COMM-00001`, 24-hour edit lock), `CustomerDocument` (25 MB cap, L-22 allowlist).
+- **17.2** — `SalesOrder` (auto `SO-00001`), `SalesOrderLine` (denorm money columns + qty_promised / qty_shipped / qty_invoiced denorms + `is_make_to_order` flag + `source_production_order` FK), `SalesOrderRevision` (immutable JSON snapshot), `SalesOrderApprovalLog` (append-only).
+- **17.3** — `ATPCalculation` (auto `ATP-00001`), `CTPCalculation` (auto `CTP-00001`), `OrderPromise` (1-to-1 with SO line; `stock / production / mixed / partial / unfulfillable`).
+- **17.4** — `DeliveryRoute` (auto `ROUTE-00001`), `Shipment` (auto `SHP-00001`), `ShipmentLine`, `ProofOfDelivery` (auto `POD-00001`), `SalesInvoice` (auto `SINV-00001`), `SalesInvoiceLine`.
+- **17.5** — reuses `accounts.User` with new optional `customer_company` FK + `'customer'` role choice, mirroring the existing `supplier_company` / `'supplier'` pattern.
+
+### Services (pure functions, no ORM at module scope)
+
+- [`services/numbering.py`](apps/sales/services/numbering.py) — atomic auto-code helper.
+- [`services/pricing.py`](apps/sales/services/pricing.py) — `resolve_price(customer, product, qty, on_date)` walks customer PL → tenant default PL → product list_price.
+- [`services/credit.py`](apps/sales/services/credit.py) — `check_credit(customer, additional_amount)` enforces blacklist + status + over-credit-limit.
+- [`services/workflow.py`](apps/sales/services/workflow.py) — race-safe SO workflow with conditional UPDATE.
+- [`services/atp.py`](apps/sales/services/atp.py) — `compute_atp` reads on-hand + open PO arrivals − committed open SO; never writes.
+- [`services/ctp.py`](apps/sales/services/ctp.py) — `compute_ctp` walks released routing + work-center capacity to estimate completion; never alters the schedule.
+- [`services/shipping.py`](apps/sales/services/shipping.py) — `pick / pack / dispatch / confirm_delivery / cancel_shipment` with conditional UPDATE.
+- [`services/invoicing.py`](apps/sales/services/invoicing.py) — `generate_invoice_from_shipment` (idempotent on `(shipment_id)`) + `mark_invoice_paid`.
+
+### Cross-module hooks (apps/sales/signals.py)
+
+| # | Trigger | Effect | Idempotency key |
+|---|---|---|---|
+| 1 | `SalesOrder.post_save(status='confirmed')` | For each `SalesOrderLine.is_make_to_order=True` that hasn't already spawned one, draft a `pps.ProductionOrder` | `pps.ProductionOrder.source_sales_line` FK |
+| 2 | `Shipment.post_save(status='delivered')` | Emit one `inventory.StockMovement(type='shipment_out')` per `ShipmentLine` | `StockMovement.source_shipment_line` FK |
+| 3 | `Shipment.pre_delete` | Reverse every shipment_out movement before the row vanishes | same key |
+| 4 | `SalesInvoice.post_save(status='paid')` | Atomic `F('credit_used') - grand_total` on `Customer` | per-paid-save |
+
+These additions are accompanied by:
+
+- `apps/pps/ProductionOrder.source_sales_line` FK (nullable, `SET_NULL`).
+- `apps/inventory/StockMovement.source_shipment` + `.source_shipment_line` FKs (nullable, `SET_NULL`) plus a new `'shipment_out'` choice in `MOVEMENT_TYPE_CHOICES` and matching reversal entry in `apps/inventory/services/movements.reverse_movement` swap dict.
+- `apps/accounts/User.customer_company` FK + `'customer'` and `'sales'` role choices.
+
+### Customer Portal scoping
+
+Every view in the 17.5 group filters by `request.user.customer_company` BEFORE `request.tenant` — a portal user from one customer cannot see another customer's orders, shipments, or invoices even within the same tenant. Mirrors the existing `procurement.Supplier` / `supplier_company` portal pattern in [`apps/procurement/`](apps/procurement/).
+
+### Routes (UI tour)
+
+| Route | What you'll see |
+|-------|----------------|
+| `/sales/` | Sales dashboard — KPI cards (customers, communications, price lists) + recent activity |
+| `/sales/customers/` | Customer list with status / class / category filters; Add Customer button |
+| `/sales/customers/<pk>/` | Customer detail with Contacts / Communications / Documents tabs and credit panel |
+| `/sales/categories/` | Customer category list with hierarchical parent display |
+| `/sales/pricelists/` · `/sales/pricelists/<pk>/` | Price list list + detail with inline item CRUD |
+| `/sales/communications/` | Global communication log with type / direction / status filters |
+| `/sales/orders/` | Sales order list with status / priority / credit-hold / customer filters |
+| `/sales/orders/<pk>/` | SO detail with line CRUD, totals tfoot, workflow sidebar (Submit / Confirm / Release credit hold / Hold / Resume / Cancel / Revise) and Workflow Log / Revisions tabs |
+| `/sales/atp/` · `/sales/atp/new/` · `/sales/atp/<pk>/` | ATP request form + history + per-calc breakdown |
+| `/sales/ctp/` · `/sales/ctp/new/` · `/sales/ctp/<pk>/` | CTP request form + history + operation trace |
+| `/sales/shipments/` · `/sales/shipments/<pk>/` | Shipment list + detail with line CRUD, workflow buttons (pick / pack / dispatch / mark delivered / cancel) and POD link |
+| `/sales/shipments/<pk>/pod/` | Record proof of delivery (signature + photo, L-22 25 MB cap) |
+| `/sales/routes/` · `/sales/routes/<pk>/` | Delivery route list + detail with grouped shipments |
+| `/sales/invoices/` · `/sales/invoices/<pk>/` | Sales invoice list + detail with Issue / Mark Paid actions |
+| `/sales/invoices/from-shipment/<shipment_pk>/` | Idempotent draft-invoice generator from a delivered shipment |
+| `/sales/portal/` | Customer-portal dashboard (only when `request.user.customer_company` is set) |
+| `/sales/portal/orders/` · `/sales/portal/orders/<pk>/` | Customer-scoped order list + detail |
+| `/sales/portal/shipments/<pk>/tracking/` | Visual stepper tracking page |
+| `/sales/portal/invoices/` · `/sales/portal/invoices/<pk>/` | Customer-scoped invoice list + detail |
+| `/sales/portal/documents/<pk>/download/` | Auth-gated, customer-scoped document download |
+
+### Test suite
+
+Run with `pytest apps/sales/tests/` — **~80+ test cases** spanning model auto-numbering and tenant isolation ([`test_models.py`](apps/sales/tests/test_models.py)), form L-22 file validation ([`test_forms.py`](apps/sales/tests/test_forms.py)), CRUD smoke + filter regression ([`test_views.py`](apps/sales/tests/test_views.py)), cross-tenant IDOR + 24-hour comm lock ([`test_security.py`](apps/sales/tests/test_security.py)), seed_sales idempotency ([`test_seeder.py`](apps/sales/tests/test_seeder.py)), full SO workflow + credit-check + MTO auto-PO signal + revision snapshots ([`test_workflow_so.py`](apps/sales/tests/test_workflow_so.py)), ATP edge cases incl. committed-SO subtraction ([`test_services_atp.py`](apps/sales/tests/test_services_atp.py)), CTP with / without released routing ([`test_services_ctp.py`](apps/sales/tests/test_services_ctp.py)), shipment workflow + StockMovement signal idempotency ([`test_services_shipping.py`](apps/sales/tests/test_services_shipping.py)), invoice generation idempotency + paid → credit_used denorm ([`test_services_invoicing.py`](apps/sales/tests/test_services_invoicing.py)), and portal scoping (cross-customer 404, unlinked user redirect) ([`test_portal.py`](apps/sales/tests/test_portal.py)).
+
+### Out of scope (deferred per Module-17 plan)
+
+- **`SalesQuotation`** (Quote → SO conversion) — deferred per plan §10. Direct SO entry only.
+- **EDI / carrier API integration** (FedEx / UPS / DHL) — `carrier_name` + `tracking_number` remain free text.
+- **Tax engine** — line `tax_pct` only; no jurisdiction-aware engine.
+- **Multi-currency FX revaluation** — `currency` field is stored but no conversion.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -2441,8 +2685,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_cost [--flush] [--tenant <slug>]` | Seed Cost Management & Accounting demo data per tenant (3 accounting periods, 5 cost drivers, 5 overhead pools + 10 rates, 1 active `StandardCostVersion` with ~13 cost rows pulled from BOM rollups, JobCost + WIPEntry chains for every released/in-progress/completed PO, applied overhead allocations for the prior period, 1 CostVariance per closed job, ActualCost rollups, 1 COGMReport + 1 PlantPnLReport for the prior period) |
 | `python manage.py seed_utility [--flush] [--tenant <slug>]` | Seed Energy & Utility Management demo data per tenant (6 utility types, 4 meters incl. 1 sub-meter, 5 tariffs, 4 TOU bands, 1 scheduled DemandResponseEvent, 5 emission factors, ~120 UtilityConsumption rows spanning prior + current periods — electricity meters route via `eam.AssetMeterReading` to prove the auto-feed signal — auto-cascaded CarbonEmission ledger, 1 UtilityAllocation per metered cost-center with matching `cost.DriverActuals` write-through, 2 SustainabilityKPI snapshots, 2 BenchmarkSnapshot rows, 1 period-over-period BenchmarkComparison) |
 | `python manage.py seed_iot [--flush] [--tenant <slug>]` | Seed Module 15 (IoT & SCADA) demo data per tenant — 6 shared `DeviceProtocol` rows (MQTT / OPC-UA / Modbus TCP+RTU / HTTP / CoAP), 2 brokers, 6 devices linked to seeded `eam.Asset` rows, ~24 tags across temperature / vibration / pressure / electrical_load / state, 5 `LossReason` rows, 4 `AlertRule` rows (threshold, zscore, missing data), ~120 `IoTReading` rows + 2 deliberately anomalous rows that cascade into `AnomalyDetection` + `AlertNotification`, 3 `DigitalTwin` rows with attributes (incl. derived formulas) + 1 completed scenario + 1 snapshot, 7d × 3 assets of `OEEPeriod` rows, and ~5 `EdgeProcessor` rows. Idempotent — skips per-tenant if already seeded. |
+| `python manage.py seed_sales [--flush] [--tenant <slug>]` | Seed Module 17 (Sales) 17.1 demo data per tenant — 4 customer categories, 2 price lists (default + VIP) with 6 tiered items where Products exist, 8 customers covering key / standard / distributor / one-time / on_hold classes with seeded credit limits, 24 contacts (3 per customer with primary flag), and 5 communication-log entries across call / email / meeting / note / sms. Idempotent. |
 | `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` + `seed_bi` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (122 tests, uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 Phase A compliance regression tests (D-CR-01..08), 7 Phase C audit-chain tests (`test_audit_chain.py`), and 10 Phase C e-signature binding tests (`test_compliance_esignature.py`) |
@@ -2459,6 +2704,9 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `pytest apps/cost/tests/` | Run the Cost Management & Accounting test suite (129 tests, ~50 s; covers model invariants + auto-numbering (SCV / JC / WIP / OHA / VAR / ACP / COGM) + denorm computations (StandardCost.total_cost / OverheadRate.rate_per_driver_unit / OverheadAllocation.applied_amount / JobCost.wip_balance / COGMReport.cogm / GrossMarginReport.gross_margin/margin_percent / PlantPnLReport.gross_profit/operating_income / CostVariance.total_variance), form validation (L-01 unique_together, L-02 decimal bounds, L-14 per-workflow required, DriverActuals XOR, date range), pure-function services (recompute_from_bom, compare_versions, compute_actual, compute_variances, post_wip_entry, close_job, reverse_wip_entry, compute_operation_rollup, compute_rate, apply_overhead idempotent rerun + closed-period refusal, reverse_overhead, accumulate_indirect_labor, generate_cogm, generate_plant_pnl), cross-module hooks (labor.LaborBooking(direct) -> WIPEntry(labor_applied) with idempotency, mes.ProductionReport(good_qty) -> WIPEntry(completion) at standard cost), audit factory + L-18 dispatch_uid presence guard, RBAC matrix, multi-tenant IDOR, anonymous-redirect on 17 list URLs) |
 | `pytest apps/eam/tests/` | Run the EAM test suite (119 tests, ~58 s; covers model invariants + auto-numbering + decimal validators, form validation (L-01 unique_together for category / spare part / plan / point / cavity, L-02 decimal bounds, L-14 per-workflow required for MWO complete + prediction resolve + PM completion), pure-function services (`generate_upcoming_pm`, `classify_reading`, `compute_downtime`, `bump_tool_life`), audit signals + L-18 dispatch_uid presence guard, ConditionReading-spawns-FailurePrediction signal path with idempotency, DowntimeEvent-refreshes-MWO denorm, cross-module hooks (`mes.AndonAlert` → breakdown MWO with no-asset-link skip + non-equipment-type skip), full CRUD smoke + MWO/PM/prediction workflow, RBAC matrix (staff blocked from create/delete/retire/cancel/resolve while still allowed to record readings + start work), multi-tenant IDOR, anonymous-redirect) |
 | `pytest apps/utility/tests/` | Run the Energy & Utility test suite (**222 tests, ~102 s** after the D-01..D-10 remediation pass; covers everything in the original 188 PLUS effective-dated tariff/factor correctness (D-01, D-02), CSV import validation + datetime-parsed dedup (D-03, D-06), TOU band duplicate pre-check (D-04), ISO-4217 currency (D-05), `compute_estimated_savings` heuristic guard (D-07), admin-only `CarbonEmissionReverseView` (D-08), audit-emit failure logging (D-09), `BenchmarkSnapshot.tenant_objects.for_tenant` IDOR guard against the tenant=NULL industry-avg row (D-10), and N+1 query budgets for the four primary list views + dashboard) |
+| `python manage.py seed_bi [--flush] [--tenant <slug>]` | Seed Module 16 (Business Intelligence) demo data per tenant — 9 `KPIDefinition` rows (OEE / throughput / yield / scrap_rate / on_time_delivery / supplier_otd / gross_margin / energy_intensity / carbon_intensity), 1 `KPIDashboard` (Plant Operations) with 6 `KPIWidget` placements, 9 tenant-scope `KPISnapshot` rows materialized for the last 30 days, 6 `ReportDataSource` catalog rows (production_orders / production_reports / non_conformance_reports / oee_periods / supplier_invoices / utility_consumption), 1 `ReportDefinition` (Daily Production Summary) with 4 fields + 1 completed `ReportRun`, 2 `PredictiveModel` rows (demand_forecast + failure_likelihood) with 1 completed `PredictionRun`, 1 `DataMart` (Production Daily) with 5 columns + 1 materialized `DataMartSnapshot`, 1 weekly `ReportSchedule` with 1 `ReportRecipient`. Idempotent — skips per-tenant if already seeded. |
+| `python manage.py run_report_schedules [--tenant <slug>]` | Cron-style sweeper — executes every active `ReportSchedule` whose `next_run_at <= now`. Renders the bound report or dashboard, persists a `ReportExport`, fans out `ReportDelivery` rows, sends email via Django `send_mail` (console backend in dev). Idempotent within the second; advances `next_run_at` per the schedule's frequency. Intended for cron / Windows Task Scheduler. |
+| `pytest apps/bi/tests/` | Run the Business Intelligence test suite (93 tests, ~110 s; covers model invariants + auto-numbering (RPT / RR / PR / TA / DM / SCH / EXP / DLV), snapshot delta math, KPI classification both directions, linear regression / rolling avg / chart trend / naive_seasonal pure-Python math, REGISTERED_SOURCES whitelist enforcement, form validation (L-01 unique_together for every tenant-scoped form, L-14 cancellation / disable reasons, XOR Report-or-Dashboard on `ReportScheduleForm`, custom-frequency cron requirement, registry-code gating on `ReportDataSourceForm`), audit factory + L-18 `dispatch_uid` presence guard, HTTP CRUD smoke on 14 list pages + 3 create handlers, multi-tenant IDOR (cross-tenant 404 on 6 detail URLs), RBAC matrix (staff blocked from 4 admin-only create endpoints), anonymous-redirect on 14 list URLs, `seed_bi` idempotency + count assertions) |
 | `pytest apps/iot/tests/` | Run the IoT & SCADA test suite (~150 tests across 13 files: `test_models`, `test_forms`, `test_services`, `test_signals`, `test_views`, `test_views_workflow`, `test_views_crud`, `test_security`, `test_audit_log`, `test_performance`, `test_oee_service`, `test_anomaly_extras`, `test_seeder`. Covers model invariants + auto-numbering (BRK / DEV / IR / IRB / DT / TSC / OEEP / AR / AD), `OEEPeriod.recompute_pcts()` math (incl. zero-division safety), form validation (L-01 unique_together, L-14 resolution_notes required at resolve / false_positive, AlertRule XOR scope), pure-function services (anomaly z-score / IQR / runs_rule / threshold / range / rate-of-change branches, edge rolling_avg / sum / min / max / threshold_count / derivative, twin `_safe_eval` whitelist parser with explicit `__import__` / `exec` / `lambda` / attribute access / `**` operator / undefined-variable rejection), signal cascades (`IoTReading→StreamMetric` aggregates, `IoTReading→AnomalyDetection` with cooldown suppression and inactive-rule skip, fanout to `AlertNotification` per channel, idempotency on resave), audit factory + L-18 dispatch_uid presence guard for 8 audited models, full HTTP CRUD + every workflow POST handler (retire / reactivate / activate / archive / snapshot / scenario_run / rule activate / detection acknowledge-resolve-false_positive / OEE recompute / broker heartbeat), N+1 query budgets on dashboard + 4 list views, RBAC matrix (staff blocked from broker / device / rule mutations + anomaly resolve), multi-tenant IDOR (404 cross-tenant on every detail URL), broker password not exposed in list response, JSON bulk-ingest happy + error paths, `seed_iot` idempotency + fixture-count assertions) |
 
 ---
@@ -2504,7 +2752,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Modules 1-15** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, and IoT & SCADA. The 7 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Modules 1-17** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, IoT & SCADA, Business Intelligence & Analytics, and Sales & Customer Order Management. The 5 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -2520,8 +2768,8 @@ Phase 1 (this release) covers the platform + **Modules 1-15** — Tenant & Subsc
 13. ~~Compliance & Regulatory Management~~ ✅ shipped
 14. ~~Energy & Utility Management~~ ✅ shipped
 15. ~~IoT & SCADA Integration~~ ✅ shipped
-16. Business Intelligence & Analytics
-17. Sales & Customer Order Management
+16. ~~Business Intelligence & Analytics~~ ✅ shipped
+17. ~~Sales & Customer Order Management~~ ✅ shipped
 18. Returns & RMA
 19. Document & Knowledge Management
 20. Workflow & Business Process Automation
