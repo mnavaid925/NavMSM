@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.sales_order.code }}</span></h4>
+        <div class="text-muted small">{{ obj.sales_order.customer.name }} · Invoice {{ obj.invoice_date|date:"M j, Y" }} · Due {{ obj.due_date|default:"-" }}</div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'paid' %}success-subtle text-success{% elif obj.status == 'issued' %}primary-subtle text-primary{% elif obj.status == 'overdue' %}danger-subtle text-danger{% elif obj.status == 'cancelled' %}secondary-subtle text-secondary{% else %}warning-subtle text-warning{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.status == 'draft' %}<a href="{% url 'sales:invoice_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Lines ({{ lines|length }})</h5>
+            {% if obj.status == 'draft' %}<a href="{% url 'sales:invoice_line_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Line</a>{% endif %}
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Description</th><th class="text-end">Qty</th><th class="text-end">Unit</th><th class="text-end">Disc %</th><th class="text-end">Tax %</th><th class="text-end">Line Total</th><th></th></tr></thead>
+            <tbody>
+            {% for l in lines %}
+                <tr>
+                    <td class="small">{{ l.description }}</td>
+                    <td class="text-end small">{{ l.qty }}</td>
+                    <td class="text-end small">{{ l.unit_price }}</td>
+                    <td class="text-end small">{{ l.line_discount_pct }}</td>
+                    <td class="text-end small">{{ l.line_tax_pct }}</td>
+                    <td class="text-end small fw-semibold">{{ l.line_total }}</td>
+                    <td class="text-end">
+                        {% if obj.status == 'draft' %}<form method="post" action="{% url 'sales:invoice_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No lines.</td></tr>{% endfor %}
+            </tbody>
+            <tfoot>
+                <tr><th colspan="5" class="text-end">Subtotal</th><th class="text-end">{{ obj.subtotal }}</th><th></th></tr>
+                <tr><th colspan="5" class="text-end">Discount</th><th class="text-end">-{{ obj.discount_total }}</th><th></th></tr>
+                <tr><th colspan="5" class="text-end">Tax</th><th class="text-end">{{ obj.tax_total }}</th><th></th></tr>
+                <tr><th colspan="5" class="text-end">Shipping</th><th class="text-end">{{ obj.shipping_total }}</th><th></th></tr>
+                <tr class="table-active"><th colspan="5" class="text-end">Grand Total</th><th class="text-end h5 mb-0">{{ obj.grand_total }}</th><th></th></tr>
+            </tfoot>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Actions</h6>
+            {% if obj.status == 'draft' %}<form method="post" action="{% url 'sales:invoice_issue' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-send-plane-line me-1"></i> Issue Invoice</button></form>{% endif %}
+            {% if obj.status == 'issued' or obj.status == 'overdue' %}<form method="post" action="{% url 'sales:invoice_mark_paid' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-money-dollar-circle-line me-1"></i> Mark Paid</button></form>{% endif %}
+            {% if obj.status == 'draft' %}<form method="post" action="{% url 'sales:invoice_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete draft invoice?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete Draft</button></form>{% endif %}
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Payment</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-6">Grand total</dt><dd class="col-sm-6">{{ obj.grand_total }}</dd>
+                <dt class="col-sm-6">Amount paid</dt><dd class="col-sm-6">{{ obj.amount_paid }}</dd>
+            </dl>
+        </div></div>
+        <div class="mt-3"><a href="{% url 'sales:invoice_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a></div>
+    </div>
+</div>
+{% endblock %}
