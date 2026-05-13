@@ -8,6 +8,7 @@ paginates. Filter context fed back to the template via the existing
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -186,6 +187,16 @@ def customer_delete_view(request, pk):
 def customer_toggle_active_view(request, pk):
     obj = get_object_or_404(Customer, pk=pk, tenant=request.tenant)
     if request.method == 'POST':
+        # Only toggle between active and inactive. On-hold and blacklisted
+        # are workflow states that should be changed via the Edit form so
+        # the user is forced to acknowledge the implications.
+        if obj.status not in ('active', 'inactive'):
+            messages.error(
+                request,
+                f'Customer is {obj.get_status_display()}; '
+                'use the Edit form to change this status.',
+            )
+            return redirect('sales:customer_detail', pk=obj.pk)
         obj.status = 'inactive' if obj.status == 'active' else 'active'
         obj.save(update_fields=['status', 'updated_at'])
         messages.info(request, f'Customer is now {obj.get_status_display()}.')
@@ -363,8 +374,13 @@ def document_delete_view(request, pk):
     obj = get_object_or_404(CustomerDocument, pk=pk, tenant=request.tenant)
     customer_pk = obj.customer_id
     if request.method == 'POST':
-        obj.file.delete(save=False)
-        obj.delete()
+        # Delete the row first, file only after the DB commit lands. If the
+        # transaction rolls back, the file is preserved instead of being
+        # orphaned out from under a still-pointing-at-it row.
+        file_field = obj.file
+        with transaction.atomic():
+            obj.delete()
+            transaction.on_commit(lambda f=file_field: f.delete(save=False))
         messages.success(request, 'Document removed.')
     return redirect('sales:customer_detail', pk=customer_pk)
 
@@ -517,7 +533,7 @@ def pricelist_delete_view(request, pk):
 def pricelist_item_add_view(request, pricelist_pk):
     pl = get_object_or_404(PriceList, pk=pricelist_pk, tenant=request.tenant)
     if request.method == 'POST':
-        form = PriceListItemForm(request.POST, tenant=request.tenant)
+        form = PriceListItemForm(request.POST, tenant=request.tenant, price_list=pl)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.tenant = request.tenant
@@ -526,7 +542,7 @@ def pricelist_item_add_view(request, pricelist_pk):
             messages.success(request, 'Item added.')
             return redirect('sales:pricelist_detail', pk=pl.pk)
     else:
-        form = PriceListItemForm(tenant=request.tenant)
+        form = PriceListItemForm(tenant=request.tenant, price_list=pl)
     return render(request, 'sales/pricelists/item_form.html', {
         'form': form, 'pricelist': pl, 'mode': 'create',
     })
@@ -1391,10 +1407,13 @@ def invoice_delete_view(request, pk):
 @login_required
 def invoice_issue_view(request, pk):
     obj = get_object_or_404(SalesInvoice, pk=pk, tenant=request.tenant)
-    if request.method == 'POST' and obj.status == 'draft':
-        obj.status = 'issued'
-        obj.save(update_fields=['status', 'updated_at'])
-        messages.success(request, 'Invoice issued.')
+    from apps.sales.services.invoicing import issue_invoice
+    if request.method == 'POST':
+        try:
+            issue_invoice(obj, performed_by=request.user)
+            messages.success(request, 'Invoice issued.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
     return redirect('sales:invoice_detail', pk=obj.pk)
 
 
