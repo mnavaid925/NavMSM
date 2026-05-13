@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Run {{ run.run_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Run {{ run.run_number }}</h4>
+        <div class="text-muted small">{{ run.report.name }} &middot; {{ run.run_at|date:'Y-m-d H:i' }} &middot; by {{ run.run_by|default:'-' }}</div>
+    </div>
+    <a href="{% url 'bi:report_detail' run.report.pk %}" class="btn btn-sm btn-outline-secondary">Back to Report</a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Status</div><h5 class="mb-0">{{ run.get_status_display }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Rows</div><h5 class="mb-0">{{ run.row_count }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Duration (ms)</div><h5 class="mb-0">{{ run.duration_ms }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Run by</div><h5 class="mb-0">{{ run.run_by|default:'-' }}</h5></div></div></div>
+</div>
+
+{% if run.error_message %}
+<div class="alert alert-danger"><strong>Error:</strong> {{ run.error_message }}</div>
+{% endif %}
+
+<div class="card"><div class="card-body">
+    <h6 class="mb-3">Preview (first 50 rows)</h6>
+    {% if run.result_preview %}
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr>{% for key in run.result_preview.0.keys %}<th>{{ key }}</th>{% endfor %}</tr></thead>
+            <tbody>{% for row in run.result_preview %}<tr>{% for v in row.values %}<td class="small">{{ v|default:'-' }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table></div>
+    {% else %}
+        <div class="text-muted small">No preview rows.</div>
+    {% endif %}
+</div></div>
+{% endblock %}
