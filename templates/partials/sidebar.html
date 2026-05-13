@@ -390,7 +390,7 @@
                 </li>
                 {% endif %}
 
-                {% if request.user.role != 'supplier' %}
+                {% if request.user.role != 'supplier' and request.user.role != 'customer' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarSales" data-bs-toggle="collapse" role="button" aria-expanded="false">
                         <i class="ri-shopping-cart-2-line"></i> <span>Sales &amp; Customer Orders</span>
