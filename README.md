@@ -929,6 +929,51 @@ NavMSM/
 │   │                             # 7d × 3 assets of OEE periods + 5 edge
 │   │                             # processors)
 │   │
+│   ├── sales/                    # MODULE 17 — Sales & Customer Order Management
+│   │   ├── models.py             # CustomerCategory, PriceList, PriceListItem,
+│   │   │                         # Customer, CustomerContact, CommunicationLog,
+│   │   │                         # CustomerDocument, SalesOrder, SalesOrderLine,
+│   │   │                         # SalesOrderRevision, SalesOrderApprovalLog,
+│   │   │                         # ATPCalculation, CTPCalculation, OrderPromise,
+│   │   │                         # DeliveryRoute, Shipment, ShipmentLine,
+│   │   │                         # ProofOfDelivery, SalesInvoice, SalesInvoiceLine
+│   │   ├── services/
+│   │   │   ├── numbering.py      # next_code helper (atomic auto-numbering)
+│   │   │   ├── pricing.py        # resolve_price walks customer PL -> tenant
+│   │   │   │                     # default PL -> product list_price
+│   │   │   ├── credit.py         # check_credit (blacklist, status, over-limit,
+│   │   │   │                     # overdue invoices)
+│   │   │   ├── workflow.py       # SalesOrder workflow: submit / confirm /
+│   │   │   │                     # release_credit_hold / cancel / hold /
+│   │   │   │                     # resume / revise (race-safe conditional UPDATE)
+│   │   │   ├── atp.py            # Available-to-Promise (pure read; on-hand
+│   │   │   │                     # + open PO arrivals - committed SO)
+│   │   │   ├── ctp.py            # Capable-to-Promise walking released routing
+│   │   │   │                     # + work-center capacity
+│   │   │   ├── shipping.py       # pick / pack / dispatch / confirm_delivery /
+│   │   │   │                     # cancel_shipment with conditional UPDATE
+│   │   │   └── invoicing.py      # generate_invoice_from_shipment (idempotent
+│   │   │                         # on shipment FK) + mark_invoice_paid
+│   │   ├── signals.py            # MTO auto-PO on SO confirm (idempotent on
+│   │   │                         # ProductionOrder.source_sales_line);
+│   │   │                         # Shipment delivered -> StockMovement(shipment_out)
+│   │   │                         # (idempotent on source_shipment_line);
+│   │   │                         # Shipment pre_delete -> reverse movements;
+│   │   │                         # SalesInvoice paid -> Customer.credit_used drop
+│   │   ├── forms.py              # 14 ModelForms with tenant-scoped FK querysets
+│   │   │                         # + L-22 file validators (25 MB cap / allowlist)
+│   │   ├── views.py              # ~70 views across 5 sub-modules incl. portal
+│   │   ├── urls.py               # ~55 URL patterns under sales namespace
+│   │   ├── admin.py
+│   │   ├── tests/                # conftest + test_models / test_forms /
+│   │   │                         # test_views / test_security / test_seeder /
+│   │   │                         # test_workflow_so / test_services_atp /
+│   │   │                         # test_services_ctp / test_services_shipping /
+│   │   │                         # test_services_invoicing / test_portal
+│   │   └── management/commands/
+│   │       ├── seed_sales.py             # Idempotent demo seeder per tenant
+│   │       └── recompute_credit_used.py  # Repair credit_used denorm drift
+│   │
 │   ├── bi/                       # MODULE 16 — Business Intelligence & Analytics
 │   │   ├── models.py             # KPIDefinition, KPIDashboard, KPIWidget,
 │   │   │                         # KPISnapshot, ReportDataSource,
@@ -1024,7 +1069,8 @@ NavMSM/
 │   ├── cost/                     # index, standard_versions/, standard_costs/, actual_costs/, variances/, jobs/, wip_entries/, cost_drivers/, overhead_pools/, overhead_rates/, driver_actuals/, overhead_allocations/, periods/, cogm/, gross_margin/, plant_pnl/
 │   ├── utility/                  # index, types/, meters/, consumption/, tariffs/, allocations/, dr_events/, peak/, factors/, emissions/, sustainability/, benchmarks/, reports/
 │   ├── iot/                      # index, protocols/, brokers/, devices/, tags/, readings/, batches/, edge_processors/, stream_metrics/, twins/, twin_attributes/, twin_scenarios/, oee/{dashboard,periods,state_logs,loss_reasons}, alerts/{rules,detections,notifications}
-│   └── bi/                       # index, _pagination, kpi/{definitions_list,definition_form,definition_detail,snapshots_list}, dashboards/{list,form,detail}, widgets/{form}, reports/{data_source_list,data_source_form,definitions_list,definition_form,definition_detail,run_list,run_detail}, predictive/{models_list,model_form,model_detail,run_list,run_detail,run_cancel,trend_list}, datamarts/{list,form,detail}, distribution/{schedule_list,schedule_form,schedule_detail,schedule_disable,delivery_list,delivery_detail,export_list}
+│   ├── bi/                       # index, _pagination, kpi/{definitions_list,definition_form,definition_detail,snapshots_list}, dashboards/{list,form,detail}, widgets/{form}, reports/{data_source_list,data_source_form,definitions_list,definition_form,definition_detail,run_list,run_detail}, predictive/{models_list,model_form,model_detail,run_list,run_detail,run_cancel,trend_list}, datamarts/{list,form,detail}, distribution/{schedule_list,schedule_form,schedule_detail,schedule_disable,delivery_list,delivery_detail,export_list}
+│   └── sales/                    # index, _pagination, customers/{list,form,detail,contact_form,communication_form,communication_list,document_upload}, categories/{list,form}, pricelists/{list,form,detail,item_form}, orders/{list,form,detail,line_form,revision_detail}, promising/{atp_list,atp_request,atp_detail,ctp_list,ctp_request,ctp_detail}, routes/{list,form,detail}, shipments/{list,form,detail,line_form,pod_form}, invoices/{list,form,detail,line_form}, portal/{dashboard,order_list,order_detail,tracking,invoice_list,invoice_detail}
 │
 └── static/
     ├── css/style.css             # blue + white theme, all layout variants
@@ -1734,7 +1780,7 @@ Run the QMS test suite with `pytest apps/qms/tests/` — uses [`config/settings_
 - **Procurement integration** — IQC's `supplier_name` / `po_reference` are free-text strings until Module 9 (Procurement) ships and provides the FK.
 - **Real PDF CoA generation** — v1 is HTML + browser print-to-PDF; `xhtml2pdf` / WeasyPrint server-side rendering is a follow-up.
 - **MES Andon auto-raise on critical NCR** — placeholder hook only; the actual `mes.AndonAlert` auto-creation is deferred (don't want to entangle the MES tests).
-- **Customer portal CoA self-serve** — `released_to_customer` flag is set, but the customer-facing surface is Module 17 (Sales) territory.
+- **Customer portal CoA self-serve** — `released_to_customer` flag is set; surfacing the CoA on the [Module 17 customer portal](#module-17--sales--customer-order-management) is straightforward but not wired into the v1 portal templates yet.
 - **Statistical capability indices (Cp / Cpk / Pp / Ppk)** — only UCL / LCL / CL + Western Electric rules 1 – 4 ship in v1.
 - **p / np / c / u attribute-chart limit math** — model fields exist; the formula coverage will land in a follow-up alongside Cp/Cpk.
 - **Gage R&R studies** — calibration covers single-instrument tolerance; multi-operator/multi-trial reproducibility study is deferred.
@@ -1839,7 +1885,7 @@ Run the inventory test suite with `pytest apps/inventory/tests/` — uses [`conf
 - **Procurement integration** — `GRN.supplier_name` / `po_reference` are free-text strings until Module 9 ships and provides the FK.
 - **Real-time barcode / RFID** — UI-driven workflow only in v1; REST endpoints for hardware are a follow-up.
 - **WMS slot optimization** — directed putaway is rule-based (no genetic / ILP solver).
-- **Wave / batch picking** — release picking is single-line v1; multi-order wave is a Module 17 (Sales) concern.
+- **Wave / batch picking** — release picking is single-line v1; multi-order wave is deferred. [Module 17](#module-17--sales--customer-order-management) ships single-shipment picking; multi-order wave grouping (route-based pick lists) is a v2 enhancement.
 - **Negative stock** — operational moves (`receipt` / `issue` / `transfer`) reject. Adjustments + cycle counts can drive a bin to zero but never below; full back-orders / consigned stock is a follow-up.
 
 ---
@@ -2184,7 +2230,7 @@ Module 12 is implemented in [`apps/cost/`](apps/cost/) with full CRUD across 5 s
 
 - **`AccountingPeriod`** — auto-numbered **`ACP-00001`** monthly (or quarterly) period with workflow `open → locked → closed`. Lock refuses new posts; close is irreversible and auto-generates the period's COGM / margin / P&L reports.
 - **`COGMReport`** — auto-numbered **`COGM-00001`** with computed `cogm = opening_wip + direct_materials + direct_labor + overhead_applied − closing_wip`.
-- **`GrossMarginReport`** — per-product per-period row with `revenue = units × sale_price`, `cogs = units × actual_cost_per_unit`, `gross_margin = revenue − cogs`, `margin_percent = gross_margin / revenue × 100`. Uses `plm.Product.standard_sale_price` (added by [`apps/plm/migrations/0004_product_standard_sale_price.py`](apps/plm/migrations/) as a **placeholder until Module 17 — Sales** lands).
+- **`GrossMarginReport`** — per-product per-period row with `revenue = units × sale_price`, `cogs = units × actual_cost_per_unit`, `gross_margin = revenue − cogs`, `margin_percent = gross_margin / revenue × 100`. Uses `plm.Product.standard_sale_price` as the v1 unit-price source; switching to `sales.SalesInvoiceLine` aggregates is a follow-up swap now that [Module 17 (Sales)](#module-17--sales--customer-order-management) has shipped.
 - **`PlantPnLReport`** — period-level P&L with `gross_profit = revenue − cogm`, `operating_income = gross_profit − selling − general_admin − unallocated_overhead`. SG&A and unallocated-overhead inputs are manual (no SG&A schema in v1).
 - All three reports render on the period detail page as compact tiles. The COGM detail page renders an ApexCharts horizontal bar of buckets; the P&L detail page renders a waterfall-style bar; both expose a **Print / PDF** action that uses the browser's print dialog (mirrors QMS CoA pattern).
 
@@ -2241,7 +2287,7 @@ Run the Cost test suite with `pytest apps/cost/tests/` — uses [`config/setting
 
 - **Double-entry GL integration** — single-sided typed entries in v1; double-entry deferred to Module 21 (API & Integration Gateway).
 - **Multi-currency** — single tenant currency in v1.
-- **Real revenue feed** — `GrossMarginReport.unit_sale_price` reads `plm.Product.standard_sale_price` placeholder; replaced with `SalesOrderLine` aggregates when Module 17 (Sales) ships.
+- **Real revenue feed** — `GrossMarginReport.unit_sale_price` reads `plm.Product.standard_sale_price` placeholder; the swap to `sales.SalesOrderLine` / `sales.SalesInvoiceLine` aggregates is a follow-up now that [Module 17 (Sales)](#module-17--sales--customer-order-management) has shipped.
 - **FIFO / Average / LIFO costing methods** — standard costing only in v1.
 - **Variance math precision** — v1 uses a 60/40 heuristic split between price/usage and rate/efficiency; full variance math requires per-component qty + per-op minutes tracking on `ActualCost`, deferred.
 - **Capex / Opex budgeting** — out of scope; deferred to Module 16 (BI & Analytics).
@@ -2316,7 +2362,7 @@ Module 13 is implemented in [`apps/compliance/`](apps/compliance/) with full CRU
 
 ## Module 14 — Energy & Utility Management
 
-Module 14 is implemented in [`apps/utility/`](apps/utility/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` (except the `BenchmarkSnapshot` industry-average row which is intentionally tenant-`NULL`) and every query is scoped via `request.tenant`. **Module 17 (Sales & Customer Order Management) is still deferred**, so utility cost flows reach the GL via the existing `cost.DriverActuals` → `cost.OverheadAllocation` pipeline rather than through revenue. All cross-module integration is additive — Module 14 owns no schema changes outside its own app.
+Module 14 is implemented in [`apps/utility/`](apps/utility/) with full CRUD across 5 sub-modules. Every model is `TenantAwareModel` (except the `BenchmarkSnapshot` industry-average row which is intentionally tenant-`NULL`) and every query is scoped via `request.tenant`. Utility cost flows reach the GL via the existing `cost.DriverActuals` → `cost.OverheadAllocation` pipeline; revenue-per-utility intensity ratios via [Module 17 (Sales)](#module-17--sales--customer-order-management) `SalesInvoiceLine` aggregates are a follow-up swap. All cross-module integration is additive — Module 14 owns no schema changes outside its own app.
 
 ### Sub-module 14.1 — Utility Meter Integration
 
@@ -2406,7 +2452,7 @@ Run the Utility test suite with `pytest apps/utility/tests/` — uses [`config/s
 ### Out of scope (deferred)
 
 - **Live IoT / SCADA streaming** — v1 reads consumption from `eam.AssetMeterReading` writes (manual + EAM seed). Real OPC-UA / MQTT ingestion is deferred to **Module 15 (IoT & SCADA Integration)**.
-- **Real revenue feed** — sustainability + benchmark intensity ratios use `mes.ProductionReport.good_qty` for the denominator. Revenue-per-kWh and cost-per-revenue intensity metrics wait for **Module 17 (Sales & Customer Order Management)**.
+- **Real revenue feed** — sustainability + benchmark intensity ratios use `mes.ProductionReport.good_qty` for the denominator. Revenue-per-kWh and cost-per-revenue intensity metrics can now be wired through [Module 17 (Sales)](#module-17--sales--customer-order-management) `SalesInvoiceLine` aggregates (follow-up).
 - **Renewable / on-site generation accounting** — solar / wind / battery export rows (`generation = generated − exported`) are not modelled in v1; treat on-site generation as a negative `UtilityConsumption` for now and tighten when a dedicated `GenerationAsset` model lands.
 - **Multi-currency tariffs** — `UtilityTariff.currency` is a 3-letter code but every tenant runs a single currency in v1; cross-currency conversion happens upstream of the cost app.
 - **Regulatory disclosure rendering** — CDP / TCFD / GRI / ESG framework templates are out of scope; **Module 13 (Compliance & Regulatory)** owns the disclosure layer when it ships.
