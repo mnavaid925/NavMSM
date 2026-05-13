@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Customer Portal{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{{ customer.name }} - Portal</h4>
+    <div class="text-muted small">Welcome to your customer self-service portal.</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open Orders</div>
+        <div class="h3 mb-0">{{ kpi.open_orders|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">In-Transit Shipments</div>
+        <div class="h3 mb-0 text-primary">{{ kpi.in_transit_shipments|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Unpaid Invoices</div>
+        <div class="h3 mb-0 text-warning">{{ kpi.unpaid_invoices|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Outstanding Balance</div>
+        <div class="h3 mb-0">{{ kpi.total_outstanding|default:0 }} {{ customer.currency }}</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Orders</h5>
+        <table class="table table-sm">
+            <thead><tr><th>SO</th><th>Date</th><th>Status</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+            {% for o in recent_orders %}
+                <tr>
+                    <td class="small"><a href="{% url 'sales:portal_order_detail' o.pk %}">{{ o.code }}</a></td>
+                    <td class="small">{{ o.order_date|date:"M j, Y" }}</td>
+                    <td class="small">{{ o.get_status_display }}</td>
+                    <td class="text-end small">{{ o.grand_total }} {{ o.currency }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No orders yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        <a href="{% url 'sales:portal_order_list' %}" class="btn btn-outline-primary btn-sm">View All Orders</a>
+    </div></div></div>
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Shipments</h5>
+        <table class="table table-sm">
+            <thead><tr><th>Shipment</th><th>SO</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for s in recent_shipments %}
+                <tr>
+                    <td class="small"><a href="{% url 'sales:portal_shipment_tracking' s.pk %}">{{ s.code }}</a></td>
+                    <td class="small">{{ s.sales_order.code }}</td>
+                    <td class="small">{{ s.get_status_display }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No shipments yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+</div>
+{% endblock %}
