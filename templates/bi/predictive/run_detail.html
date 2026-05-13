@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Prediction Run {{ run.run_number }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>Prediction Run {{ run.run_number }}</h4>
+        <div class="text-muted small">{{ run.predictive_model.code }} &middot; {{ run.predictive_model.name }} &middot; {{ run.started_at|date:'Y-m-d H:i' }}</div>
+    </div>
+    <div class="d-flex gap-2">
+        {% if run.is_cancelable %}<a href="{% url 'bi:prediction_run_cancel' run.pk %}" class="btn btn-sm btn-outline-warning"><i class="ri-stop-line me-1"></i> Cancel</a>{% endif %}
+        <a href="{% url 'bi:predictive_model_detail' run.predictive_model.pk %}" class="btn btn-sm btn-outline-secondary">Back to Model</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Status</div><h5 class="mb-0">{{ run.get_status_display }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Results</div><h5 class="mb-0">{{ run.result_count }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Started</div><h5 class="mb-0">{{ run.started_at|date:'H:i:s' }}</h5></div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body"><div class="text-muted small">Finished</div><h5 class="mb-0">{{ run.finished_at|date:'H:i:s'|default:'-' }}</h5></div></div></div>
+</div>
+
+{% if run.error_message %}<div class="alert alert-danger"><strong>Error:</strong> {{ run.error_message }}</div>{% endif %}
+{% if run.cancellation_reason %}<div class="alert alert-warning"><strong>Cancelled:</strong> {{ run.cancellation_reason }}</div>{% endif %}
+
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Target</th><th>Period</th><th class="text-end">Predicted</th><th class="text-end">Lower</th><th class="text-end">Upper</th><th class="text-end">Confidence</th></tr></thead>
+    <tbody>
+    {% for r in results %}
+        <tr>
+            <td class="small">{{ r.target_label|default:r.target_pk }} <span class="text-muted small">({{ r.get_target_type_display }})</span></td>
+            <td class="small">{{ r.period_date }}</td>
+            <td class="small text-end fw-semibold">{{ r.predicted_value|floatformat:2 }}</td>
+            <td class="small text-end text-muted">{{ r.lower_bound|default:'-'|floatformat:2 }}</td>
+            <td class="small text-end text-muted">{{ r.upper_bound|default:'-'|floatformat:2 }}</td>
+            <td class="small text-end">{{ r.confidence_pct|floatformat:1 }}%</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No results.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div></div></div>
+{% endblock %}
