@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.sales_order.code }}</span></h4>
+        <div class="text-muted small">{{ obj.sales_order.customer.name }} · Carrier {{ obj.carrier_name|default:"-" }} · Tracking {{ obj.tracking_number|default:"-" }}</div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'delivered' %}success-subtle text-success{% elif obj.status == 'in_transit' %}primary-subtle text-primary{% elif obj.status == 'cancelled' or obj.status == 'returned' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.is_editable %}<a href="{% url 'sales:shipment_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Lines</h5>
+                {% if obj.is_editable %}<a href="{% url 'sales:shipment_line_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Line</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>SO Line</th><th>Product</th><th class="text-end">Qty to Ship</th><th class="text-end">Qty Shipped</th><th>Lot / Serial</th><th>Bin</th><th>Pick Status</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr>
+                        <td class="small">L{{ l.order_line.line_no }}</td>
+                        <td class="small">{{ l.order_line.product.code }} - {{ l.order_line.product.name }}</td>
+                        <td class="text-end small">{{ l.qty_to_ship }}</td>
+                        <td class="text-end small">{{ l.qty_shipped }}</td>
+                        <td class="small">{{ l.lot_no|default:"" }}{% if l.serial_no %} / {{ l.serial_no }}{% endif %}</td>
+                        <td class="small">{{ l.source_bin.code|default:"-" }}</td>
+                        <td class="small">{{ l.get_pick_status_display }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'sales:shipment_line_edit' l.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'sales:shipment_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">No lines yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+
+        {% if pod %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Proof of Delivery ({{ pod.code }})</h5>
+            <dl class="row">
+                <dt class="col-sm-3">Delivered at</dt><dd class="col-sm-9">{{ pod.delivered_at|date:"M j, Y H:i" }}</dd>
+                <dt class="col-sm-3">Received by</dt><dd class="col-sm-9">{{ pod.received_by_name|default:"-" }}</dd>
+                <dt class="col-sm-3">Recorded by</dt><dd class="col-sm-9">{{ pod.recorded_by|default:"-" }}</dd>
+                <dt class="col-sm-3">Signature</dt><dd class="col-sm-9">{% if pod.received_by_signature %}<a href="{{ pod.received_by_signature.url }}">View</a>{% else %}-{% endif %}</dd>
+                <dt class="col-sm-3">Photo</dt><dd class="col-sm-9">{% if pod.photo_attachment %}<a href="{{ pod.photo_attachment.url }}">View</a>{% else %}-{% endif %}</dd>
+                <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ pod.notes|linebreaksbr|default:"-" }}</dd>
+            </dl>
+        </div></div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            {% if obj.can_pick %}<form method="post" action="{% url 'sales:shipment_pick' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-checkbox-circle-line me-1"></i> Mark Picked</button></form>{% endif %}
+            {% if obj.can_pack %}<form method="post" action="{% url 'sales:shipment_pack' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-box-3-line me-1"></i> Mark Packed</button></form>{% endif %}
+            {% if obj.can_dispatch %}<form method="post" action="{% url 'sales:shipment_dispatch' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100"><i class="ri-truck-line me-1"></i> Dispatch</button></form>{% endif %}
+            {% if obj.can_deliver %}<form method="post" action="{% url 'sales:shipment_mark_delivered' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100"><i class="ri-checkbox-circle-line me-1"></i> Mark Delivered (auto-emits stock movement)</button></form>{% endif %}
+            {% if obj.can_cancel %}<form method="post" action="{% url 'sales:shipment_cancel' obj.pk %}" class="mb-2" onsubmit="return confirm('Cancel shipment?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-close-circle-line me-1"></i> Cancel</button></form>{% endif %}
+            {% if obj.status == 'delivered' and not pod %}<a href="{% url 'sales:pod_record' obj.pk %}" class="btn btn-outline-success btn-sm w-100 mb-2"><i class="ri-file-paper-2-line me-1"></i> Record POD</a>{% endif %}
+            {% if obj.status == 'delivered' %}<a href="{% url 'sales:invoice_from_shipment' obj.pk %}" class="btn btn-outline-primary btn-sm w-100 mb-2"><i class="ri-bill-line me-1"></i> Generate Invoice</a>{% endif %}
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h6 class="card-title">Sales Order</h6>
+            <a href="{% url 'sales:order_detail' obj.sales_order.pk %}">{{ obj.sales_order.code }}</a>
+            <div class="text-muted small">{{ obj.sales_order.customer.name }}</div>
+        </div></div>
+        <div class="mt-3"><a href="{% url 'sales:shipment_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a></div>
+    </div>
+</div>
+{% endblock %}
