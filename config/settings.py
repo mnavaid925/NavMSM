@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'apps.utility',
     'apps.compliance',
     'apps.iot',
+    'apps.bi',
+    'apps.sales',
 ]
 
 MIDDLEWARE = [
