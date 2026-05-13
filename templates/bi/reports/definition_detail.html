@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Report: {{ report.name }}{% endblock %}
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4>{{ report.report_number }} <small class="text-muted">{{ report.name }}</small></h4>
+        <div class="text-muted small">Source: {{ report.data_source.code }} ({{ report.data_source.model_label }})</div>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" action="{% url 'bi:report_run_now' report.pk %}" class="d-inline">{% csrf_token %}
+            <button class="btn btn-sm btn-success"><i class="ri-play-line me-1"></i> Run now</button>
+        </form>
+        <form method="post" action="{% url 'bi:report_run_now' report.pk %}?format=csv" class="d-inline">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-success"><i class="ri-download-2-line me-1"></i> Run + CSV</button>
+        </form>
+        <a href="{% url 'bi:report_edit' report.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'bi:report_delete' report.pk %}" class="d-inline" onsubmit="return confirm('Delete report?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i> Delete</button></form>
+        <a href="{% url 'bi:report_list' %}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Fields</h6>
+        </div>
+        <form method="post" action="{% url 'bi:report_field_create' report.pk %}" class="row g-2 mb-3">{% csrf_token %}
+            <div class="col-md-4"><input name="field_name" class="form-control form-control-sm" placeholder="field_name" required></div>
+            <div class="col-md-3"><input name="display_name" class="form-control form-control-sm" placeholder="Display"></div>
+            <div class="col-md-3"><select name="aggregation" class="form-select form-select-sm"><option value="none">None</option><option value="sum">Sum</option><option value="avg">Avg</option><option value="count">Count</option><option value="min">Min</option><option value="max">Max</option></select></div>
+            <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+            <input type="hidden" name="position" value="{{ fields|length }}">
+        </form>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Field</th><th>Display</th><th>Agg</th><th></th></tr></thead>
+            <tbody>{% for f in fields %}<tr>
+                <td class="small fw-semibold">{{ f.field_name }}</td>
+                <td class="small">{{ f.display_name }}</td>
+                <td class="small">{{ f.get_aggregation_display }}</td>
+                <td class="small text-end"><form method="post" action="{% url 'bi:report_field_delete' f.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form></td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No fields - add one above.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6 class="mb-2">Filters</h6>
+        <form method="post" action="{% url 'bi:report_filter_create' report.pk %}" class="row g-2 mb-3">{% csrf_token %}
+            <div class="col-md-4"><input name="field_name" class="form-control form-control-sm" placeholder="field_name" required></div>
+            <div class="col-md-3"><select name="operator" class="form-select form-select-sm"><option value="eq">=</option><option value="ne">!=</option><option value="gt">&gt;</option><option value="gte">&gt;=</option><option value="lt">&lt;</option><option value="lte">&lt;=</option><option value="contains">Contains</option><option value="in">In list</option><option value="between">Between</option></select></div>
+            <div class="col-md-3"><input name="value" class="form-control form-control-sm" placeholder="Value"></div>
+            <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="ri-add-line"></i></button></div>
+            <input type="hidden" name="position" value="{{ filters|length }}">
+        </form>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Field</th><th>Op</th><th>Value</th><th></th></tr></thead>
+            <tbody>{% for f in filters %}<tr>
+                <td class="small fw-semibold">{{ f.field_name }}</td>
+                <td class="small">{{ f.get_operator_display }}</td>
+                <td class="small">{{ f.value }}{% if f.value_to %} &ndash; {{ f.value_to }}{% endif %}</td>
+                <td class="small text-end"><form method="post" action="{% url 'bi:report_filter_delete' f.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-close-line"></i></button></form></td>
+            </tr>{% empty %}<tr><td colspan="4" class="text-muted small text-center py-3">No filters configured.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h6 class="mb-3">Recent Runs</h6>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Run</th><th>By</th><th>Run at</th><th class="text-end">Rows</th><th class="text-end">Duration</th><th>Status</th></tr></thead>
+        <tbody>{% for r in recent_runs %}<tr>
+            <td class="small fw-semibold"><a href="{% url 'bi:report_run_detail' r.pk %}">{{ r.run_number }}</a></td>
+            <td class="small">{{ r.run_by|default:'-' }}</td>
+            <td class="small text-muted">{{ r.run_at|date:'Y-m-d H:i' }}</td>
+            <td class="small text-end">{{ r.row_count }}</td>
+            <td class="small text-end">{{ r.duration_ms }} ms</td>
+            <td class="small"><span class="badge bg-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}-subtle text-{% if r.status == 'completed' %}success{% elif r.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ r.get_status_display }}</span></td>
+        </tr>{% empty %}<tr><td colspan="6" class="text-muted small text-center py-3">No runs yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</div></div>
+{% endblock %}
