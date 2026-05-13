@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="text-muted small">{{ obj.product.code }} - {{ obj.product.name }}</div>
+    </div>
+    <a href="{% url 'sales:ctp_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Request</h5>
+        <dl class="row mb-0">
+            <dt class="col-sm-5">Product</dt><dd class="col-sm-7">{{ obj.product }}</dd>
+            <dt class="col-sm-5">Shortfall Qty</dt><dd class="col-sm-7">{{ obj.shortfall_qty }}</dd>
+            <dt class="col-sm-5">Target Date</dt><dd class="col-sm-7">{{ obj.target_date|date:"M j, Y" }}</dd>
+            <dt class="col-sm-5">Computed</dt><dd class="col-sm-7">{{ obj.computed_at|date:"M j, Y H:i" }} by {{ obj.computed_by|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h5 class="card-title">Result</h5>
+        <div class="display-6">{{ obj.capable_qty }} units</div>
+        <div class="text-muted small mb-2">Earliest Completion: <strong>{{ obj.earliest_completion_date|default:"unknown" }}</strong></div>
+        <dl class="row mb-0">
+            <dt class="col-sm-5">Bottleneck Work Center</dt><dd class="col-sm-7">{{ obj.bottleneck_work_center.code|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title">Operation trace</h5>
+    <table class="table table-sm">
+        <thead><tr><th>Seq</th><th>Work Center</th><th class="text-end">Required Min</th><th class="text-end">Per-Day Capacity</th><th class="text-end">Op Days</th></tr></thead>
+        <tbody>
+        {% for op in obj.simulation_json.operations %}
+            <tr><td>{{ op.op_sequence }}</td><td>{{ op.work_center|default:"-" }}</td><td class="text-end">{{ op.required_minutes }}</td><td class="text-end">{{ op.per_day_capacity_min }}</td><td class="text-end">{{ op.op_days }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-muted py-3">{{ obj.simulation_json.reason|default:"No operations traced." }}</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    <div class="mt-2 text-muted small">Total elapsed days: {{ obj.simulation_json.elapsed_days|default:"-" }}</div>
+</div></div>
+{% endblock %}
