@@ -391,6 +391,13 @@ class ProductionOrder(TenantAwareModel, TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='production_orders_created',
     )
+    # Module 17 - Sales: when a SalesOrderLine.is_make_to_order is True and the
+    # parent SalesOrder is confirmed, a draft ProductionOrder is auto-emitted
+    # against the parent line. Idempotency key for the signal that creates it.
+    source_sales_line = models.ForeignKey(
+        'sales.SalesOrderLine', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='spawned_production_orders',
+    )
 
     class Meta:
         ordering = ['-created_at']
