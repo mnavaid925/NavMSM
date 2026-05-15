@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }} - Archive{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} - Document Archive</h4>
+        <div class="text-muted small"><a href="{% url 'dms:document_detail' obj.document_id %}">{{ obj.document.code }} - {{ obj.document.title }}</a></div>
+    </div>
+    <a href="{% url 'dms:archive_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Overview</h5>
+        <dl class="row mb-0 small">
+            <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge bg-{% if obj.status == 'archived' %}secondary-subtle text-secondary{% elif obj.status == 'restored' %}success-subtle text-success{% else %}danger-subtle text-danger{% endif %}">{{ obj.get_status_display }}</span></dd>
+            <dt class="col-sm-3">Archived at</dt><dd class="col-sm-9">{{ obj.archived_at|date:"M j, Y H:i" }} by {{ obj.archived_by|default:"-" }}</dd>
+            <dt class="col-sm-3">Retention until</dt><dd class="col-sm-9">{{ obj.retention_until|date:"M j, Y"|default:"-" }}</dd>
+            {% if obj.restored_at %}
+            <dt class="col-sm-3">Restored at</dt><dd class="col-sm-9">{{ obj.restored_at|date:"M j, Y H:i" }} by {{ obj.restored_by|default:"-" }}</dd>
+            {% endif %}
+            <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ obj.notes|linebreaksbr|default:"-" }}</dd>
+        </dl>
+    </div></div></div>
+
+    <div class="col-lg-5">
+        {% if is_admin and obj.can_restore %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Restore from archive</h5>
+            <form method="post" action="{% url 'dms:archive_restore' obj.pk %}" novalidate>{% csrf_token %}
+                {{ restore_form|crispy }}
+                <button class="btn btn-success w-100"><i class="ri-restart-line me-1"></i> Restore document</button>
+            </form>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
