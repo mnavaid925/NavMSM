@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.code }} - {{ obj.name }}</h4><div class="text-muted small">Applies to {{ obj.get_applies_to_doc_type_display }}</div></div>
+    <div>
+        <a href="{% url 'dms:template_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <a href="{% url 'dms:template_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Body</h5>
+        <pre class="bg-light p-3 rounded small">{{ obj.body|default:"(empty)" }}</pre>
+    </div></div></div>
+
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Fields</h5>
+            <a href="{% url 'dms:template_field_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add field</a>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Name</th><th>Type</th><th>Req</th><th class="text-end"></th></tr></thead>
+            <tbody>
+            {% for f in fields %}
+                <tr>
+                    <td class="small"><code>{{ f.field_name }}</code><br><span class="text-muted">{{ f.label }}</span></td>
+                    <td class="small">{{ f.get_field_type_display }}</td>
+                    <td>{% if f.is_required %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'dms:template_field_edit' f.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                        {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                        <form method="post" action="{% url 'dms:template_field_delete' f.pk %}" style="display:inline" onsubmit="return confirm('Delete field?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No fields defined.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
