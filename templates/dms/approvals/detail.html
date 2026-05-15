@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }} - Approval{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} - Approval</h4>
+        <div class="text-muted small"><a href="{% url 'dms:document_detail' obj.document_id %}">{{ obj.document.code }} - {{ obj.document.title }}</a></div>
+    </div>
+    <a href="{% url 'dms:approval_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Overview</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-3">Workflow</dt><dd class="col-sm-9">{{ obj.workflow.name }}</dd>
+                <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge bg-{% if obj.status == 'approved' %}success-subtle text-success{% elif obj.status == 'rejected' or obj.status == 'cancelled' %}danger-subtle text-danger{% elif obj.status == 'in_progress' %}primary-subtle text-primary{% else %}warning-subtle text-warning{% endif %}">{{ obj.get_status_display }}</span></dd>
+                <dt class="col-sm-3">Stage</dt><dd class="col-sm-9">{{ obj.current_stage_no }} / {{ obj.workflow.stages.count }}{% if current_stage %} - {{ current_stage.name }} ({{ current_stage.get_approver_role_display }}, min {{ current_stage.min_approvals }}){% endif %}</dd>
+                <dt class="col-sm-3">Requested by</dt><dd class="col-sm-9">{{ obj.requested_by|default:"-" }} on {{ obj.requested_at|date:"M j, Y H:i" }}</dd>
+                <dt class="col-sm-3">Effective date</dt><dd class="col-sm-9">{{ obj.effective_date|date:"M j, Y"|default:"-" }}</dd>
+                <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ obj.notes|linebreaksbr|default:"-" }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Approval Actions</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>When</th><th>Stage</th><th>Decision</th><th>By</th><th>Signed?</th><th>Notes</th></tr></thead>
+                <tbody>
+                {% for a in actions %}
+                    <tr>
+                        <td class="small">{{ a.decided_at|date:"Y-m-d H:i" }}</td>
+                        <td class="small">{{ a.stage_no }}</td>
+                        <td><span class="badge bg-{% if a.decision == 'approve' %}success-subtle text-success{% elif a.decision == 'reject' %}danger-subtle text-danger{% else %}warning-subtle text-warning{% endif %}">{{ a.get_decision_display }}</span></td>
+                        <td class="small">{{ a.decided_by|default:"-" }}</td>
+                        <td>{% if a.signature_id %}<i class="ri-check-line text-success"></i>{% endif %}</td>
+                        <td class="small">{{ a.notes|truncatechars:60 }}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No actions yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        {% if is_admin and obj.is_open %}
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Record Action</h5>
+            <form method="post" action="{% url 'dms:approval_action' obj.pk %}" novalidate>{% csrf_token %}
+                {{ action_form|crispy }}
+                <button class="btn btn-primary w-100">Record decision</button>
+            </form>
+        </div></div>
+        {% endif %}
+
+        {% if is_admin and obj.can_cancel %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Cancel</h5>
+            <form method="post" action="{% url 'dms:approval_cancel' obj.pk %}" onsubmit="return confirm('Cancel this approval request?');">{% csrf_token %}
+                <button class="btn btn-outline-danger w-100"><i class="ri-close-line me-1"></i> Cancel request</button>
+            </form>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
