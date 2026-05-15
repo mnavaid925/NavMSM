@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Warranty Claim{% else %}Edit {{ obj.code }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}New Warranty Claim{% else %}Edit {{ obj.code }}{% endif %}</h4>
+    <div class="text-muted small">An approved claim resolved by replacement auto-drafts a sales order.</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:760px">
+    {{ form.registration|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-4">{{ form.claim_date|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.resolution|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.rma|as_crispy_field }}</div>
+    </div>
+    {{ form.defect_description|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% if obj %}{% url 'rma:claim_detail' obj.pk %}{% else %}{% url 'rma:claim_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
