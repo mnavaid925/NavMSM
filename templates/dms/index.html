@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Document & Knowledge Management{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">Document &amp; Knowledge Management</h4>
+    <div class="text-muted small">Controlled repository, SOP authoring, approval workflows, training assignment, archive &amp; retention.</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Total Documents</div>
+        <div class="h3 mb-0">{{ kpi.total_docs|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">In Review</div>
+        <div class="h3 mb-0 text-warning">{{ kpi.in_review|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Pending Approvals</div>
+        <div class="h3 mb-0 text-primary">{{ kpi.pending_approvals|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">My Pending Acks</div>
+        <div class="h3 mb-0 text-info">{{ kpi.my_pending_acks|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Active Legal Holds</div>
+        <div class="h3 mb-0 text-danger">{{ kpi.active_holds|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Expiring &le;30d</div>
+        <div class="h3 mb-0 text-warning">{{ kpi.expiring_soon|default:0 }}</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Documents</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Title</th><th>Type</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for d in recent_docs %}
+                <tr>
+                    <td class="small"><a href="{% url 'dms:document_detail' d.pk %}">{{ d.code }}</a></td>
+                    <td class="small">{{ d.title|truncatechars:36 }}{% if d.is_locked %} <i class="ri-lock-2-line text-danger" title="Legal hold"></i>{% endif %}</td>
+                    <td class="small">{{ d.get_doc_type_display }}</td>
+                    <td><span class="badge bg-{% if d.status == 'effective' %}success-subtle text-success{% elif d.status == 'in_review' or d.status == 'approved' %}warning-subtle text-warning{% elif d.status == 'archived' %}secondary-subtle text-secondary{% elif d.status == 'superseded' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ d.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No documents yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'dms:document_list' %}" class="small">All documents &rarr;</a></div>
+    </div></div></div>
+
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h5 class="card-title">Open Approval Requests</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Document</th><th>Stage</th></tr></thead>
+            <tbody>
+            {% for a in open_approvals %}
+                <tr>
+                    <td class="small"><a href="{% url 'dms:approval_detail' a.pk %}">{{ a.code }}</a></td>
+                    <td class="small">{{ a.document.title|truncatechars:24 }}</td>
+                    <td class="small">{{ a.current_stage_no }} / {{ a.workflow.stages.count }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No open approvals.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'dms:approval_list' %}" class="small">All approvals &rarr;</a></div>
+    </div></div></div>
+
+    <div class="col-lg-3"><div class="card"><div class="card-body">
+        <h5 class="card-title">My Pending Acks</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Due</th></tr></thead>
+            <tbody>
+            {% for asn in pending_acks_for_me %}
+                <tr {% if asn.is_overdue %}class="table-danger"{% endif %}>
+                    <td class="small"><a href="{% url 'dms:assignment_detail' asn.pk %}">{{ asn.code }}</a></td>
+                    <td class="small">{% if asn.due_date %}{{ asn.due_date|date:"M j" }}{% else %}-{% endif %}</td>
+                </tr>
+            {% empty %}<tr><td colspan="2" class="text-center text-muted py-3">All caught up.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'dms:my_acknowledgments' %}" class="small">My acks &rarr;</a></div>
+    </div></div></div>
+</div>
+{% endblock %}
