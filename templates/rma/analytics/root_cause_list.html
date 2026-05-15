@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Root Cause Categories{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Root Cause Categories</h4><div class="text-muted small">Root-cause taxonomy with responsible area.</div></div>
+    <a href="{% url 'rma:root_cause_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Category</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Name or description..."></div>
+        <div class="col-md-3"><select name="responsible_area" class="form-select">
+            <option value="">Area (any)</option>
+            {% for v,l in area_choices %}<option value="{{ v }}" {% if request.GET.responsible_area == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><select name="active" class="form-select">
+            <option value="">Active (any)</option>
+            <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Name</th><th>Responsible Area</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for c in page_obj %}
+            <tr>
+                <td class="small fw-semibold">{{ c.name }}</td>
+                <td class="small">{{ c.get_responsible_area_display }}</td>
+                <td>{% if c.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'rma:root_cause_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'rma:root_cause_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete category {{ c.name }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">No root cause categories yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'rma/_pagination.html' %}
+</div></div>
+{% endblock %}
