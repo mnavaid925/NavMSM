@@ -25,6 +25,7 @@ urlpatterns = [
     path('iot/', include('apps.iot.urls')),
     path('bi/', include('apps.bi.urls')),
     path('sales/', include('apps.sales.urls')),
+    path('rma/', include('apps.rma.urls')),
 ]
 
 if settings.DEBUG:
