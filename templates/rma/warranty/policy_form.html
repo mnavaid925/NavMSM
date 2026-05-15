@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Warranty Policy{% else %}Edit {{ obj.code }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}New Warranty Policy{% else %}Edit {{ obj.code }} - {{ obj.name }}{% endif %}</h4>
+    <div class="text-muted small">Reusable warranty terms template.</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:760px">
+    {{ form.name|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.coverage_type|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.duration_months|as_crispy_field }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">{{ form.product|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.product_category|as_crispy_field }}</div>
+    </div>
+    {{ form.terms|as_crispy_field }}
+    {{ form.is_active|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'rma:policy_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
