@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.iot',
     'apps.bi',
     'apps.sales',
+    'apps.rma',
 ]
 
 MIDDLEWARE = [
