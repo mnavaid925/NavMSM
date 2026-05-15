@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.title }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} - {{ obj.title }}{% if obj.is_locked %} <i class="ri-lock-2-line text-danger" title="Under legal hold"></i>{% endif %}</h4>
+        <div class="text-muted small">{{ obj.get_doc_type_display }} - {{ obj.category.name|default:"Uncategorised" }}</div>
+    </div>
+    <a href="{% url 'dms:document_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Overview</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge bg-{% if obj.status == 'effective' %}success-subtle text-success{% elif obj.status == 'in_review' or obj.status == 'approved' %}warning-subtle text-warning{% elif obj.status == 'archived' %}secondary-subtle text-secondary{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+                <dt class="col-sm-3">Owner</dt><dd class="col-sm-9">{{ obj.owner|default:"-" }}</dd>
+                <dt class="col-sm-3">Effective date</dt><dd class="col-sm-9">{{ obj.effective_date|date:"M j, Y"|default:"-" }}</dd>
+                <dt class="col-sm-3">Expiry date</dt><dd class="col-sm-9">{{ obj.expiry_date|date:"M j, Y"|default:"-" }}{% if obj.is_expiring_soon %} <span class="badge bg-warning-subtle text-warning">Expiring soon</span>{% endif %}</dd>
+                <dt class="col-sm-3">Retention policy</dt><dd class="col-sm-9">{{ obj.retention_policy.name|default:"-" }}{% if obj.retention_until %} (until {{ obj.retention_until|date:"M j, Y" }}){% endif %}</dd>
+                <dt class="col-sm-3">Current version</dt><dd class="col-sm-9">{{ obj.current_version|default:"-" }}</dd>
+                <dt class="col-sm-3">Summary</dt><dd class="col-sm-9">{{ obj.summary|linebreaksbr|default:"-" }}</dd>
+                <dt class="col-sm-3">Keywords</dt><dd class="col-sm-9">{{ obj.keywords|default:"-" }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">Versions</h5>
+                {% if obj.is_editable %}<a href="{% url 'dms:version_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add version</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Version</th><th>Status</th><th>Checked out</th><th>Released</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for v in versions %}
+                    <tr>
+                        <td class="small fw-semibold">{{ v.version }}</td>
+                        <td><span class="badge bg-{% if v.status == 'released' %}success-subtle text-success{% elif v.status == 'under_review' %}warning-subtle text-warning{% elif v.status == 'superseded' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ v.get_status_display }}</span></td>
+                        <td class="small">{% if v.checked_out_by %}{{ v.checked_out_by }} ({{ v.checked_out_at|date:"M j H:i" }}){% else %}-{% endif %}</td>
+                        <td class="small">{{ v.released_at|date:"M j, Y"|default:"-" }}</td>
+                        <td class="text-end">
+                            {% if v.file %}<a href="{% url 'dms:version_download' v.pk %}" class="btn btn-sm btn-outline-secondary" title="Download"><i class="ri-download-line"></i></a>{% endif %}
+                            {% if not v.checked_out_by %}
+                                <form method="post" action="{% url 'dms:version_check_out' v.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-warning" title="Check out"><i class="ri-lock-unlock-line"></i></button></form>
+                            {% else %}
+                                <form method="post" action="{% url 'dms:version_check_in' v.pk %}" style="display:inline">{% csrf_token %}<button class="btn btn-sm btn-outline-success" title="Check in"><i class="ri-lock-line"></i></button></form>
+                            {% endif %}
+                            <a href="{% url 'dms:version_edit' v.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            {% if is_admin and v.status != 'released' %}
+                                <form method="post" action="{% url 'dms:version_release' v.pk %}" style="display:inline" onsubmit="return confirm('Release version {{ v.version }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-success" title="Release"><i class="ri-send-plane-2-line"></i></button></form>
+                            {% endif %}
+                            {% if is_admin %}<form method="post" action="{% url 'dms:version_delete' v.pk %}" style="display:inline" onsubmit="return confirm('Delete version {{ v.version }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No versions yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">Access Rules</h5>
+                {% if is_admin %}<a href="{% url 'dms:access_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add rule</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Role</th><th>Principal</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for r in access_rules %}
+                    <tr>
+                        <td><span class="badge bg-info-subtle text-info">{{ r.get_role_display }}</span></td>
+                        <td class="small">{{ r.user|default:r.department|default:r.position|default:"-" }}</td>
+                        <td class="text-end">{% if is_admin %}<form method="post" action="{% url 'dms:access_delete' r.pk %}" style="display:inline" onsubmit="return confirm('Remove rule?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No access rules.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">E-Signatures (immutable)</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>When</th><th>Signer</th><th>Meaning</th><th>Typed name</th></tr></thead>
+                <tbody>
+                {% for s in signatures %}
+                    <tr><td class="small">{{ s.signed_at|date:"Y-m-d H:i" }}</td><td class="small">{{ s.signer }}</td><td class="small">{{ s.get_meaning_display }}</td><td class="small">{{ s.typed_name }}</td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No signatures recorded.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Actions</h5>
+            <div class="d-grid gap-2">
+                {% if obj.is_editable %}<a href="{% url 'dms:document_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+                {% if obj.can_submit %}
+                <form method="post" action="{% url 'dms:document_submit' obj.pk %}">{% csrf_token %}<button class="btn btn-warning w-100"><i class="ri-send-plane-2-line me-1"></i> Submit for review</button></form>
+                {% endif %}
+                {% if is_admin and obj.can_archive %}
+                <form method="post" action="{% url 'dms:document_archive' obj.pk %}" onsubmit="return confirm('Archive this document?');">{% csrf_token %}<button class="btn btn-outline-secondary w-100"><i class="ri-archive-line me-1"></i> Archive</button></form>
+                {% endif %}
+                {% if is_admin and not obj.is_locked %}
+                <form method="post" action="{% url 'dms:document_delete' obj.pk %}" onsubmit="return confirm('Delete document {{ obj.code }}? This is irreversible.');">{% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+                {% endif %}
+            </div>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Recent Approvals</h5>
+            {% for a in approvals %}
+            <div class="small mb-1"><a href="{% url 'dms:approval_detail' a.pk %}">{{ a.code }}</a> &middot; <span class="badge bg-{% if a.status == 'approved' %}success-subtle text-success{% elif a.status == 'rejected' or a.status == 'cancelled' %}danger-subtle text-danger{% else %}warning-subtle text-warning{% endif %}">{{ a.get_status_display }}</span></div>
+            {% empty %}<div class="text-muted small">None.</div>{% endfor %}
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Assignments</h5>
+            {% for a in assignments %}
+            <div class="small mb-1"><a href="{% url 'dms:assignment_detail' a.pk %}">{{ a.code }}</a> &middot; <span class="badge bg-{% if a.status == 'active' %}primary-subtle text-primary{% else %}secondary-subtle text-secondary{% endif %}">{{ a.get_status_display }}</span>{% if a.due_date %} - due {{ a.due_date|date:"M j" }}{% endif %}</div>
+            {% empty %}<div class="text-muted small">None.</div>{% endfor %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
