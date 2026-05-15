@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.product.name }}</span></h4>
+        <div class="text-muted small">
+            {{ obj.get_order_type_display }}
+            {% if obj.receipt_line %} · from receipt {{ obj.receipt_line.receipt.code }}{% endif %}
+            {% if obj.assigned_to %} · Assigned to {{ obj.assigned_to.get_full_name|default:obj.assigned_to.username }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% elif obj.status == 'in_progress' %}primary-subtle text-primary{% elif obj.status == 'on_hold' %}warning-subtle text-warning{% elif obj.status == 'cancelled' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.is_editable %}<a href="{% url 'rma:repair_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        {% if obj.problem_description or obj.repair_instructions or obj.resolution_notes %}
+        <div class="card mb-3"><div class="card-body">
+            {% if obj.problem_description %}<h6 class="card-title">Problem</h6><p class="small">{{ obj.problem_description|linebreaksbr }}</p>{% endif %}
+            {% if obj.repair_instructions %}<h6 class="card-title mt-2">Instructions</h6><p class="small">{{ obj.repair_instructions|linebreaksbr }}</p>{% endif %}
+            {% if obj.resolution_notes %}<h6 class="card-title mt-2">Resolution</h6><p class="small mb-0">{{ obj.resolution_notes|linebreaksbr }}</p>{% endif %}
+        </div></div>
+        {% endif %}
+
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Parts Used</h5>
+                {% if obj.is_editable %}<a href="{% url 'rma:repair_part_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Part</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Part</th><th class="text-end">Qty</th><th class="text-end">Unit Cost</th><th class="text-end">Line Cost</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for p in parts %}
+                    <tr>
+                        <td class="small">{{ p.part.sku }} - {{ p.part.name }}</td>
+                        <td class="text-end small">{{ p.quantity }}</td>
+                        <td class="text-end small">{{ p.unit_cost }}</td>
+                        <td class="text-end small fw-semibold">{{ p.line_cost }}</td>
+                        <td class="text-end">
+                            {% if obj.is_editable %}
+                            <form method="post" action="{% url 'rma:repair_part_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Remove part?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No parts logged.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Labor Log</h5>
+                {% if obj.is_editable %}<a href="{% url 'rma:repair_labor_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Log Labor</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Date</th><th>Employee</th><th class="text-end">Minutes</th><th class="text-end">Rate</th><th class="text-end">Cost</th><th>Booking</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for l in labor %}
+                    <tr>
+                        <td class="small">{{ l.work_date|date:"M j, Y" }}</td>
+                        <td class="small">{% if l.employee %}{{ l.employee }}{% else %}-{% endif %}</td>
+                        <td class="text-end small">{{ l.minutes }}</td>
+                        <td class="text-end small">{{ l.hourly_rate }}</td>
+                        <td class="text-end small fw-semibold">{{ l.labor_cost }}</td>
+                        <td>{% if l.labor_booking_id %}<span class="badge bg-info-subtle text-info">Booked</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">-</span>{% endif %}</td>
+                        <td class="text-end">
+                            {% if obj.is_editable %}
+                            <form method="post" action="{% url 'rma:repair_labor_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove labor entry?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No labor logged.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Cost Roll-up</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-7">Estimated cost</dt><dd class="col-5 text-end">{{ obj.estimated_cost }}</dd>
+                <dt class="col-7">Labor minutes</dt><dd class="col-5 text-end">{{ obj.labor_minutes }}</dd>
+                <dt class="col-7 fw-semibold">Actual cost</dt><dd class="col-5 text-end fw-semibold h6 mb-0">{{ obj.actual_cost }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            {% if not is_admin %}<div class="text-muted small mb-2">Workflow actions require a tenant admin.</div>{% endif %}
+            {% if obj.can_start %}<form method="post" action="{% url 'rma:repair_start' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-play-line me-1"></i> Start Repair</button></form>{% endif %}
+            {% if obj.can_hold %}<form method="post" action="{% url 'rma:repair_hold' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-outline-warning btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-pause-circle-line me-1"></i> Hold</button></form>{% endif %}
+            {% if obj.can_resume %}<form method="post" action="{% url 'rma:repair_resume' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-outline-primary btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-play-circle-line me-1"></i> Resume</button></form>{% endif %}
+            {% if obj.can_complete %}
+            <form method="post" action="{% url 'rma:repair_complete' obj.pk %}" class="mb-2">{% csrf_token %}
+                <textarea name="resolution_notes" class="form-control form-control-sm mb-1" rows="2" placeholder="Resolution notes (required)"></textarea>
+                <button class="btn btn-success btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-check-double-line me-1"></i> Complete</button>
+            </form>
+            {% endif %}
+            {% if obj.can_cancel %}<form method="post" action="{% url 'rma:repair_cancel' obj.pk %}" class="mb-2" onsubmit="return confirm('Cancel this repair order?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-close-circle-line me-1"></i> Cancel</button></form>{% endif %}
+            {% if obj.status == 'draft' or obj.status == 'cancelled' %}{% if is_admin %}
+            <form method="post" action="{% url 'rma:repair_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete repair order {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}{% endif %}
+        </div></div>
+
+        <a href="{% url 'rma:repair_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
