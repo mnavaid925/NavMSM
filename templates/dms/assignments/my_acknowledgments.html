@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}My Acknowledgments{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">My Acknowledgments</h4><div class="text-muted small">Documents you need to acknowledge.</div></div>
+    <a href="{% url 'dms:assignment_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <h5 class="card-title">Pending</h5>
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Document</th><th>Assigned</th><th>Due</th><th class="text-end">Action</th></tr></thead>
+        <tbody>
+        {% for a in page_obj %}
+            <tr class="{% if a.is_overdue %}table-danger{% endif %}">
+                <td class="small">{{ a.code }}</td>
+                <td class="small">{{ a.document.code }} - {{ a.document.title|truncatechars:40 }}</td>
+                <td class="small">{{ a.assigned_at|date:"M j, Y" }}</td>
+                <td class="small">{{ a.due_date|date:"M j, Y"|default:"-" }}</td>
+                <td class="text-end"><a href="{% url 'dms:assignment_detail' a.pk %}" class="btn btn-sm btn-primary">Acknowledge</a></td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Nothing pending. All caught up.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+
+<div class="card"><div class="card-body">
+    <h5 class="card-title">Recently acknowledged</h5>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>When</th><th>Assignment</th><th>Document</th><th>Version</th></tr></thead>
+        <tbody>
+        {% for a in completed %}
+            <tr>
+                <td class="small">{{ a.acknowledged_at|date:"Y-m-d H:i" }}</td>
+                <td class="small">{{ a.assignment.code }}</td>
+                <td class="small">{{ a.document_version.document.title|truncatechars:40 }}</td>
+                <td class="small">{{ a.document_version.version }}</td>
+            </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">None yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+{% endblock %}
