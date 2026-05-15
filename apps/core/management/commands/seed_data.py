@@ -60,3 +60,8 @@ class Command(BaseCommand):
             call_command('seed_sales', flush=options.get('flush', False))
         except Exception as exc:
             self.stdout.write(self.style.WARNING(f'seed_sales skipped: {exc}'))
+        self.stdout.write(self.style.HTTP_INFO('-> seed_rma'))
+        try:
+            call_command('seed_rma', flush=options.get('flush', False))
+        except Exception as exc:
+            self.stdout.write(self.style.WARNING(f'seed_rma skipped: {exc}'))
