@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Add Part - {{ repair.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">Record Part Usage</h4>
+    <div class="text-muted small">Repair order {{ repair.code }} - {{ repair.product.name }}</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:640px">
+    {{ form.part|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.quantity|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.unit_cost|as_crispy_field }}</div>
+    </div>
+    {{ form.notes|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'rma:repair_detail' repair.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
