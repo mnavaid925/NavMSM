@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Supplier Chargebacks{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Supplier Chargebacks</h4><div class="text-muted small">Cost recovery against suppliers for supplier-caused returns.</div></div>
+    <a href="{% url 'rma:chargeback_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Chargeback</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-4"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code, supplier, reference..."></div>
+        <div class="col-md-3"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+        <div class="col-md-3 text-end small text-muted pt-2">Total (filtered): <strong>{{ total_amount }}</strong></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Supplier</th><th>Analysis</th><th class="text-end">Amount</th><th>Status</th><th>Issued</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for cb in page_obj %}
+            <tr>
+                <td class="small fw-semibold"><a href="{% url 'rma:chargeback_detail' cb.pk %}">{{ cb.code }}</a></td>
+                <td class="small">{{ cb.supplier.name }}</td>
+                <td class="small">{{ cb.analysis.code }}</td>
+                <td class="text-end small">{{ cb.amount }} {{ cb.currency }}</td>
+                <td><span class="badge bg-{% if cb.status == 'recovered' %}success-subtle text-success{% elif cb.status == 'disputed' or cb.status == 'written_off' %}danger-subtle text-danger{% elif cb.status == 'issued' %}primary-subtle text-primary{% elif cb.status == 'pending' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ cb.get_status_display }}</span></td>
+                <td class="small">{{ cb.issued_date|date:"M j, Y"|default:"-" }}</td>
+                <td class="text-end">
+                    <a href="{% url 'rma:chargeback_detail' cb.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                    {% if cb.status == 'draft' or cb.status == 'pending' %}<a href="{% url 'rma:chargeback_edit' cb.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                    {% if cb.status == 'draft' %}{% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'rma:chargeback_delete' cb.pk %}" style="display:inline" onsubmit="return confirm('Delete chargeback {{ cb.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}{% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No supplier chargebacks yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'rma/_pagination.html' %}
+</div></div>
+{% endblock %}
