@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Document Archives{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Document Archives</h4><div class="text-muted small">Archived documents (and restoration history).</div></div>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or document title..."></div>
+        <div class="col-md-3"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Document</th><th>Archived</th><th>Retention until</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for a in page_obj %}
+            <tr>
+                <td class="small"><a href="{% url 'dms:archive_detail' a.pk %}">{{ a.code }}</a></td>
+                <td class="small">{{ a.document.code }} - {{ a.document.title|truncatechars:30 }}</td>
+                <td class="small">{{ a.archived_at|date:"M j, Y" }}</td>
+                <td class="small">{{ a.retention_until|date:"M j, Y"|default:"-" }}</td>
+                <td><span class="badge bg-{% if a.status == 'archived' %}secondary-subtle text-secondary{% elif a.status == 'restored' %}success-subtle text-success{% else %}danger-subtle text-danger{% endif %}">{{ a.get_status_display }}</span></td>
+                <td class="text-end"><a href="{% url 'dms:archive_detail' a.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a></td>
+            </tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No archives yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+{% endblock %}
