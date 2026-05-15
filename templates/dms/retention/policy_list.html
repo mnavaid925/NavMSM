@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Retention Policies{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Retention Policies</h4><div class="text-muted small">Retention years + archive action per document type.</div></div>
+    <a href="{% url 'dms:policy_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Policy</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Name or code..."></div>
+        <div class="col-md-3"><select name="active" class="form-select">
+            <option value="">Active (any)</option>
+            <option value="active" {% if request.GET.active == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if request.GET.active == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select></div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Name</th><th>Applies to</th><th>Years</th><th>Action</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for p in page_obj %}
+            <tr>
+                <td class="small">{{ p.code }}</td>
+                <td class="small fw-semibold">{{ p.name }}</td>
+                <td class="small">{{ p.get_applies_to_doc_type_display }}</td>
+                <td class="small">{{ p.retention_years }}</td>
+                <td class="small">{{ p.get_archive_action_display }}</td>
+                <td>{% if p.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'dms:policy_edit' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'dms:policy_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete policy {{ p.name }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No policies yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+{% endblock %}
