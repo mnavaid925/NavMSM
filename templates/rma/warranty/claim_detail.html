@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.registration.product.name }}</span></h4>
+        <div class="text-muted small">
+            Registration {{ obj.registration.code }} · {{ obj.registration.customer.name }}
+            · Claimed {{ obj.claim_date|date:"M j, Y" }} · {{ obj.get_resolution_display }}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'approved' or obj.status == 'fulfilled' %}success-subtle text-success{% elif obj.status == 'rejected' %}danger-subtle text-danger{% elif obj.status == 'validated' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.status == 'submitted' or obj.status == 'validated' %}<a href="{% url 'rma:claim_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Defect Description</h6>
+            <p class="small mb-0">{{ obj.defect_description|linebreaksbr|default:"-" }}</p>
+        </div></div>
+        {% if obj.validation_notes %}
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Validation / Decision Notes</h6>
+            <p class="small mb-0">{{ obj.validation_notes|linebreaksbr }}</p>
+        </div></div>
+        {% endif %}
+        {% if obj.replacement_order %}
+        <div class="alert alert-success">
+            <i class="ri-check-line me-1"></i> Replacement sales order
+            <strong><a href="{% url 'sales:order_detail' obj.replacement_order.pk %}">{{ obj.replacement_order.code }}</a></strong>
+            was auto-drafted for this claim.
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            {% if not is_admin %}<div class="text-muted small mb-2">Workflow actions require a tenant admin.</div>{% endif %}
+            {% if obj.can_validate %}
+            <form method="post" action="{% url 'rma:claim_validate' obj.pk %}" class="mb-2">{% csrf_token %}
+                <textarea name="notes" class="form-control form-control-sm mb-1" rows="2" placeholder="Validation notes (optional)"></textarea>
+                <button class="btn btn-primary btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-shield-check-line me-1"></i> Validate</button>
+            </form>
+            {% endif %}
+            {% if obj.can_approve %}
+            <form method="post" action="{% url 'rma:claim_approve' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-check-line me-1"></i> Approve</button></form>
+            {% endif %}
+            {% if obj.can_reject %}
+            <form method="post" action="{% url 'rma:claim_reject' obj.pk %}" class="mb-2">{% csrf_token %}
+                <textarea name="notes" class="form-control form-control-sm mb-1" rows="2" placeholder="Rejection reason (required)"></textarea>
+                <button class="btn btn-outline-danger btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-close-line me-1"></i> Reject</button>
+            </form>
+            {% endif %}
+            {% if obj.can_fulfill %}
+            <form method="post" action="{% url 'rma:claim_fulfill' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-check-double-line me-1"></i> Mark Fulfilled</button></form>
+            {% endif %}
+            {% if obj.status == 'submitted' and is_admin %}
+            <form method="post" action="{% url 'rma:claim_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete claim {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Linked</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-5">Registration</dt><dd class="col-7"><a href="{% url 'rma:registration_detail' obj.registration.pk %}">{{ obj.registration.code }}</a></dd>
+                <dt class="col-5">RMA</dt><dd class="col-7">{% if obj.rma %}<a href="{% url 'rma:request_detail' obj.rma.pk %}">{{ obj.rma.code }}</a>{% else %}-{% endif %}</dd>
+                {% if obj.decided_by %}<dt class="col-5">Decided By</dt><dd class="col-7">{{ obj.decided_by.get_full_name|default:obj.decided_by.username }}</dd>{% endif %}
+            </dl>
+        </div></div>
+
+        <a href="{% url 'rma:claim_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
