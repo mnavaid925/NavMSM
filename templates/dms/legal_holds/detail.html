@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }} - Legal Hold{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.code }} - Legal Hold</h4><div class="text-muted small">{{ obj.name }}</div></div>
+    <a href="{% url 'dms:legal_hold_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Overview</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge bg-{% if obj.status == 'active' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+                <dt class="col-sm-3">Requested</dt><dd class="col-sm-9">{{ obj.requested_at|date:"M j, Y H:i" }} by {{ obj.requested_by|default:"-" }}</dd>
+                {% if obj.released_at %}
+                <dt class="col-sm-3">Released</dt><dd class="col-sm-9">{{ obj.released_at|date:"M j, Y H:i" }} by {{ obj.released_by|default:"-" }}</dd>
+                <dt class="col-sm-3">Release notes</dt><dd class="col-sm-9">{{ obj.release_notes|linebreaksbr|default:"-" }}</dd>
+                {% endif %}
+                <dt class="col-sm-3">Reason</dt><dd class="col-sm-9">{{ obj.reason|linebreaksbr|default:"-" }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Affected documents ({{ docs|length }})</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Code</th><th>Title</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for d in docs %}
+                    <tr>
+                        <td class="small"><a href="{% url 'dms:document_detail' d.pk %}">{{ d.code }}</a></td>
+                        <td class="small">{{ d.title|truncatechars:50 }}</td>
+                        <td><span class="badge bg-secondary-subtle text-secondary">{{ d.get_status_display }}</span>{% if d.is_locked %} <i class="ri-lock-2-line text-danger"></i>{% endif %}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No documents linked.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        {% if is_admin and obj.is_active %}
+        <div class="card border-danger mb-3"><div class="card-body">
+            <h5 class="card-title">Release Hold</h5>
+            <form method="post" action="{% url 'dms:legal_hold_release' obj.pk %}" novalidate>{% csrf_token %}
+                {{ release_form|crispy }}
+                <button class="btn btn-danger w-100"><i class="ri-lock-unlock-line me-1"></i> Release hold</button>
+            </form>
+        </div></div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Actions</h5>
+            <div class="d-grid gap-2">
+                {% if obj.is_active %}<a href="{% url 'dms:legal_hold_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+                {% if not obj.is_active %}<form method="post" action="{% url 'dms:legal_hold_delete' obj.pk %}" onsubmit="return confirm('Delete hold {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>{% endif %}
+            </div>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
