@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{{ obj.name }}</h4><div class="text-muted small">{{ obj.get_applies_to_doc_type_display }}</div></div>
+    <div>
+        <a href="{% url 'dms:workflow_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line"></i> Edit</a>
+        <a href="{% url 'dms:workflow_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line"></i> Back</a>
+    </div>
+</div>
+
+<div class="card"><div class="card-body">
+    <p class="text-muted small">{{ obj.description|default:"No description." }}</p>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="card-title mb-0">Stages</h5>
+        <a href="{% url 'dms:stage_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add stage</a>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>#</th><th>Name</th><th>Approver role</th><th>Min approvals</th><th>Signature</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for s in stages %}
+            <tr>
+                <td class="small fw-semibold">{{ s.stage_no }}</td>
+                <td class="small">{{ s.name }}</td>
+                <td class="small">{{ s.get_approver_role_display }}</td>
+                <td class="small">{{ s.min_approvals }}</td>
+                <td>{% if s.requires_signature %}<i class="ri-check-line text-success"></i>{% else %}-{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'dms:stage_edit' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'dms:stage_delete' s.pk %}" style="display:inline" onsubmit="return confirm('Delete stage {{ s.stage_no }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No stages yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+{% endblock %}
