@@ -26,6 +26,7 @@ urlpatterns = [
     path('bi/', include('apps.bi.urls')),
     path('sales/', include('apps.sales.urls')),
     path('rma/', include('apps.rma.urls')),
+    path('dms/', include('apps.dms.urls')),
 ]
 
 if settings.DEBUG:
