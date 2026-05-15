@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="text-muted small">
+            RMA {{ obj.rma_line.rma.code }} · {{ obj.rma_line.product.name }}
+            · Analyzed {{ obj.analyzed_at|date:"M j, Y" }}
+        </div>
+    </div>
+    <a href="{% url 'rma:analysis_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Analysis</h6>
+            <p class="small">{{ obj.analysis_notes|linebreaksbr|default:"-" }}</p>
+            <h6 class="card-title mt-3">Corrective Action</h6>
+            <p class="small mb-0">{{ obj.corrective_action|linebreaksbr|default:"-" }}</p>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Supplier Chargebacks</h5>
+                <a href="{% url 'rma:chargeback_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> New Chargeback</a>
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Code</th><th>Supplier</th><th class="text-end">Amount</th><th>Status</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                {% for cb in chargebacks %}
+                    <tr>
+                        <td class="small">{{ cb.code }}</td>
+                        <td class="small">{{ cb.supplier.name }}</td>
+                        <td class="text-end small">{{ cb.amount }} {{ cb.currency }}</td>
+                        <td><span class="badge bg-{% if cb.status == 'recovered' %}success-subtle text-success{% elif cb.status == 'disputed' or cb.status == 'written_off' %}danger-subtle text-danger{% elif cb.status == 'issued' %}primary-subtle text-primary{% else %}secondary-subtle text-secondary{% endif %}">{{ cb.get_status_display }}</span></td>
+                        <td class="text-end"><a href="{% url 'rma:chargeback_detail' cb.pk %}" class="btn btn-sm btn-outline-primary">View</a></td>
+                    </tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No chargebacks raised from this analysis.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Classification</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-5">Failure mode</dt><dd class="col-7">{% if obj.failure_mode %}{{ obj.failure_mode.name }} <span class="text-muted">({{ obj.failure_mode.get_category_display }})</span>{% else %}-{% endif %}</dd>
+                <dt class="col-5">Root cause</dt><dd class="col-7">{% if obj.root_cause_category %}{{ obj.root_cause_category.name }} <span class="text-muted">({{ obj.root_cause_category.get_responsible_area_display }})</span>{% else %}-{% endif %}</dd>
+                <dt class="col-5">Supplier</dt><dd class="col-7">{% if obj.supplier %}{{ obj.supplier.name }}{% else %}-{% endif %}</dd>
+                <dt class="col-5">Analyzed by</dt><dd class="col-7">{% if obj.analyzed_by %}{{ obj.analyzed_by.get_full_name|default:obj.analyzed_by.username }}{% else %}-{% endif %}</dd>
+            </dl>
+        </div></div>
+
+        {% if is_admin %}
+        <form method="post" action="{% url 'rma:analysis_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete analysis {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete Analysis</button></form>
+        {% endif %}
+        <a href="{% url 'rma:analysis_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
