@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.supplier.name }}</span></h4>
+        <div class="text-muted small">
+            Analysis {{ obj.analysis.code }} · {{ obj.amount }} {{ obj.currency }}
+            {% if obj.reference %} · Ref {{ obj.reference }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'recovered' %}success-subtle text-success{% elif obj.status == 'disputed' or obj.status == 'written_off' %}danger-subtle text-danger{% elif obj.status == 'issued' %}primary-subtle text-primary{% elif obj.status == 'pending' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.status == 'draft' or obj.status == 'pending' %}<a href="{% url 'rma:chargeback_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-body">
+            <dl class="row mb-0 small">
+                <dt class="col-sm-3">Supplier</dt><dd class="col-sm-9">{{ obj.supplier.name }}</dd>
+                <dt class="col-sm-3">Analysis</dt><dd class="col-sm-9"><a href="{% url 'rma:analysis_detail' obj.analysis.pk %}">{{ obj.analysis.code }}</a></dd>
+                <dt class="col-sm-3">Amount</dt><dd class="col-sm-9">{{ obj.amount }} {{ obj.currency }}</dd>
+                <dt class="col-sm-3">Reference</dt><dd class="col-sm-9">{{ obj.reference|default:"-" }}</dd>
+                <dt class="col-sm-3">Issued date</dt><dd class="col-sm-9">{{ obj.issued_date|date:"M j, Y"|default:"-" }}</dd>
+                <dt class="col-sm-3">Recovered date</dt><dd class="col-sm-9">{{ obj.recovered_date|date:"M j, Y"|default:"-" }}</dd>
+                <dt class="col-sm-3">Notes</dt><dd class="col-sm-9">{{ obj.notes|linebreaksbr|default:"-" }}</dd>
+            </dl>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Status Workflow</h6>
+            <div class="text-muted small mb-2">draft &rarr; pending &rarr; issued &rarr; disputed &rarr; recovered / written off</div>
+            {% if not is_admin %}<div class="text-muted small mb-2">Transitions require a tenant admin.</div>{% endif %}
+            {% for s in next_statuses %}
+            <form method="post" action="{% url 'rma:chargeback_transition' obj.pk %}" class="mb-2">{% csrf_token %}
+                <input type="hidden" name="to_status" value="{{ s }}">
+                <button class="btn btn-outline-primary btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-arrow-right-line me-1"></i> Move to {{ s|capfirst }}</button>
+            </form>
+            {% empty %}
+            <div class="text-muted small">This chargeback is in a terminal state.</div>
+            {% endfor %}
+            {% if obj.status == 'draft' and is_admin %}
+            <form method="post" action="{% url 'rma:chargeback_delete' obj.pk %}" class="mt-2" onsubmit="return confirm('Delete chargeback {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}
+        </div></div>
+
+        <a href="{% url 'rma:chargeback_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
