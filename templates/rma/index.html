@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Returns & RMA Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">Returns &amp; RMA Management</h4>
+    <div class="text-muted small">Customer returns, receiving &amp; inspection, repair, warranty and returns analytics.</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open RMAs</div>
+        <div class="h3 mb-0">{{ kpi.open_rmas|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Pending Approval</div>
+        <div class="h3 mb-0 text-warning">{{ kpi.pending_approval|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Receipts Inspecting</div>
+        <div class="h3 mb-0">{{ kpi.receipts_inspecting|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open Repairs</div>
+        <div class="h3 mb-0 text-primary">{{ kpi.open_repairs|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Active Warranties</div>
+        <div class="h3 mb-0 text-success">{{ kpi.active_warranties|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-2 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open Chargebacks</div>
+        <div class="h3 mb-0">{{ kpi.open_chargebacks|default:0 }}</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent RMA Requests</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Customer</th><th>Action</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for r in recent_rmas %}
+                <tr>
+                    <td class="small"><a href="{% url 'rma:request_detail' r.pk %}">{{ r.code }}</a></td>
+                    <td class="small">{{ r.customer.name }}</td>
+                    <td class="small">{{ r.get_requested_action_display }}</td>
+                    <td><span class="badge bg-{% if r.status == 'approved' %}success-subtle text-success{% elif r.status == 'submitted' %}warning-subtle text-warning{% elif r.status == 'rejected' or r.status == 'cancelled' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ r.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No RMA requests yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h5 class="card-title">Open Repair Orders</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Product</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for r in open_repairs %}
+                <tr>
+                    <td class="small"><a href="{% url 'rma:repair_detail' r.pk %}">{{ r.code }}</a></td>
+                    <td class="small">{{ r.product.name|truncatechars:28 }}</td>
+                    <td><span class="badge bg-{% if r.status == 'in_progress' %}primary-subtle text-primary{% elif r.status == 'on_hold' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ r.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No open repair orders.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+    <div class="col-lg-3"><div class="card"><div class="card-body">
+        <h5 class="card-title">Warranties Expiring Soon</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Ends</th></tr></thead>
+            <tbody>
+            {% for w in expiring %}
+                <tr class="{% if w.is_expiring_soon %}table-warning{% endif %}">
+                    <td class="small"><a href="{% url 'rma:registration_detail' w.pk %}">{{ w.code }}</a></td>
+                    <td class="small">{{ w.end_date|date:"M j, Y" }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="2" class="text-center text-muted py-3">No active warranties.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
