@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, **Module 15 — IoT & SCADA Integration**, **Module 16 — Business Intelligence & Analytics**, and **Module 17 — Sales & Customer Order Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, **Module 15 — IoT & SCADA Integration**, **Module 16 — Business Intelligence & Analytics**, **Module 17 — Sales & Customer Order Management**, and **Module 18 — Returns & RMA Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -36,13 +36,14 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 26. [Module 15 — IoT & SCADA Integration](#module-15--iot--scada-integration)
 27. [Module 16 — Business Intelligence & Analytics](#module-16--business-intelligence--analytics)
 28. [Module 17 — Sales & Customer Order Management](#module-17--sales--customer-order-management)
-29. [UI / Theme Customization](#ui--theme-customization)
-30. [Management Commands](#management-commands)
-31. [Payment Gateway Integration](#payment-gateway-integration)
-32. [Security Notes](#security-notes)
-33. [Roadmap](#roadmap)
-34. [Troubleshooting](#troubleshooting)
-35. [License](#license)
+29. [Module 18 — Returns & RMA Management](#module-18--returns--rma-management)
+30. [UI / Theme Customization](#ui--theme-customization)
+31. [Management Commands](#management-commands)
+32. [Payment Gateway Integration](#payment-gateway-integration)
+33. [Security Notes](#security-notes)
+34. [Roadmap](#roadmap)
+35. [Troubleshooting](#troubleshooting)
+36. [License](#license)
 
 ---
 
@@ -66,6 +67,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Module 15 — IoT & SCADA Integration** — device connectivity hub with shared `DeviceProtocol` catalog (MQTT / OPC-UA / Modbus TCP+RTU / HTTP polling / CoAP), tenant-scoped `DeviceBroker` (auto `BRK-00001`) with TLS / username-password / cert / token auth, `Device` (auto `DEV-00001`) optionally linked to `eam.Asset`, and `DeviceTag` whose optional `eam.ConditionMonitoringPoint` FK drives the IoT→EAM cascade; real-time data acquisition with append-only `IoTReading` ledger (auto `IR-00001`), `IoTReadingBatch` envelope for JSON/CSV ingest via `services/ingestion.bulk_ingest`, pure-function `EdgeProcessor` transforms, and `StreamMetric` 1-to-1 denorm (latest value + 24h min/max/avg + count) refreshed by post-save signal; digital twin configuration with `DigitalTwin` (auto `DT-00001`), `TwinStateAttribute` (state / measurement / derived) using a security-critical whitelist-only formula evaluator (`services/twin._safe_eval` — never `eval()`/`exec()`), `TwinSimulationScenario` (auto `TSC-00001`) run by a pure-function simulator that never mutates persisted state, and `TwinStateSnapshot` for time-travel debugging; OEE monitoring with `MachineStateLog` (auto-idempotent on `eam.DowntimeEvent` cascades) feeding Availability, `mes.ProductionReport` feeding Performance + Quality, `pps.RoutingOperation.cycle_seconds` providing ideal cycle, all rolled up to `OEEPeriod` (auto `OEEP-00001`) with A × P × Q × OEE % computed in `save()`, and a `LossReason` Pareto driving the OEE dashboard; alert & anomaly detection with `AlertRule` (auto `AR-00001`) supporting threshold_high / threshold_low / range_outside / rate_of_change / missing_data / rolling z-score / IQR / Western-Electric runs rule (heuristic-only, no ML deps), XOR-validated scope (tag / device / asset), per-channel notification routing (`in_app / email / mes_andon`), and cooldown suppression; append-only `AnomalyDetection` (auto `AD-00001`) with `new → acknowledged → resolved | false_positive` workflow (resolution notes required at terminal transitions per L-14); cross-module hooks: `IoTReading.post_save → eam.ConditionReading` (when tag has `condition_point`), `AnomalyDetection.post_save → mes.AndonAlert` (severity ≥ high + `mes_andon` channel), `AnomalyDetection.post_save → eam.FailurePrediction` (severity = critical), `mes.ProductionReport.post_save → OEEPeriod` denorm refresh, `eam.DowntimeEvent.post_save → MachineStateLog` (idempotent on `source_downtime`). **Security flags:** `DeviceBroker.password_hash` is a stop-gap stable token (rotate to KMS / Vault for production); twin formulas evaluated by `_safe_eval` (whitelist of `+ - * / ()`, `min/max/abs`, variable refs, decimal numbers) — `eval()` / `exec()` are never called.
 - **Module 16 — Business Intelligence & Analytics** — KPI definitions catalog (9 built-in: OEE / throughput / first-pass yield / scrap rate / on-time delivery / supplier OTD / gross margin / energy intensity / carbon intensity) with `higher_is_better` / `lower_is_better` direction + warning / critical thresholds, dispatched via a pluggable [`KPI_REGISTRY`](apps/bi/services/kpi.py) of pure-function calculators; named `KPIDashboard` surfaces grouping `KPIWidget` placements (chart_type ∈ kpi_card / line / bar / donut / gauge / sparkline) with `default_period` (last_7d / last_30d / mtd / qtd / ytd / custom) + `auto_refresh_minutes`; materialized `KPISnapshot` per (definition, period, scope) so widgets render in O(1); form-based ad-hoc report builder over a static whitelist of registered data sources (`production_orders` / `production_reports` / `non_conformance_reports` / `supplier_invoices` / `utility_consumption` / `failure_predictions` / `oee_periods` / `gross_margin_reports` / `cogm_reports` / `stock_movements` / `carbon_emissions` / `supplier_metric_events`), executor (`services/reports.execute_report`) builds Django ORM queries from `ReportField` + `ReportFilter` rows scoped to `tenant=request.tenant`, never raw SQL, never an un-whitelisted field; pure-Python heuristic predictors (no NumPy / scikit-learn): linear-regression demand forecast, rolling-failure-rate likelihood, SPC chart trend; `PredictionRun` + `PredictionResult` ledger plus `TrendAnalysis` slope/r-squared/direction summaries (auto `PR-` / `TA-`); tenant-isolated data marts with admin-defined `source_definition` JSON (model_label + group_by + measures + lookback_days), refresh service (`services/datamart.refresh_mart`) wipes prior snapshot rows inside an atomic block then materializes a fresh `DataMartSnapshot` + child `DataMartRow` rows; automated `ReportSchedule` (auto `SCH-`) with `daily / weekly / monthly / custom` frequencies, XOR-validated bind to a Report or Dashboard, fan-out `ReportRecipient` rows, `ReportDelivery` ledger with status, generated `ReportExport` artifacts (CSV / xlsx / pdf_html / inline_email with allowlist + 25 MB cap), sent via Django `send_mail`; cron-style `run_report_schedules` management command; cross-module hook on `cost.AccountingPeriod` going to `status='closed'` refreshes all active KPI snapshots for the period. **93 tests** in [`apps/bi/tests/`](apps/bi/tests/) covering models, forms (L-01 / L-14 / XOR), services (registry whitelist, KPI classification, linear regression, rolling avg, chart trend), signals (L-18 dispatch_uid), HTTP CRUD smoke, multi-tenant IDOR (cross-tenant 404 on every detail URL), RBAC matrix (staff blocked from create/delete), anonymous-redirect on every list URL, and seeder idempotency.
+- **Module 18 — Returns & RMA Management** — 16 models across 5 sub-modules covering the full returns lifecycle. **18.1 RMA Request & Authorization** — tenant-scoped `RMAReason` catalog and `RMARequest` (auto `RMA-00001`) with `draft → submitted → approved | rejected → cancelled` workflow gated to tenant admins (L-10); RMA lines link to `plm.Product` + `sales.Customer` + optional `sales.SalesOrder` / `sales.SalesInvoice`, and an append-only `RMAApproval` log records every transition. **18.2 Returns Receiving & Inspection** — `ReturnReceipt` (auto `RR-00001`) auto-drafted by a `RMARequest.status='approved'` signal (idempotent on `rma` FK); per-line condition (`new / like_new / used / damaged / defective / scrap`) + disposition (`restock / repair / refurbish / scrap / return_to_supplier / quarantine`) drives the routing signal — `restock` posts an `inventory.StockMovement(type='receipt')` into the receipt's warehouse, `repair`/`refurbish` auto-drafts a `RepairOrder`, with a `disposition_done` idempotency latch so re-saves never double-emit. **18.3 Repair & Refurbishment Tracking** — `RepairOrder` (auto `REP-00001`) with `draft → in_progress → on_hold → completed → cancelled` workflow (resolution notes required at completion, L-14), append-only `RepairPartUsage` (computed `line_cost = qty × unit_cost` in `save()`) and `RepairLaborLog` (computed `labor_cost = minutes/60 × hourly_rate`) ledgers; both feed [`services/repair.recompute_repair_costs`](apps/rma/services/repair.py) so `RepairOrder.actual_cost` + `labor_minutes` denorms stay consistent (with `pre_delete` reversal via `on_commit` so the rollup excludes deleted parts); a `RepairLaborLog` post-save signal mirrors each entry into a `labor.LaborBooking(kind='indirect')` (idempotent on `labor_booking` FK). **18.4 Warranty Management** — reusable `WarrantyPolicy` (auto `WP-00001`, coverage `parts / labor / parts_and_labor / full`, configurable duration), `WarrantyRegistration` (auto `WR-00001`) with computed `end_date = start_date + policy.duration_months` (via [`services/warranty.compute_warranty_end`](apps/rma/services/warranty.py) — month-end-clamped, no `dateutil` dep), red/yellow expiry tinting at ≤30 days (`is_expiring_soon` property), and a daily `expire_warranties` management command that race-safe-flips `active → expired` past `end_date` (L-21); `WarrantyClaim` (auto `WC-00001`) with `submitted → validated → approved | rejected → fulfilled` workflow — an approved claim with `resolution='replace'` auto-drafts a `sales.SalesOrder` replacement (idempotent on `replacement_order` FK). **18.5 Returns Analytics** — tenant catalogs `FailureMode` (FMEA-style with `electrical / mechanical / software / cosmetic / material / process / other`) and `RootCauseCategory` (responsible area `design / manufacturing / supplier / logistics / installation / user_error / unknown`); `ReturnAnalysis` (auto `RA-00001`) per RMA line carrying optional `procurement.Supplier` FK for supplier-caused returns; `SupplierChargeback` (auto `SCB-00001`) with workflow `draft → pending → issued → disputed → recovered | written_off` guarded by [`services/chargeback.apply_transition`](apps/rma/services/chargeback.py) (illegal transitions raise `ValueError`). **93-test pytest suite** in [`apps/rma/tests/`](apps/rma/tests/) covering model auto-numbering + computed fields + validators ([`test_models.py`](apps/rma/tests/test_models.py)), tenant-scoped form `clean()` (L-01) + FK queryset isolation ([`test_forms.py`](apps/rma/tests/test_forms.py)), services (warranty math, disposition routing, repair rollup, chargeback transitions) ([`test_services.py`](apps/rma/tests/test_services.py)), all 6 cross-module signal hooks + idempotency on re-save ([`test_signals.py`](apps/rma/tests/test_signals.py)), CRUD smoke + workflow happy paths + filter regression ([`test_views.py`](apps/rma/tests/test_views.py)), multi-tenant IDOR (cross-tenant 404 on every detail URL) + RBAC matrix (staff blocked from submit / approve / complete / chargeback transition / delete — L-10) + anonymous-redirect ([`test_security.py`](apps/rma/tests/test_security.py)), and `seed_rma` idempotency + `expire_warranties` dry-run safety ([`test_seeder.py`](apps/rma/tests/test_seeder.py)).
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
 - **Idempotent seeders** — fake data for 3 tenants, their users, invites, plans, subscriptions, invoices, payments, 30 days of health snapshots, and audit entries.
@@ -973,6 +975,49 @@ NavMSM/
 │   │   └── management/commands/
 │   │       ├── seed_sales.py             # Idempotent demo seeder per tenant
 │   │       └── recompute_credit_used.py  # Repair credit_used denorm drift
+│   │
+│   ├── rma/                      # MODULE 18 — Returns & RMA Management
+│   │   ├── models.py             # RMAReason, RMARequest (RMA-00001), RMALine,
+│   │   │                         # RMAApproval, ReturnReceipt (RR-00001),
+│   │   │                         # ReturnReceiptLine, RepairOrder (REP-00001),
+│   │   │                         # RepairPartUsage, RepairLaborLog,
+│   │   │                         # WarrantyPolicy (WP-00001),
+│   │   │                         # WarrantyRegistration (WR-00001),
+│   │   │                         # WarrantyClaim (WC-00001),
+│   │   │                         # FailureMode, RootCauseCategory,
+│   │   │                         # ReturnAnalysis (RA-00001),
+│   │   │                         # SupplierChargeback (SCB-00001)
+│   │   ├── services/
+│   │   │   ├── numbering.py      # next_code atomic auto-numbering helper
+│   │   │   ├── warranty.py       # add_months + compute_warranty_end +
+│   │   │   │                     # is_under_warranty (no dateutil dep)
+│   │   │   ├── disposition.py    # route_disposition classifier (restock /
+│   │   │   │                     # repair_ticket / supplier_return / none)
+│   │   │   ├── repair.py         # recompute_repair_costs aggregates parts +
+│   │   │   │                     # labor onto RepairOrder.actual_cost
+│   │   │   └── chargeback.py     # apply_transition with legal-path guards
+│   │   ├── signals.py            # 6 cross-module hooks:
+│   │   │                         #   RMA approved -> draft ReturnReceipt
+│   │   │                         #   restock disposition -> inventory movement
+│   │   │                         #   repair disposition -> draft RepairOrder
+│   │   │                         #   RepairLaborLog -> labor.LaborBooking +
+│   │   │                         #     cost rollup
+│   │   │                         #   RepairPartUsage save/delete -> cost rollup
+│   │   │                         #   WarrantyClaim approved+replace ->
+│   │   │                         #     draft sales.SalesOrder
+│   │   ├── forms.py              # 14 ModelForms with tenant-scoped FK querysets
+│   │   │                         # + L-01 unique_together clean() on catalogs
+│   │   ├── views.py              # ~60 views across 5 sub-modules with
+│   │   │                         # @tenant_admin_required gating on workflow +
+│   │   │                         # delete (L-10)
+│   │   ├── urls.py               # ~55 URL patterns under rma namespace
+│   │   ├── admin.py
+│   │   ├── tests/                # conftest + test_models / test_forms /
+│   │   │                         # test_services / test_signals /
+│   │   │                         # test_views / test_security / test_seeder
+│   │   └── management/commands/
+│   │       ├── seed_rma.py               # Idempotent demo seeder per tenant
+│   │       └── expire_warranties.py      # Daily job: active -> expired flip
 │   │
 │   ├── bi/                       # MODULE 16 — Business Intelligence & Analytics
 │   │   ├── models.py             # KPIDefinition, KPIDashboard, KPIWidget,
@@ -2690,6 +2735,85 @@ Run with `pytest apps/sales/tests/` — **~80+ test cases** spanning model auto-
 
 ---
 
+## Module 18 — Returns & RMA Management
+
+The reverse-logistics counterpart to Modules 8 (Inventory) + 9 (Procurement) + 17 (Sales). RMA lives in [apps/rma/](apps/rma/) and is mounted at `/rma/`.
+
+### Sub-modules
+
+| # | Sub-module | What you get |
+|---|---|---|
+| 18.1 | RMA Request & Authorization | Customer return initiation, approval workflow (`draft → submitted → approved | rejected → cancelled`), auto-numbered RMA + append-only approval audit log |
+| 18.2 | Returns Receiving & Inspection | Physical receipt, per-line condition assessment, disposition routing — auto-emits inventory movement (restock) or auto-drafts a repair order (repair / refurbish) |
+| 18.3 | Repair & Refurbishment Tracking | Rework tickets with workflow, append-only parts + labor ledgers, computed cost roll-up, signal-mirrored `labor.LaborBooking` |
+| 18.4 | Warranty Management | Reusable policy templates, per-unit registrations with computed end date + expiry-soon highlight, claim workflow with replacement-SO auto-draft |
+| 18.5 | Returns Analytics | Tenant catalogs of failure modes + root causes, per-line analysis with optional supplier attribution, supplier chargeback workflow |
+
+### Models
+
+- **18.1** — `RMAReason` (catalog, unique_together(tenant, name)), `RMARequest` (auto `RMA-00001`), `RMALine` (auto line_no, decimal validators), `RMAApproval` (append-only workflow audit log).
+- **18.2** — `ReturnReceipt` (auto `RR-00001`), `ReturnReceiptLine` (condition + disposition enums + `disposition_done` idempotency latch + `stock_movement` FK).
+- **18.3** — `RepairOrder` (auto `REP-00001`, denorm `actual_cost` + `labor_minutes`), `RepairPartUsage` (computed `line_cost` in `save()`), `RepairLaborLog` (computed `labor_cost` in `save()` + `labor_booking` FK).
+- **18.4** — `WarrantyPolicy` (auto `WP-00001`, coverage enum + duration_months), `WarrantyRegistration` (auto `WR-00001`, computed `end_date` + `is_expiring_soon` property + `days_remaining`), `WarrantyClaim` (auto `WC-00001`, `replacement_order` FK).
+- **18.5** — `FailureMode` (catalog), `RootCauseCategory` (catalog with responsible_area), `ReturnAnalysis` (auto `RA-00001`), `SupplierChargeback` (auto `SCB-00001`).
+
+### Services (pure functions, no ORM at module scope)
+
+- [`services/numbering.py`](apps/rma/services/numbering.py) — atomic auto-code helper (mirrors the sales pattern).
+- [`services/warranty.py`](apps/rma/services/warranty.py) — `add_months` (month-end-clamped, no `dateutil`), `compute_warranty_end`, `is_under_warranty`.
+- [`services/disposition.py`](apps/rma/services/disposition.py) — `route_disposition(value)` → `restock / repair_ticket / supplier_return / none` classifier.
+- [`services/repair.py`](apps/rma/services/repair.py) — `recompute_repair_costs(repair_order)` aggregates the parts + labor ledgers onto the parent denorms (sole writer).
+- [`services/chargeback.py`](apps/rma/services/chargeback.py) — `can_transition` / `apply_transition` enforce legal forward transitions; illegal jumps raise `ValueError`.
+
+### Cross-module hooks (apps/rma/signals.py)
+
+| # | Trigger | Effect | Idempotency key |
+|---|---|---|---|
+| 1 | `RMARequest.post_save(status='approved')` | Draft one `ReturnReceipt` for the approved RMA | One `ReturnReceipt.rma` FK per RMA |
+| 2 | `ReturnReceiptLine.post_save(disposition='restock', not disposition_done)` | Emit `inventory.StockMovement(type='receipt')` into the receipt's warehouse | `disposition_done` latch + `stock_movement` FK |
+| 3 | `ReturnReceiptLine.post_save(disposition in {repair, refurbish}, not disposition_done)` | Draft a `RepairOrder` for the receipt line | `RepairOrder.receipt_line` FK + `disposition_done` latch |
+| 4 | `RepairLaborLog.post_save` | Mirror into `labor.LaborBooking(kind='indirect')` + refresh repair cost rollup | `RepairLaborLog.labor_booking` FK |
+| 5 | `RepairPartUsage.post_save` / `pre_delete` | Refresh `RepairOrder.actual_cost` + `labor_minutes` denorms (via `on_commit` on delete to skip cascade-from-parent recomputes) | Single writer in `services/repair.recompute_repair_costs` |
+| 6 | `WarrantyClaim.post_save(status='approved', resolution='replace')` | Draft a `sales.SalesOrder` replacement for the registered customer | `WarrantyClaim.replacement_order` FK |
+
+Every handler is module-level (L-18 safe), carries a `dispatch_uid='rma.<action>'`, and best-effort logs failures at WARNING via `logger.warning(..., exc_info=True)` (L-23) so a downstream module's misconfiguration never blocks the RMA workflow.
+
+### Time-driven status (L-21)
+
+`WarrantyRegistration` has the time-driven terminal state `expired`. The daily `expire_warranties` management command race-safe-flips `active → expired` past `end_date` via a conditional `update()`, is idempotent on re-run, and supports `--dry-run` + `--tenant <slug>`.
+
+### Routes (UI tour)
+
+| Route | What you'll see |
+|-------|----------------|
+| `/rma/` | RMA dashboard — KPI cards (open RMAs, pending approval, receipts inspecting, open repairs, active warranties, open chargebacks) + recent RMAs + open repair orders + warranties expiring soon |
+| `/rma/reasons/` | RMA reason code catalog with category + active filters |
+| `/rma/requests/` · `/rma/requests/<pk>/` | RMA list with status / action / customer filters + detail with line CRUD + authorization log + workflow sidebar (Submit / Approve with notes / Reject with required reason / Cancel) |
+| `/rma/receipts/` · `/rma/receipts/<pk>/` | Return receipt list + detail with inline inspection-line CRUD, disposition routing status badge per line, and workflow (Start Inspection / Complete / Cancel) |
+| `/rma/repairs/` · `/rma/repairs/<pk>/` | Repair order list with status / type filters + detail with parts ledger, labor ledger (with booking badge), cost roll-up panel, and workflow (Start / Hold / Resume / Complete with required resolution notes / Cancel) |
+| `/rma/warranty/policies/` | Warranty policy catalog with coverage filter |
+| `/rma/warranty/registrations/` · `/rma/warranty/registrations/<pk>/` | Registrations with status + "expiring within 30 days" filter (yellow row tint) + detail with claims tab |
+| `/rma/warranty/claims/` · `/rma/warranty/claims/<pk>/` | Claim list + detail with workflow (Validate / Approve / Reject with required reason / Mark Fulfilled) and replacement-SO banner when auto-drafted |
+| `/rma/analytics/failure-modes/` · `/rma/analytics/root-causes/` | FMEA-style classification catalogs |
+| `/rma/analytics/analyses/` · `/rma/analytics/analyses/<pk>/` | Return-analysis list (filter by failure mode / root cause) + detail with supplier-chargeback tab |
+| `/rma/analytics/chargebacks/` · `/rma/analytics/chargebacks/<pk>/` | Chargeback list with status filter + amount total + detail with status-workflow buttons (only legal next states shown) |
+
+### RBAC + multi-tenancy
+
+Every view filters by `request.tenant` first. Workflow + delete mutations are guarded by the `@tenant_admin_required` decorator (L-10) — non-admin staff get a flash error and a redirect; the underlying state never changes. The RBAC matrix is asserted across 5 high-value endpoints (submit RMA, approve RMA, delete RMA, complete repair, transition chargeback) in [`test_security.py`](apps/rma/tests/test_security.py) along with cross-tenant IDOR (404 on every detail URL) and anonymous-redirect on every list URL.
+
+### Test suite
+
+Run with `pytest apps/rma/tests/` — **93 tests** spanning auto-numbering + computed fields + workflow helpers + validator regression ([`test_models.py`](apps/rma/tests/test_models.py)), L-01 `clean()` duplicate-check on every tenant catalog + tenant-scoped FK queryset isolation ([`test_forms.py`](apps/rma/tests/test_forms.py)), pure-function services (warranty period math incl. month-end clamping, disposition routing, repair cost rollup idempotency, chargeback transition guards) ([`test_services.py`](apps/rma/tests/test_services.py)), all 6 cross-module signal hooks + idempotency on re-save (incl. the `on_commit` rollup path which uses `@pytest.mark.django_db(transaction=True)`) ([`test_signals.py`](apps/rma/tests/test_signals.py)), full CRUD smoke + RMA submit/approve/reject workflow + repair complete with required resolution notes + chargeback transition + filter regression ([`test_views.py`](apps/rma/tests/test_views.py)), multi-tenant IDOR + RBAC matrix + anonymous-redirect ([`test_security.py`](apps/rma/tests/test_security.py)), and `seed_rma` idempotency + `--flush` consistency + `expire_warranties` dry-run safety ([`test_seeder.py`](apps/rma/tests/test_seeder.py)).
+
+### Out of scope (deferred)
+
+- **Customer-facing RMA self-service portal** — internal-only in v1; the sales-portal pattern can be replicated later (`request.user.customer_company`-scoped views).
+- **EDI / carrier API integration for return labels** — `carrier_name` + `tracking_number` on `ReturnReceipt` remain free text.
+- **Automated refund posting to `cost` / accounting** — refund amounts and chargeback amounts are tracked but not journaled.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -2733,8 +2857,10 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_utility [--flush] [--tenant <slug>]` | Seed Energy & Utility Management demo data per tenant (6 utility types, 4 meters incl. 1 sub-meter, 5 tariffs, 4 TOU bands, 1 scheduled DemandResponseEvent, 5 emission factors, ~120 UtilityConsumption rows spanning prior + current periods — electricity meters route via `eam.AssetMeterReading` to prove the auto-feed signal — auto-cascaded CarbonEmission ledger, 1 UtilityAllocation per metered cost-center with matching `cost.DriverActuals` write-through, 2 SustainabilityKPI snapshots, 2 BenchmarkSnapshot rows, 1 period-over-period BenchmarkComparison) |
 | `python manage.py seed_iot [--flush] [--tenant <slug>]` | Seed Module 15 (IoT & SCADA) demo data per tenant — 6 shared `DeviceProtocol` rows (MQTT / OPC-UA / Modbus TCP+RTU / HTTP / CoAP), 2 brokers, 6 devices linked to seeded `eam.Asset` rows, ~24 tags across temperature / vibration / pressure / electrical_load / state, 5 `LossReason` rows, 4 `AlertRule` rows (threshold, zscore, missing data), ~120 `IoTReading` rows + 2 deliberately anomalous rows that cascade into `AnomalyDetection` + `AlertNotification`, 3 `DigitalTwin` rows with attributes (incl. derived formulas) + 1 completed scenario + 1 snapshot, 7d × 3 assets of `OEEPeriod` rows, and ~5 `EdgeProcessor` rows. Idempotent — skips per-tenant if already seeded. |
 | `python manage.py seed_sales [--flush] [--tenant <slug>]` | Seed Module 17 (Sales) 17.1 demo data per tenant — 4 customer categories, 2 price lists (default + VIP) with 6 tiered items where Products exist, 8 customers covering key / standard / distributor / one-time / on_hold classes with seeded credit limits, 24 contacts (3 per customer with primary flag), and 5 communication-log entries across call / email / meeting / note / sms. Idempotent. |
+| `python manage.py seed_rma [--flush] [--tenant <slug>]` | Seed Module 18 (Returns & RMA) demo data per tenant covering all 5 sub-modules — 5 RMA reasons, 4 failure modes, 4 root-cause categories, 3 warranty policies, 5 RMA requests spanning every status (draft / submitted / approved / rejected / cancelled) with lines, the approved RMA's auto-drafted return receipt filled with inspection lines that route a real `inventory.StockMovement(receipt)` (restock) + an auto-spawned `RepairOrder` (repair) populated with parts + a labor log mirrored into `labor.LaborBooking`, 4 warranty registrations (1 aged + flipped to expired), 2 warranty claims (1 approved + replacement SO auto-drafted), 2 return analyses, and 1 pending supplier chargeback. Idempotent — skips per-tenant if data exists. |
+| `python manage.py expire_warranties [--tenant <slug>] [--dry-run]` | Flip `WarrantyRegistration` rows from `active` to `expired` once `end_date < today` via a race-safe conditional `update()`. Idempotent. Schedule daily via cron (Linux) / Task Scheduler (Windows). |
 | `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` + `seed_bi` |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` + `seed_bi` + `seed_sales` + `seed_rma` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (122 tests, uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 Phase A compliance regression tests (D-CR-01..08), 7 Phase C audit-chain tests (`test_audit_chain.py`), and 10 Phase C e-signature binding tests (`test_compliance_esignature.py`) |
@@ -2754,6 +2880,7 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_bi [--flush] [--tenant <slug>]` | Seed Module 16 (Business Intelligence) demo data per tenant — 9 `KPIDefinition` rows (OEE / throughput / yield / scrap_rate / on_time_delivery / supplier_otd / gross_margin / energy_intensity / carbon_intensity), 1 `KPIDashboard` (Plant Operations) with 6 `KPIWidget` placements, 9 tenant-scope `KPISnapshot` rows materialized for the last 30 days, 6 `ReportDataSource` catalog rows (production_orders / production_reports / non_conformance_reports / oee_periods / supplier_invoices / utility_consumption), 1 `ReportDefinition` (Daily Production Summary) with 4 fields + 1 completed `ReportRun`, 2 `PredictiveModel` rows (demand_forecast + failure_likelihood) with 1 completed `PredictionRun`, 1 `DataMart` (Production Daily) with 5 columns + 1 materialized `DataMartSnapshot`, 1 weekly `ReportSchedule` with 1 `ReportRecipient`. Idempotent — skips per-tenant if already seeded. |
 | `python manage.py run_report_schedules [--tenant <slug>]` | Cron-style sweeper — executes every active `ReportSchedule` whose `next_run_at <= now`. Renders the bound report or dashboard, persists a `ReportExport`, fans out `ReportDelivery` rows, sends email via Django `send_mail` (console backend in dev). Idempotent within the second; advances `next_run_at` per the schedule's frequency. Intended for cron / Windows Task Scheduler. |
 | `pytest apps/bi/tests/` | Run the Business Intelligence test suite (93 tests, ~110 s; covers model invariants + auto-numbering (RPT / RR / PR / TA / DM / SCH / EXP / DLV), snapshot delta math, KPI classification both directions, linear regression / rolling avg / chart trend / naive_seasonal pure-Python math, REGISTERED_SOURCES whitelist enforcement, form validation (L-01 unique_together for every tenant-scoped form, L-14 cancellation / disable reasons, XOR Report-or-Dashboard on `ReportScheduleForm`, custom-frequency cron requirement, registry-code gating on `ReportDataSourceForm`), audit factory + L-18 `dispatch_uid` presence guard, HTTP CRUD smoke on 14 list pages + 3 create handlers, multi-tenant IDOR (cross-tenant 404 on 6 detail URLs), RBAC matrix (staff blocked from 4 admin-only create endpoints), anonymous-redirect on 14 list URLs, `seed_bi` idempotency + count assertions) |
+| `pytest apps/rma/tests/` | Run the Module 18 (Returns & RMA) test suite (93 tests, ~3 min; covers model auto-numbering + computed fields (warranty `end_date`, `RepairLaborLog.labor_cost`, `RepairPartUsage.line_cost`) + decimal validators + workflow helpers, L-01 unique_together `clean()` on every tenant catalog + tenant-scoped FK querysets, pure-function services (warranty period math incl. month-end clamping, disposition routing, repair cost rollup idempotency, chargeback transition guards), all 6 cross-module signal hooks + idempotency on re-save (RMA approved→ReturnReceipt, restock→`inventory.StockMovement`, repair→`RepairOrder`, RepairLaborLog→`labor.LaborBooking`, RepairPartUsage save/delete→cost rollup with `on_commit` test using `@pytest.mark.django_db(transaction=True)`, WarrantyClaim approved+replace→`sales.SalesOrder`), HTTP CRUD smoke + RMA submit/approve/reject workflow (reject requires notes — L-14) + repair complete (requires resolution notes — L-14) + chargeback transition + status filter regression, multi-tenant IDOR (cross-tenant 404 on every detail URL) + RBAC matrix (staff blocked from 5 admin-only workflow/delete endpoints — L-10) + anonymous-redirect on 9 list URLs, `seed_rma` idempotency + `--flush` consistency + `expire_warranties` dry-run safety) |
 | `pytest apps/iot/tests/` | Run the IoT & SCADA test suite (~150 tests across 13 files: `test_models`, `test_forms`, `test_services`, `test_signals`, `test_views`, `test_views_workflow`, `test_views_crud`, `test_security`, `test_audit_log`, `test_performance`, `test_oee_service`, `test_anomaly_extras`, `test_seeder`. Covers model invariants + auto-numbering (BRK / DEV / IR / IRB / DT / TSC / OEEP / AR / AD), `OEEPeriod.recompute_pcts()` math (incl. zero-division safety), form validation (L-01 unique_together, L-14 resolution_notes required at resolve / false_positive, AlertRule XOR scope), pure-function services (anomaly z-score / IQR / runs_rule / threshold / range / rate-of-change branches, edge rolling_avg / sum / min / max / threshold_count / derivative, twin `_safe_eval` whitelist parser with explicit `__import__` / `exec` / `lambda` / attribute access / `**` operator / undefined-variable rejection), signal cascades (`IoTReading→StreamMetric` aggregates, `IoTReading→AnomalyDetection` with cooldown suppression and inactive-rule skip, fanout to `AlertNotification` per channel, idempotency on resave), audit factory + L-18 dispatch_uid presence guard for 8 audited models, full HTTP CRUD + every workflow POST handler (retire / reactivate / activate / archive / snapshot / scenario_run / rule activate / detection acknowledge-resolve-false_positive / OEE recompute / broker heartbeat), N+1 query budgets on dashboard + 4 list views, RBAC matrix (staff blocked from broker / device / rule mutations + anomaly resolve), multi-tenant IDOR (404 cross-tenant on every detail URL), broker password not exposed in list response, JSON bulk-ingest happy + error paths, `seed_iot` idempotency + fixture-count assertions) |
 
 ---
@@ -2799,7 +2926,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Modules 1-17** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, IoT & SCADA, Business Intelligence & Analytics, and Sales & Customer Order Management. The 5 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Modules 1-18** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, IoT & SCADA, Business Intelligence & Analytics, Sales & Customer Order Management, and Returns & RMA Management. The 4 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -2817,7 +2944,7 @@ Phase 1 (this release) covers the platform + **Modules 1-17** — Tenant & Subsc
 15. ~~IoT & SCADA Integration~~ ✅ shipped
 16. ~~Business Intelligence & Analytics~~ ✅ shipped
 17. ~~Sales & Customer Order Management~~ ✅ shipped
-18. Returns & RMA
+18. ~~Returns & RMA Management~~ ✅ shipped
 19. Document & Knowledge Management
 20. Workflow & Business Process Automation
 21. API & Integration Gateway
