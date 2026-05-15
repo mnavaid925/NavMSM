@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Warranty Claims{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Warranty Claims</h4><div class="text-muted small">Claim validation and replacement-order creation.</div></div>
+    <a href="{% url 'rma:claim_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Claim</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Claim code, registration, defect..."></div>
+        <div class="col-md-3"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><select name="resolution" class="form-select">
+            <option value="">Resolution (any)</option>
+            {% for v,l in resolution_choices %}<option value="{{ v }}" {% if request.GET.resolution == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Registration</th><th>Customer</th><th>Claim Date</th><th>Resolution</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for c in page_obj %}
+            <tr>
+                <td class="small fw-semibold"><a href="{% url 'rma:claim_detail' c.pk %}">{{ c.code }}</a></td>
+                <td class="small">{{ c.registration.code }}</td>
+                <td class="small">{{ c.registration.customer.name }}</td>
+                <td class="small">{{ c.claim_date|date:"M j, Y" }}</td>
+                <td class="small">{{ c.get_resolution_display }}</td>
+                <td><span class="badge bg-{% if c.status == 'approved' or c.status == 'fulfilled' %}success-subtle text-success{% elif c.status == 'rejected' %}danger-subtle text-danger{% elif c.status == 'validated' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ c.get_status_display }}</span></td>
+                <td class="text-end">
+                    <a href="{% url 'rma:claim_detail' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                    {% if c.status == 'submitted' or c.status == 'validated' %}<a href="{% url 'rma:claim_edit' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                    {% if c.status == 'submitted' %}{% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'rma:claim_delete' c.pk %}" style="display:inline" onsubmit="return confirm('Delete claim {{ c.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}{% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No warranty claims yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'rma/_pagination.html' %}
+</div></div>
+{% endblock %}
