@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}New Return Receipt{% else %}Edit {{ obj.code }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}New Return Receipt{% else %}Edit {{ obj.code }}{% endif %}</h4>
+    <div class="text-muted small">Inspection lines are managed on the detail page after save.</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:760px">
+    {{ form.rma|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.warehouse|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.received_date|as_crispy_field }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">{{ form.carrier_name|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.tracking_number|as_crispy_field }}</div>
+    </div>
+    {{ form.notes|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% if obj %}{% url 'rma:receipt_detail' obj.pk %}{% else %}{% url 'rma:receipt_list' %}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
