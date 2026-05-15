@@ -436,6 +436,29 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' and request.user.role != 'customer' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarDms" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-file-text-line"></i> <span>Documents &amp; KMS</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarDms" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'dms:index' %}" class="nav-link">DMS Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:document_list' %}" class="nav-link">Documents</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:category_list' %}" class="nav-link">Categories</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:template_list' %}" class="nav-link">Templates</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:workflow_list' %}" class="nav-link">Approval Workflows</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:approval_list' %}" class="nav-link">Approval Requests</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:assignment_list' %}" class="nav-link">Assignments</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:my_acknowledgments' %}" class="nav-link">My Acknowledgments</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:policy_list' %}" class="nav-link">Retention Policies</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:archive_list' %}" class="nav-link">Archives</a></li>
+                            <li class="nav-item"><a href="{% url 'dms:legal_hold_list' %}" class="nav-link">Legal Holds</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'customer' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarCustomerPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">

@@ -2,7 +2,7 @@
 
 A multi-tenant, modular Django + Bootstrap 5 platform for managing the full manufacturing lifecycle — from tenant onboarding, billing and branding, through production planning, shop-floor execution, quality, inventory, procurement, and beyond.
 
-This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, **Module 15 — IoT & SCADA Integration**, **Module 16 — Business Intelligence & Analytics**, **Module 17 — Sales & Customer Order Management**, and **Module 18 — Returns & RMA Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
+This repository contains **Phase 1** of the platform: the core foundation plus **Module 1 — Tenant & Subscription Management**, **Module 2 — Product Lifecycle Management (PLM)**, **Module 3 — Bill of Materials (BOM) Management**, **Module 4 — Production Planning & Scheduling**, **Module 5 — Material Requirements Planning (MRP)**, **Module 6 — Shop Floor Control (MES)**, **Module 7 — Quality Management (QMS)**, **Module 8 — Inventory & Warehouse Management**, **Module 9 — Procurement & Supplier Portal**, **Module 10 — Equipment & Asset Management (EAM)**, **Module 11 — Labor & Workforce Management**, **Module 12 — Cost Management & Accounting**, **Module 13 — Compliance & Regulatory Management**, **Module 14 — Energy & Utility Management**, **Module 15 — IoT & SCADA Integration**, **Module 16 — Business Intelligence & Analytics**, **Module 17 — Sales & Customer Order Management**, **Module 18 — Returns & RMA Management**, and **Module 19 — Document & Knowledge Management**. The remaining functional modules listed in [`MSM.md`](./MSM.md) are planned as follow-up phases.
 
 ---
 
@@ -37,13 +37,14 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 27. [Module 16 — Business Intelligence & Analytics](#module-16--business-intelligence--analytics)
 28. [Module 17 — Sales & Customer Order Management](#module-17--sales--customer-order-management)
 29. [Module 18 — Returns & RMA Management](#module-18--returns--rma-management)
-30. [UI / Theme Customization](#ui--theme-customization)
-31. [Management Commands](#management-commands)
-32. [Payment Gateway Integration](#payment-gateway-integration)
-33. [Security Notes](#security-notes)
-34. [Roadmap](#roadmap)
-35. [Troubleshooting](#troubleshooting)
-36. [License](#license)
+30. [Module 19 — Document & Knowledge Management](#module-19--document--knowledge-management)
+31. [UI / Theme Customization](#ui--theme-customization)
+32. [Management Commands](#management-commands)
+33. [Payment Gateway Integration](#payment-gateway-integration)
+34. [Security Notes](#security-notes)
+35. [Roadmap](#roadmap)
+36. [Troubleshooting](#troubleshooting)
+37. [License](#license)
 
 ---
 
@@ -67,6 +68,7 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 - **Module 5 — Material Requirements Planning (MRP)** — statistical forecast models (moving avg / weighted MA / exp smoothing / naive seasonal) with seasonality profiles and run history; per-product inventory snapshot with safety stock, reorder point, lead time, and lot-sizing rule (L4L / FOQ / POQ / Min-Max); scheduled receipts (open POs, planned production, transfers); regenerative / net-change / simulation MRP runs that explode multi-level BOMs via `bom.BillOfMaterials.explode()` to compute gross-to-net requirements; auto-generation of MRP-suggested purchase requisitions for purchased items; exception engine producing late-order / expedite / defer / no-bom action messages with severity and recommended action; one-click commit / discard.
 - **Module 15 — IoT & SCADA Integration** — device connectivity hub with shared `DeviceProtocol` catalog (MQTT / OPC-UA / Modbus TCP+RTU / HTTP polling / CoAP), tenant-scoped `DeviceBroker` (auto `BRK-00001`) with TLS / username-password / cert / token auth, `Device` (auto `DEV-00001`) optionally linked to `eam.Asset`, and `DeviceTag` whose optional `eam.ConditionMonitoringPoint` FK drives the IoT→EAM cascade; real-time data acquisition with append-only `IoTReading` ledger (auto `IR-00001`), `IoTReadingBatch` envelope for JSON/CSV ingest via `services/ingestion.bulk_ingest`, pure-function `EdgeProcessor` transforms, and `StreamMetric` 1-to-1 denorm (latest value + 24h min/max/avg + count) refreshed by post-save signal; digital twin configuration with `DigitalTwin` (auto `DT-00001`), `TwinStateAttribute` (state / measurement / derived) using a security-critical whitelist-only formula evaluator (`services/twin._safe_eval` — never `eval()`/`exec()`), `TwinSimulationScenario` (auto `TSC-00001`) run by a pure-function simulator that never mutates persisted state, and `TwinStateSnapshot` for time-travel debugging; OEE monitoring with `MachineStateLog` (auto-idempotent on `eam.DowntimeEvent` cascades) feeding Availability, `mes.ProductionReport` feeding Performance + Quality, `pps.RoutingOperation.cycle_seconds` providing ideal cycle, all rolled up to `OEEPeriod` (auto `OEEP-00001`) with A × P × Q × OEE % computed in `save()`, and a `LossReason` Pareto driving the OEE dashboard; alert & anomaly detection with `AlertRule` (auto `AR-00001`) supporting threshold_high / threshold_low / range_outside / rate_of_change / missing_data / rolling z-score / IQR / Western-Electric runs rule (heuristic-only, no ML deps), XOR-validated scope (tag / device / asset), per-channel notification routing (`in_app / email / mes_andon`), and cooldown suppression; append-only `AnomalyDetection` (auto `AD-00001`) with `new → acknowledged → resolved | false_positive` workflow (resolution notes required at terminal transitions per L-14); cross-module hooks: `IoTReading.post_save → eam.ConditionReading` (when tag has `condition_point`), `AnomalyDetection.post_save → mes.AndonAlert` (severity ≥ high + `mes_andon` channel), `AnomalyDetection.post_save → eam.FailurePrediction` (severity = critical), `mes.ProductionReport.post_save → OEEPeriod` denorm refresh, `eam.DowntimeEvent.post_save → MachineStateLog` (idempotent on `source_downtime`). **Security flags:** `DeviceBroker.password_hash` is a stop-gap stable token (rotate to KMS / Vault for production); twin formulas evaluated by `_safe_eval` (whitelist of `+ - * / ()`, `min/max/abs`, variable refs, decimal numbers) — `eval()` / `exec()` are never called.
 - **Module 16 — Business Intelligence & Analytics** — KPI definitions catalog (9 built-in: OEE / throughput / first-pass yield / scrap rate / on-time delivery / supplier OTD / gross margin / energy intensity / carbon intensity) with `higher_is_better` / `lower_is_better` direction + warning / critical thresholds, dispatched via a pluggable [`KPI_REGISTRY`](apps/bi/services/kpi.py) of pure-function calculators; named `KPIDashboard` surfaces grouping `KPIWidget` placements (chart_type ∈ kpi_card / line / bar / donut / gauge / sparkline) with `default_period` (last_7d / last_30d / mtd / qtd / ytd / custom) + `auto_refresh_minutes`; materialized `KPISnapshot` per (definition, period, scope) so widgets render in O(1); form-based ad-hoc report builder over a static whitelist of registered data sources (`production_orders` / `production_reports` / `non_conformance_reports` / `supplier_invoices` / `utility_consumption` / `failure_predictions` / `oee_periods` / `gross_margin_reports` / `cogm_reports` / `stock_movements` / `carbon_emissions` / `supplier_metric_events`), executor (`services/reports.execute_report`) builds Django ORM queries from `ReportField` + `ReportFilter` rows scoped to `tenant=request.tenant`, never raw SQL, never an un-whitelisted field; pure-Python heuristic predictors (no NumPy / scikit-learn): linear-regression demand forecast, rolling-failure-rate likelihood, SPC chart trend; `PredictionRun` + `PredictionResult` ledger plus `TrendAnalysis` slope/r-squared/direction summaries (auto `PR-` / `TA-`); tenant-isolated data marts with admin-defined `source_definition` JSON (model_label + group_by + measures + lookback_days), refresh service (`services/datamart.refresh_mart`) wipes prior snapshot rows inside an atomic block then materializes a fresh `DataMartSnapshot` + child `DataMartRow` rows; automated `ReportSchedule` (auto `SCH-`) with `daily / weekly / monthly / custom` frequencies, XOR-validated bind to a Report or Dashboard, fan-out `ReportRecipient` rows, `ReportDelivery` ledger with status, generated `ReportExport` artifacts (CSV / xlsx / pdf_html / inline_email with allowlist + 25 MB cap), sent via Django `send_mail`; cron-style `run_report_schedules` management command; cross-module hook on `cost.AccountingPeriod` going to `status='closed'` refreshes all active KPI snapshots for the period. **93 tests** in [`apps/bi/tests/`](apps/bi/tests/) covering models, forms (L-01 / L-14 / XOR), services (registry whitelist, KPI classification, linear regression, rolling avg, chart trend), signals (L-18 dispatch_uid), HTTP CRUD smoke, multi-tenant IDOR (cross-tenant 404 on every detail URL), RBAC matrix (staff blocked from create/delete), anonymous-redirect on every list URL, and seeder idempotency.
+- **Module 19 — Document & Knowledge Management** — 17 models across 5 sub-modules covering the full controlled-document lifecycle. **19.1 Controlled Document Repository** — hierarchical `DocumentCategory` catalog, `Document` (auto `DOC-00001`) with 10-type taxonomy (sop / work_instruction / policy / form / manual / specification / report / drawing / training_material / other), `draft → in_review → approved → effective → superseded → archived` workflow, denorm `current_version` pointer, `DocumentVersion` with check-in/check-out optimistic lock ([`services/checkout.py`](apps/dms/services/checkout.py), conditional `UPDATE ... WHERE checked_out_by IS NULL`), 25 MB file cap + extension allowlist (L-22), `DocumentAccessRule` for per-document RBAC overrides via XOR (User / Department / Position). **19.2 SOP & Work Instruction Authoring** — `DocumentTemplate` (auto `TPL-00001`) with `{{placeholder}}` body + typed `TemplateField` rows; `MediaAttachment` per version (image / video / audio / pdf, http(s)-only embed URLs, 25 MB cap). **19.3 Document Approval Workflows** — reusable `ApprovalWorkflow` with ordered `ApprovalStage` rows (per-stage `approver_role` + `min_approvals` + `requires_signature`), `DocumentApprovalRequest` (auto `AR-00001`) with `pending → in_progress → approved | rejected | cancelled` workflow guarded by [`services/approval.py`](apps/dms/services/approval.py), append-only `ApprovalAction` log, **immutable `DocumentSignature` (FDA 21 CFR Part 11)** with `pre_save` guard rejecting any UPDATE + admin `readonly_fields = '__all__'`; final approval flips `Document` to `effective` and sets `effective_date`. **19.4 Training Document Assignment** — `DocumentAssignment` (auto `DA-00001`) with `active → completed | cancelled` workflow, `AssignmentTarget` XOR fan-out (role / department / position / employee / user), `ReadAcknowledgment` (auto `ACK-00001`) with typed-name e-sig pinned to the released `DocumentVersion` (unique on `(assignment, acknowledger, document_version)` so re-acks land per released revision); user-facing **My Acknowledgments** page collects every pending ack across the tenant. **19.5 Archive & Retention Policy** — `RetentionPolicy` (auto `RP-00001`, configurable years + archive / soft_delete / hard_delete action), `DocumentArchive` (auto `ARC-00001`) with `archived → restored → purged` workflow + L-14 restore notes required, `LegalHold` (auto `LH-00001`) M2M-pinning Documents; an active hold cascades `Document.is_locked=True` via `m2m_changed` signal + [`services/legal_hold.py`](apps/dms/services/legal_hold.py) that re-checks remaining holds on release, and a `pre_delete` guard refuses to delete a locked Document. **6 cross-module signal handlers** (all `dispatch_uid` / L-18-safe / L-23 best-effort): version-released supersedes prior + bumps `current_version`, approval-approved flips Document to effective, legal-hold M2M change cascades `is_locked`, retention denorm refresh on policy/doc save, signature immutability enforcement, locked-doc delete refusal. Time-driven cron — `archive_due_documents` race-safe-flips `effective → archived` past `retention_until` (skips active legal holds, L-21); `expire_assignments` reports overdue assignments. **116-test pytest suite** in [`apps/dms/tests/`](apps/dms/tests/) covering model auto-numbering + computed fields + L-22 validators ([`test_models.py`](apps/dms/tests/test_models.py)), L-01 unique_together + L-22 file caps + XOR validators + L-14 per-workflow required ([`test_forms.py`](apps/dms/tests/test_forms.py)), services (checkout optimistic-lock + holder/admin override, retention math with leap-day clamp, legal-hold cascade with multi-hold safety, approval stage advancement) ([`test_services.py`](apps/dms/tests/test_services.py)), all 6 cross-module signal cascades + idempotency ([`test_signals.py`](apps/dms/tests/test_signals.py)), full HTTP CRUD + approval workflow walk (multi-stage approve → effective) + assignment ack idempotency ([`test_views.py`](apps/dms/tests/test_views.py)), multi-tenant IDOR (cross-tenant 404) + RBAC matrix (staff blocked from delete / archive / legal-hold / approval-action — L-10) + anonymous-redirect ([`test_security.py`](apps/dms/tests/test_security.py)), and `seed_dms` idempotency + `--flush` consistency + cron dry-run safety ([`test_seeder.py`](apps/dms/tests/test_seeder.py)).
 - **Module 18 — Returns & RMA Management** — 16 models across 5 sub-modules covering the full returns lifecycle. **18.1 RMA Request & Authorization** — tenant-scoped `RMAReason` catalog and `RMARequest` (auto `RMA-00001`) with `draft → submitted → approved | rejected → cancelled` workflow gated to tenant admins (L-10); RMA lines link to `plm.Product` + `sales.Customer` + optional `sales.SalesOrder` / `sales.SalesInvoice`, and an append-only `RMAApproval` log records every transition. **18.2 Returns Receiving & Inspection** — `ReturnReceipt` (auto `RR-00001`) auto-drafted by a `RMARequest.status='approved'` signal (idempotent on `rma` FK); per-line condition (`new / like_new / used / damaged / defective / scrap`) + disposition (`restock / repair / refurbish / scrap / return_to_supplier / quarantine`) drives the routing signal — `restock` posts an `inventory.StockMovement(type='receipt')` into the receipt's warehouse, `repair`/`refurbish` auto-drafts a `RepairOrder`, with a `disposition_done` idempotency latch so re-saves never double-emit. **18.3 Repair & Refurbishment Tracking** — `RepairOrder` (auto `REP-00001`) with `draft → in_progress → on_hold → completed → cancelled` workflow (resolution notes required at completion, L-14), append-only `RepairPartUsage` (computed `line_cost = qty × unit_cost` in `save()`) and `RepairLaborLog` (computed `labor_cost = minutes/60 × hourly_rate`) ledgers; both feed [`services/repair.recompute_repair_costs`](apps/rma/services/repair.py) so `RepairOrder.actual_cost` + `labor_minutes` denorms stay consistent (with `pre_delete` reversal via `on_commit` so the rollup excludes deleted parts); a `RepairLaborLog` post-save signal mirrors each entry into a `labor.LaborBooking(kind='indirect')` (idempotent on `labor_booking` FK). **18.4 Warranty Management** — reusable `WarrantyPolicy` (auto `WP-00001`, coverage `parts / labor / parts_and_labor / full`, configurable duration), `WarrantyRegistration` (auto `WR-00001`) with computed `end_date = start_date + policy.duration_months` (via [`services/warranty.compute_warranty_end`](apps/rma/services/warranty.py) — month-end-clamped, no `dateutil` dep), red/yellow expiry tinting at ≤30 days (`is_expiring_soon` property), and a daily `expire_warranties` management command that race-safe-flips `active → expired` past `end_date` (L-21); `WarrantyClaim` (auto `WC-00001`) with `submitted → validated → approved | rejected → fulfilled` workflow — an approved claim with `resolution='replace'` auto-drafts a `sales.SalesOrder` replacement (idempotent on `replacement_order` FK). **18.5 Returns Analytics** — tenant catalogs `FailureMode` (FMEA-style with `electrical / mechanical / software / cosmetic / material / process / other`) and `RootCauseCategory` (responsible area `design / manufacturing / supplier / logistics / installation / user_error / unknown`); `ReturnAnalysis` (auto `RA-00001`) per RMA line carrying optional `procurement.Supplier` FK for supplier-caused returns; `SupplierChargeback` (auto `SCB-00001`) with workflow `draft → pending → issued → disputed → recovered | written_off` guarded by [`services/chargeback.apply_transition`](apps/rma/services/chargeback.py) (illegal transitions raise `ValueError`). **93-test pytest suite** in [`apps/rma/tests/`](apps/rma/tests/) covering model auto-numbering + computed fields + validators ([`test_models.py`](apps/rma/tests/test_models.py)), tenant-scoped form `clean()` (L-01) + FK queryset isolation ([`test_forms.py`](apps/rma/tests/test_forms.py)), services (warranty math, disposition routing, repair rollup, chargeback transitions) ([`test_services.py`](apps/rma/tests/test_services.py)), all 6 cross-module signal hooks + idempotency on re-save ([`test_signals.py`](apps/rma/tests/test_signals.py)), CRUD smoke + workflow happy paths + filter regression ([`test_views.py`](apps/rma/tests/test_views.py)), multi-tenant IDOR (cross-tenant 404 on every detail URL) + RBAC matrix (staff blocked from submit / approve / complete / chargeback transition / delete — L-10) + anonymous-redirect ([`test_security.py`](apps/rma/tests/test_security.py)), and `seed_rma` idempotency + `expire_warranties` dry-run safety ([`test_seeder.py`](apps/rma/tests/test_seeder.py)).
 - **Highly customizable UI** — vertical / horizontal / detached layouts, light / dark themes, 4 sidebar sizes, 3 sidebar colors, fluid / boxed width, fixed / scrollable position, LTR / RTL — all persisted per-user and in `localStorage`.
 - **Blue + white theme** — clean, professional, responsive — works from 360 px up to ultra-wide displays.
@@ -1018,6 +1020,67 @@ NavMSM/
 │   │   └── management/commands/
 │   │       ├── seed_rma.py               # Idempotent demo seeder per tenant
 │   │       └── expire_warranties.py      # Daily job: active -> expired flip
+│   │
+│   ├── dms/                      # MODULE 19 — Document & Knowledge Management
+│   │   ├── models.py             # DocumentCategory, Document (DOC-00001),
+│   │   │                         # DocumentVersion (check-in/check-out),
+│   │   │                         # DocumentAccessRule, DocumentTemplate
+│   │   │                         # (TPL-00001), TemplateField,
+│   │   │                         # MediaAttachment, ApprovalWorkflow,
+│   │   │                         # ApprovalStage, DocumentApprovalRequest
+│   │   │                         # (AR-00001), ApprovalAction,
+│   │   │                         # DocumentSignature (immutable,
+│   │   │                         # FDA 21 CFR Part 11),
+│   │   │                         # DocumentAssignment (DA-00001),
+│   │   │                         # AssignmentTarget (XOR fan-out),
+│   │   │                         # ReadAcknowledgment (ACK-00001),
+│   │   │                         # RetentionPolicy (RP-00001),
+│   │   │                         # DocumentArchive (ARC-00001),
+│   │   │                         # LegalHold (LH-00001) - 17 models
+│   │   ├── services/
+│   │   │   ├── numbering.py      # next_code atomic auto-numbering helper
+│   │   │   ├── checkout.py       # check_in / check_out optimistic lock
+│   │   │   │                     # (conditional UPDATE for race safety)
+│   │   │   ├── approval.py       # current_stage / advance_stage helpers
+│   │   │   ├── retention.py      # compute_retention_until +
+│   │   │   │                     # is_due_for_archive (month-end clamped)
+│   │   │   ├── legal_hold.py     # apply_hold / release_hold cascade
+│   │   │   └── assignment.py     # expected/pending users for an assignment
+│   │   ├── signals.py            # 6 hooks (L-18 weak=False):
+│   │   │                         #   DocumentVersion released ->
+│   │   │                         #     supersede prior + bump current_version
+│   │   │                         #   DocumentApprovalRequest approved ->
+│   │   │                         #     Document.status='effective'
+│   │   │                         #   LegalHold.documents M2M change ->
+│   │   │                         #     Document.is_locked cascade
+│   │   │                         #   Document/RetentionPolicy save ->
+│   │   │                         #     retention_until denorm refresh
+│   │   │                         #   DocumentSignature pre_save ->
+│   │   │                         #     reject any UPDATE (immutable)
+│   │   │                         #   Document pre_delete ->
+│   │   │                         #     refuse if is_locked
+│   │   ├── forms.py              # 18 ModelForms / workflow forms with
+│   │   │                         # tenant-scoped FK querysets + L-01
+│   │   │                         # unique_together + XOR validators
+│   │   │                         # (access rule / target) + L-22 file
+│   │   │                         # cap + extension allowlist + L-14
+│   │   │                         # per-workflow required (legal hold
+│   │   │                         # release notes, archive restore notes,
+│   │   │                         # approval reject/return notes)
+│   │   ├── views.py              # ~55 views across all 5 sub-modules
+│   │   ├── urls.py               # ~55 URL patterns under dms namespace
+│   │   ├── admin.py              # DocumentSignatureAdmin readonly_fields
+│   │   │                         # = '__all__' (FDA 21 CFR Part 11)
+│   │   ├── tests/                # conftest + test_models /
+│   │   │                         # test_forms / test_services /
+│   │   │                         # test_signals / test_views /
+│   │   │                         # test_security / test_seeder
+│   │   │                         # (116 tests, ~2 min)
+│   │   └── management/commands/
+│   │       ├── seed_dms.py               # Idempotent demo seeder
+│   │       ├── archive_due_documents.py  # Daily job: past-retention
+│   │       │                             # effective -> archived
+│   │       └── expire_assignments.py     # Daily job: overdue report
 │   │
 │   ├── bi/                       # MODULE 16 — Business Intelligence & Analytics
 │   │   ├── models.py             # KPIDefinition, KPIDashboard, KPIWidget,
@@ -2814,6 +2877,107 @@ Run with `pytest apps/rma/tests/` — **93 tests** spanning auto-numbering + com
 
 ---
 
+## Module 19 — Document & Knowledge Management
+
+The controlled-document backbone of the platform. DMS lives in [apps/dms/](apps/dms/) and is mounted at `/dms/`.
+
+### Sub-modules
+
+| # | Sub-module | What you get |
+|---|---|---|
+| 19.1 | Controlled Document Repository | Hierarchical category catalog, `Document` master with 10-type taxonomy, append-only `DocumentVersion` chain with application-level check-in/check-out optimistic lock, per-document RBAC overrides via `DocumentAccessRule` (XOR User / Department / Position) |
+| 19.2 | SOP & Work Instruction Authoring | Reusable `DocumentTemplate` skeletons with `{{placeholder}}` body + typed `TemplateField` rows; `MediaAttachment` (image / video / audio / pdf, http(s)-only embed URLs, 25 MB cap + allowlist) |
+| 19.3 | Document Approval Workflows | Multi-stage `ApprovalWorkflow` with per-stage `approver_role` + `min_approvals` + `requires_signature`; `DocumentApprovalRequest` walks the stages; append-only `ApprovalAction` log; **immutable `DocumentSignature` (FDA 21 CFR Part 11)** with `pre_save` UPDATE rejection + admin readonly enforcement |
+| 19.4 | Training Document Assignment | `DocumentAssignment` campaigns with XOR-fan-out `AssignmentTarget` (role / department / position / employee / user); `ReadAcknowledgment` with typed-name e-sig pinned to the released version; user-facing "My Acknowledgments" view |
+| 19.5 | Archive & Retention Policy | Reusable `RetentionPolicy` (years + archive / soft_delete / hard_delete action); `DocumentArchive` with restore workflow; `LegalHold` M2M pinning Documents + signal-driven `is_locked` cascade |
+
+### Models (17 total)
+
+- **19.1** — `DocumentCategory` (unique_together(tenant,code)), `Document` (auto `DOC-00001`, status `draft → in_review → approved → effective → superseded → archived`), `DocumentVersion` (status `draft → under_review → released → superseded`, `checked_out_by` lock, 25 MB FileField with allowlist), `DocumentAccessRule` (role + XOR User/Department/Position).
+- **19.2** — `DocumentTemplate` (auto `TPL-00001`), `TemplateField` (typed; text / textarea / number / date / select / boolean), `MediaAttachment` (5 media types + http(s)-only `video_url`).
+- **19.3** — `ApprovalWorkflow`, `ApprovalStage` (stage_no + min_approvals + requires_signature), `DocumentApprovalRequest` (auto `AR-00001`), append-only `ApprovalAction`, immutable `DocumentSignature`.
+- **19.4** — `DocumentAssignment` (auto `DA-00001`), `AssignmentTarget` (XOR role/dept/position/employee/user), `ReadAcknowledgment` (auto `ACK-00001`, unique on `(assignment, acknowledger, document_version)`).
+- **19.5** — `RetentionPolicy` (auto `RP-00001`), `DocumentArchive` (auto `ARC-00001`, status `archived → restored → purged`), `LegalHold` (auto `LH-00001`, status `active → released`, M2M `documents`).
+
+### Services (pure / single-writer)
+
+- [`services/numbering.py`](apps/dms/services/numbering.py) — atomic auto-code helper (mirrors the rma/sales pattern).
+- [`services/checkout.py`](apps/dms/services/checkout.py) — `check_out` / `check_in` with conditional `UPDATE ... WHERE checked_out_by IS NULL` so two simultaneous check-outs cannot both win. Admins can force-release.
+- [`services/approval.py`](apps/dms/services/approval.py) — `current_stage` / `advance_stage` walk the ordered `ApprovalStage` rows, return `None` to signal final approval.
+- [`services/retention.py`](apps/dms/services/retention.py) — `compute_retention_until` (month-end-clamped, no `dateutil`), `is_due_for_archive`.
+- [`services/legal_hold.py`](apps/dms/services/legal_hold.py) — `apply_hold` / `release_hold` (re-evaluates `is_locked` honoring any other still-active hold).
+- [`services/assignment.py`](apps/dms/services/assignment.py) — `expected_users_for` / `pending_users_for` expand `AssignmentTarget` rows into a deduplicated set of Users.
+
+### Cross-module signal hooks (apps/dms/signals.py)
+
+| # | Trigger | Effect | Idempotency |
+|---|---|---|---|
+| 1 | `DocumentVersion.post_save(status='released')` | Supersede prior released versions on the same doc + bump `Document.current_version` | Re-save = no-op (status already superseded) |
+| 2 | `DocumentApprovalRequest.post_save(status='approved')` | Flip `Document.status='effective'` + set `effective_date` | Skipped if Document already effective |
+| 3 | `LegalHold_documents.m2m_changed(post_add)` (when hold is active) | Set `Document.is_locked=True` on every added doc | Direct conditional UPDATE |
+| 4 | `LegalHold_documents.m2m_changed(post_remove)` | Re-evaluate `Document.is_locked`: clear unless another active hold still references the doc | Per-doc check against remaining active holds |
+| 5 | `Document.post_save` / `RetentionPolicy.post_save` | Recompute `Document.retention_until` via `services/retention.compute_retention_until` | Compares `expected != current` before writing |
+| 6 | `DocumentSignature.pre_save` (UPDATE only) | Raise `PermissionError` (FDA 21 CFR Part 11 immutability) | Insert always allowed; any field change on an existing row blocked |
+| 7 | `Document.pre_delete` | Raise `PermissionError` when `is_locked=True` | Last-line defence beyond the view layer guard |
+
+Every handler is module-level (L-18 safe), carries a `dispatch_uid='dms.<action>'`, and best-effort logs failures at WARNING via `logger.warning(..., exc_info=True)` (L-23).
+
+### Time-driven status (L-21)
+
+`Document` has the time-driven terminal state `archived`. The daily `archive_due_documents` management command race-safe-flips `effective → archived` past `retention_until` via a conditional `update()`, skips any Document under an active legal hold, supports `--dry-run` + `--tenant <slug>`, and emits one `DocumentArchive` row per flip. Schedule daily via cron / Task Scheduler.
+
+`expire_assignments` is the companion read-only reporter — it surfaces `DocumentAssignment` rows past `due_date` with no full acknowledgment but does NOT mutate state (an overdue ask is still a valid ask).
+
+### Routes (UI tour)
+
+| Route | What you'll see |
+|-------|----------------|
+| `/dms/` | DMS dashboard — KPI cards (total docs, in_review, pending approvals, my pending acks, active legal holds, docs expiring ≤30d) + recent docs + open approval requests + my pending acks |
+| `/dms/categories/` and CRUD | Document category catalog with hierarchical parent display |
+| `/dms/documents/` | Document list with search + doc_type + status + category filters |
+| `/dms/documents/<pk>/` | Document detail with Versions / Access Rules / Approvals / E-Signatures / Assignments tabs and check-in/check-out + release + archive workflow buttons |
+| `/dms/documents/new/` · `/<pk>/edit/` · `/<pk>/delete/` | Document CRUD (delete refused when `is_locked`) |
+| `/dms/documents/<pk>/submit/` · `/archive/` | POST — submit-for-review / archive workflow |
+| `/dms/documents/<doc_pk>/versions/new/` · `/versions/<pk>/edit/` · `/versions/<pk>/delete/` | DocumentVersion CRUD with 25 MB FileField cap + extension allowlist |
+| `/dms/versions/<pk>/check-out/` · `/check-in/` · `/release/` · `/download/` | POST — optimistic-lock check-in/check-out + release + auth-gated download |
+| `/dms/documents/<doc_pk>/access/new/` · `/access/<pk>/delete/` | DocumentAccessRule CRUD (XOR User / Department / Position) |
+| `/dms/templates/` and CRUD | Document template catalog with inline TemplateField CRUD |
+| `/dms/versions/<version_pk>/media/new/` · `/media/<pk>/delete/` | MediaAttachment CRUD per version |
+| `/dms/workflows/` and CRUD | ApprovalWorkflow with inline ApprovalStage CRUD |
+| `/dms/approvals/` and CRUD | DocumentApprovalRequest list / detail with per-stage action form |
+| `/dms/approvals/<pk>/action/` | POST — record approve / reject / return-for-revision action; final approval flips Document to effective + creates a DocumentSignature when the stage requires it |
+| `/dms/approvals/<pk>/cancel/` | POST — cancel an open approval request |
+| `/dms/assignments/` and CRUD | DocumentAssignment list / detail with inline AssignmentTarget XOR fan-out + ack ledger |
+| `/dms/assignments/<pk>/ack/` | POST — record typed-name acknowledgment of the current released version |
+| `/dms/assignments/<pk>/complete/` · `/cancel/` | POST — admin assignment workflow |
+| `/dms/my-acknowledgments/` | Personal landing page — pending acks for the current user across the tenant |
+| `/dms/retention/policies/` and CRUD | Retention policy catalog |
+| `/dms/retention/archives/` · `/<pk>/` · `/<pk>/restore/` | DocumentArchive list / detail with admin restore (L-14 required notes) |
+| `/dms/retention/legal-holds/` and CRUD + `/<pk>/release/` | LegalHold management; create / edit immediately cascade `Document.is_locked`; release requires L-14 release notes |
+
+### RBAC + multi-tenancy
+
+Every view filters by `request.tenant` first. Workflow + delete mutations are guarded by `@tenant_admin_required` (L-10) — non-admin staff get a flash error and a redirect; the underlying state never changes. Acknowledgment endpoints are per-user (every logged-in user can ack their own assignments). `DocumentSignature` rows are insert-only — UPDATE attempts raise `PermissionError` at the model layer (`pre_save` signal) and admin `readonly_fields = '__all__'`.
+
+### Test suite
+
+Run with `pytest apps/dms/tests/` — **116 tests** spanning auto-numbering + computed fields + L-22 validators ([`test_models.py`](apps/dms/tests/test_models.py)), L-01 `clean()` duplicate-check on every tenant catalog + L-22 file caps + XOR validators (access rule / target) + L-14 per-workflow required (legal hold release notes, archive restore notes, approval reject notes) ([`test_forms.py`](apps/dms/tests/test_forms.py)), pure-function services (checkout optimistic-lock incl. self-idempotency + admin override, retention math with leap-day clamp, legal-hold cascade with multi-hold safety, approval stage advancement) ([`test_services.py`](apps/dms/tests/test_services.py)), all 6 cross-module signal cascades + idempotency on re-save (version-released supersedes prior, approval-approved flips Document, legal-hold M2M cascades, retention recompute on policy change, signature immutability, locked-doc delete refusal) ([`test_signals.py`](apps/dms/tests/test_signals.py)), HTTP CRUD smoke on every list page + full approval workflow walk (multi-stage approve → effective) + ack idempotency + filter regression ([`test_views.py`](apps/dms/tests/test_views.py)), multi-tenant IDOR (cross-tenant 404 on every detail URL) + RBAC matrix (staff blocked from delete / archive / legal-hold mutations / approval-action — L-10) + anonymous-redirect on 11 list URLs ([`test_security.py`](apps/dms/tests/test_security.py)), and `seed_dms` idempotency + `--flush` consistency + `archive_due_documents` dry-run + locked-doc skip + `expire_assignments` read-only safety ([`test_seeder.py`](apps/dms/tests/test_seeder.py)).
+
+### Out of scope (deferred)
+
+- **Full-text search** over `Document.content_html` + uploaded file contents — keyword field only in v1; OpenSearch / Elasticsearch integration deferred.
+- **WebSocket live-collaboration** on `content_html` — single-author check-out / check-in only.
+- **External DMS integration** (SharePoint / Google Drive / Confluence) — not in v1.
+- **DocuSign / Adobe Sign** integration — typed-name e-sig only (FDA 21 CFR Part 11 compliant for internal use).
+- **WORM (write-once-read-many) storage** for archived docs — application-level read-only enforcement only.
+- **Per-paragraph version diff** rendering — version list + `change_notes` only.
+- **Public-link sharing** for external reviewers — internal users only.
+- **Customer / supplier-portal document distribution** — internal staff only in v1.
+
+> **Relationship to Module 13.** Module 13's `compliance.ComplianceDocument` is the **regulatory-only** artefact (FDA / ISO documents subject to compliance signatures and the existing tenant audit-chain). Module 19's `dms.Document` is the **operational** artefact (SOPs / work instructions / policies / manuals / forms). There is intentionally **no FK** between them; cross-link manually via the DMS `keywords` field when needed.
+
+---
+
 ## UI / Theme Customization
 
 The `<html>` element carries eight attributes that control every aspect of the layout; they're set from `UserProfile` on page load and can be changed live via the theme panel (`⚙️ icon in topbar`) — changes persist to both `localStorage` and the user profile.
@@ -2859,8 +3023,12 @@ The switcher logic lives in [`static/js/app.js`](static/js/app.js) and reads/wri
 | `python manage.py seed_sales [--flush] [--tenant <slug>]` | Seed Module 17 (Sales) 17.1 demo data per tenant — 4 customer categories, 2 price lists (default + VIP) with 6 tiered items where Products exist, 8 customers covering key / standard / distributor / one-time / on_hold classes with seeded credit limits, 24 contacts (3 per customer with primary flag), and 5 communication-log entries across call / email / meeting / note / sms. Idempotent. |
 | `python manage.py seed_rma [--flush] [--tenant <slug>]` | Seed Module 18 (Returns & RMA) demo data per tenant covering all 5 sub-modules — 5 RMA reasons, 4 failure modes, 4 root-cause categories, 3 warranty policies, 5 RMA requests spanning every status (draft / submitted / approved / rejected / cancelled) with lines, the approved RMA's auto-drafted return receipt filled with inspection lines that route a real `inventory.StockMovement(receipt)` (restock) + an auto-spawned `RepairOrder` (repair) populated with parts + a labor log mirrored into `labor.LaborBooking`, 4 warranty registrations (1 aged + flipped to expired), 2 warranty claims (1 approved + replacement SO auto-drafted), 2 return analyses, and 1 pending supplier chargeback. Idempotent — skips per-tenant if data exists. |
 | `python manage.py expire_warranties [--tenant <slug>] [--dry-run]` | Flip `WarrantyRegistration` rows from `active` to `expired` once `end_date < today` via a race-safe conditional `update()`. Idempotent. Schedule daily via cron (Linux) / Task Scheduler (Windows). |
+| `python manage.py seed_dms [--flush] [--tenant <slug>]` | Seed Module 19 (Document & Knowledge Management) demo data per tenant covering all 5 sub-modules — 5 DocumentCategories, 2 RetentionPolicies (5-year, 7-year), 2 DocumentTemplates (SOP + Work Instruction) with typed TemplateFields, 5 Documents across every `doc_type` (sop / work_instruction / policy / form / manual) with 1-2 versions each (one released-and-current), 1 approved DocumentApprovalRequest with 2 ApprovalActions + 2 DocumentSignatures, 2 DocumentAssignments (role + dept based) with 2 seeded ReadAcknowledgments on the first, 1 archived Document (DocumentArchive row), and 1 active LegalHold cascading `is_locked` onto 1 Document. Idempotent. |
+| `python manage.py archive_due_documents [--tenant <slug>] [--dry-run]` | Flip `Document` rows from `effective` to `archived` once `retention_until < today` via a race-safe conditional `update()` + emit one `DocumentArchive` row per flip. Skips any Document under an active legal hold. Idempotent. Schedule daily via cron (Linux) / Task Scheduler (Windows). |
+| `python manage.py expire_assignments [--tenant <slug>] [--dry-run]` | Report (read-only) every `DocumentAssignment` past `due_date` with no full acknowledgment. Read-only — does NOT mutate state. Schedule daily as a notification-style cron. |
+| `pytest apps/dms/tests/` | Run the Module 19 (Document & Knowledge Management) test suite (**116 tests, ~2 min**; covers model auto-numbering (DOC / TPL / AR / DA / ACK / RP / ARC / LH) + computed fields + L-22 validators ([`test_models.py`](apps/dms/tests/test_models.py)), L-01 unique_together `clean()` on every tenant catalog + L-22 file caps + XOR validators (access rule / target) + L-14 per-workflow required (legal hold release notes, archive restore notes, approval reject notes) ([`test_forms.py`](apps/dms/tests/test_forms.py)), pure-function services (checkout optimistic-lock incl. self-idempotency + admin override, retention math with leap-day clamp, legal-hold cascade with multi-hold safety, approval stage advancement) ([`test_services.py`](apps/dms/tests/test_services.py)), all 6 cross-module signal cascades + idempotency ([`test_signals.py`](apps/dms/tests/test_signals.py)), HTTP CRUD + workflow happy paths + ack idempotency + filter regression ([`test_views.py`](apps/dms/tests/test_views.py)), multi-tenant IDOR + RBAC matrix (staff blocked from delete / archive / legal-hold / approval-action — L-10) + anonymous-redirect on 11 list URLs ([`test_security.py`](apps/dms/tests/test_security.py)), and `seed_dms` idempotency + `--flush` consistency + cron dry-run safety ([`test_seeder.py`](apps/dms/tests/test_seeder.py))) |
 | `python manage.py generate_pm_schedules [--tenant <slug>] [--horizon-days N]` | Idempotent next-due PMSchedule generator for every active MaintenancePlan; flips past-dated `scheduled` rows to `overdue` first |
-| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` + `seed_bi` + `seed_sales` + `seed_rma` |
+| `python manage.py seed_data [--flush]` | Orchestrator that runs `seed_plans` + `seed_tenants` + `seed_plm` + `seed_bom` + `seed_pps` + `seed_mrp` + `seed_mes` + `seed_qms` + `seed_inventory` + `seed_procurement` + `seed_eam` + `seed_labor` + `seed_cost` + `seed_utility` + `seed_compliance` + `seed_iot` + `seed_bi` + `seed_sales` + `seed_rma` + `seed_dms` |
 | `python manage.py capture_health` | Capture a fresh health snapshot for every active tenant (schedule via cron) |
 | `python manage.py runserver` | Dev server on port 8000 |
 | `pytest apps/plm/tests/` | Run the PLM test suite (122 tests, uses [`config/settings_test.py`](config/settings_test.py)) — includes 55 Phase A compliance regression tests (D-CR-01..08), 7 Phase C audit-chain tests (`test_audit_chain.py`), and 10 Phase C e-signature binding tests (`test_compliance_esignature.py`) |
@@ -2926,7 +3094,7 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 
 ## Roadmap
 
-Phase 1 (this release) covers the platform + **Modules 1-18** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, IoT & SCADA, Business Intelligence & Analytics, Sales & Customer Order Management, and Returns & RMA Management. The 4 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
+Phase 1 (this release) covers the platform + **Modules 1-19** — Tenant & Subscription, PLM, BOM, PPS, MRP, MES, QMS, Inventory, Procurement, EAM, Labor, Cost, Compliance, Energy & Utility, IoT & SCADA, Business Intelligence & Analytics, Sales & Customer Order Management, Returns & RMA Management, and Document & Knowledge Management. The 3 upcoming modules are fully specified in [`MSM.md`](./MSM.md):
 
 2. ~~Product Lifecycle Management (PLM)~~ ✅ shipped
 3. ~~Bill of Materials (BOM)~~ ✅ shipped
@@ -2945,7 +3113,7 @@ Phase 1 (this release) covers the platform + **Modules 1-18** — Tenant & Subsc
 16. ~~Business Intelligence & Analytics~~ ✅ shipped
 17. ~~Sales & Customer Order Management~~ ✅ shipped
 18. ~~Returns & RMA Management~~ ✅ shipped
-19. Document & Knowledge Management
+19. ~~Document & Knowledge Management~~ ✅ shipped
 20. Workflow & Business Process Automation
 21. API & Integration Gateway
 22. System Administration & Security
