@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'create' %}Add Line{% else %}Edit Line{% endif %} - {{ rma.code }}{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">{% if mode == 'create' %}Add Returned Line{% else %}Edit Line{% endif %}</h4>
+    <div class="text-muted small">RMA {{ rma.code }} - {{ rma.customer.name }}</div>
+</div>
+
+<form method="post" novalidate>{% csrf_token %}
+<div class="card"><div class="card-body" style="max-width:760px">
+    {{ form.product|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-4">{{ form.quantity|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.unit_price|as_crispy_field }}</div>
+        <div class="col-md-4">{{ form.condition_reported|as_crispy_field }}</div>
+    </div>
+    {{ form.reason|as_crispy_field }}
+    <div class="row">
+        <div class="col-md-6">{{ form.lot_number|as_crispy_field }}</div>
+        <div class="col-md-6">{{ form.serial_number|as_crispy_field }}</div>
+    </div>
+    {{ form.line_notes|as_crispy_field }}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary"><i class="ri-save-line me-1"></i> Save</button>
+        <a href="{% url 'rma:request_detail' rma.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</div></div>
+</form>
+{% endblock %}
