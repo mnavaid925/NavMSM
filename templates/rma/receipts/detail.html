@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">RMA {{ obj.rma.code }}</span></h4>
+        <div class="text-muted small">
+            {{ obj.rma.customer.name }} · Received {{ obj.received_date|date:"M j, Y" }}
+            {% if obj.warehouse %} · {{ obj.warehouse.name }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% elif obj.status == 'inspecting' %}warning-subtle text-warning{% elif obj.status == 'cancelled' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %} me-2">{{ obj.get_status_display }}</span>
+        {% if obj.is_editable %}<a href="{% url 'rma:receipt_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Inspection Lines</h5>
+                {% if obj.is_editable %}<a href="{% url 'rma:receipt_line_add' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> Add Line</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Product</th><th class="text-end">Qty Rcvd</th><th>Condition</th><th>Disposition</th><th>Routed</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for l in lines %}
+                    <tr>
+                        <td class="small">{{ l.rma_line.product.sku }} - {{ l.rma_line.product.name }}</td>
+                        <td class="text-end small">{{ l.quantity_received }}</td>
+                        <td class="small">{{ l.get_condition_assessed_display }}</td>
+                        <td class="small">{{ l.get_disposition_display }}</td>
+                        <td>
+                            {% if l.disposition_done %}
+                                <span class="badge bg-success-subtle text-success"><i class="ri-check-line"></i> Routed</span>
+                                {% if l.stock_movement_id %}<span class="badge bg-info-subtle text-info">Restocked</span>{% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if obj.is_editable %}
+                            <a href="{% url 'rma:receipt_line_edit' l.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'rma:receipt_line_delete' l.pk %}" style="display:inline" onsubmit="return confirm('Remove line?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No inspection lines yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Workflow</h6>
+            {% if not is_admin %}<div class="text-muted small mb-2">Workflow actions require a tenant admin.</div>{% endif %}
+            {% if obj.can_start_inspection %}
+            <form method="post" action="{% url 'rma:receipt_start_inspection' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-primary btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-search-eye-line me-1"></i> Start Inspection</button></form>
+            {% endif %}
+            {% if obj.can_complete %}
+            <form method="post" action="{% url 'rma:receipt_complete' obj.pk %}" class="mb-2">{% csrf_token %}<button class="btn btn-success btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-check-double-line me-1"></i> Complete Receipt</button></form>
+            {% endif %}
+            {% if obj.can_cancel %}
+            <form method="post" action="{% url 'rma:receipt_cancel' obj.pk %}" class="mb-2" onsubmit="return confirm('Cancel this receipt?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100" {% if not is_admin %}disabled{% endif %}><i class="ri-close-circle-line me-1"></i> Cancel</button></form>
+            {% endif %}
+            {% if obj.status == 'draft' or obj.status == 'cancelled' %}{% if is_admin %}
+            <form method="post" action="{% url 'rma:receipt_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete receipt {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            {% endif %}{% endif %}
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Receipt Info</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-5">RMA</dt><dd class="col-sm-7"><a href="{% url 'rma:request_detail' obj.rma.pk %}">{{ obj.rma.code }}</a></dd>
+                <dt class="col-sm-5">Carrier</dt><dd class="col-sm-7">{{ obj.carrier_name|default:"-" }}</dd>
+                <dt class="col-sm-5">Tracking</dt><dd class="col-sm-7">{{ obj.tracking_number|default:"-" }}</dd>
+                <dt class="col-sm-5">Received By</dt><dd class="col-sm-7">{% if obj.received_by %}{{ obj.received_by.get_full_name|default:obj.received_by.username }}{% else %}-{% endif %}</dd>
+            </dl>
+            {% if obj.notes %}<div class="text-muted small mt-2">{{ obj.notes }}</div>{% endif %}
+        </div></div>
+
+        <a href="{% url 'rma:receipt_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
