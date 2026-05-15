@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+{% with is_admin=request.user.is_tenant_admin %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <span class="text-muted">{{ obj.product.name }}</span></h4>
+        <div class="text-muted small">
+            {{ obj.customer.name }} · {{ obj.policy.name }}
+            {% if obj.serial_number %} · S/N {{ obj.serial_number }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <span class="badge bg-{% if obj.status == 'active' %}success-subtle text-success{% elif obj.status == 'expired' %}secondary-subtle text-secondary{% elif obj.status == 'void' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %} me-2">{{ obj.get_status_display }}</span>
+        <a href="{% url 'rma:registration_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+    </div>
+</div>
+
+{% if obj.is_expiring_soon %}
+<div class="alert alert-warning"><i class="ri-alarm-warning-line me-1"></i> This warranty expires in {{ obj.days_remaining }} day(s) ({{ obj.end_date|date:"M j, Y" }}).</div>
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0">Warranty Claims</h5>
+                <a href="{% url 'rma:claim_create' %}" class="btn btn-sm btn-primary"><i class="ri-add-line me-1"></i> New Claim</a>
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Code</th><th>Claim Date</th><th>Resolution</th><th>Status</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                {% for c in claims %}
+                    <tr>
+                        <td class="small">{{ c.code }}</td>
+                        <td class="small">{{ c.claim_date|date:"M j, Y" }}</td>
+                        <td class="small">{{ c.get_resolution_display }}</td>
+                        <td><span class="badge bg-{% if c.status == 'approved' or c.status == 'fulfilled' %}success-subtle text-success{% elif c.status == 'rejected' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ c.get_status_display }}</span></td>
+                        <td class="text-end"><a href="{% url 'rma:claim_detail' c.pk %}" class="btn btn-sm btn-outline-primary">View</a></td>
+                    </tr>
+                {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No claims filed against this registration.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Coverage</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-6">Policy</dt><dd class="col-6">{{ obj.policy.name }}</dd>
+                <dt class="col-6">Coverage</dt><dd class="col-6">{{ obj.policy.get_coverage_type_display }}</dd>
+                <dt class="col-6">Purchase date</dt><dd class="col-6">{{ obj.purchase_date|date:"M j, Y" }}</dd>
+                <dt class="col-6">Start date</dt><dd class="col-6">{{ obj.start_date|date:"M j, Y" }}</dd>
+                <dt class="col-6">End date</dt><dd class="col-6">{{ obj.end_date|date:"M j, Y" }}</dd>
+                <dt class="col-6">Days remaining</dt><dd class="col-6">{{ obj.days_remaining|default:"-" }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <h6 class="card-title">Linked</h6>
+            <dl class="row mb-0 small">
+                <dt class="col-5">Customer</dt><dd class="col-7"><a href="{% url 'sales:customer_detail' obj.customer.pk %}">{{ obj.customer.name }}</a></dd>
+                <dt class="col-5">Sales Order</dt><dd class="col-7">{% if obj.sales_order %}{{ obj.sales_order.code }}{% else %}-{% endif %}</dd>
+            </dl>
+            {% if obj.notes %}<div class="text-muted small mt-2">{{ obj.notes }}</div>{% endif %}
+        </div></div>
+
+        {% if is_admin %}
+        <form method="post" action="{% url 'rma:registration_delete' obj.pk %}" class="mb-2" onsubmit="return confirm('Delete registration {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm w-100"><i class="ri-delete-bin-line me-1"></i> Delete Registration</button></form>
+        {% endif %}
+        <a href="{% url 'rma:registration_list' %}" class="btn btn-outline-secondary btn-sm"><i class="ri-arrow-left-line me-1"></i> Back to list</a>
+    </div>
+</div>
+{% endwith %}
+{% endblock %}
