@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'apps.bi',
     'apps.sales',
     'apps.rma',
+    'apps.dms',
 ]
 
 MIDDLEWARE = [
