@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if mode == 'edit' %}Edit{% else %}Add{% endif %} Stage - {{ workflow.name }}{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">{% if mode == 'edit' %}Edit{% else %}Add{% endif %} Stage</h4><div class="text-muted small">Workflow: {{ workflow.name }}</div></div>
+    <a href="{% url 'dms:workflow_detail' workflow.pk %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="post" novalidate>{% csrf_token %}
+        {{ form|crispy }}
+        <div class="text-end">
+            <a href="{% url 'dms:workflow_detail' workflow.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            <button class="btn btn-primary">{% if mode == 'edit' %}Save{% else %}Add stage{% endif %}</button>
+        </div>
+    </form>
+</div></div>
+{% endblock %}
