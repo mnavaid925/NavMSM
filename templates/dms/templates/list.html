@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Document Templates{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Document Templates</h4><div class="text-muted small">Reusable authoring skeletons.</div></div>
+    <a href="{% url 'dms:template_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Template</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Name or code..."></div>
+        <div class="col-md-4"><select name="applies_to_doc_type" class="form-select">
+            <option value="">Applies to (any)</option>
+            {% for v,l in doc_type_choices %}<option value="{{ v }}" {% if request.GET.applies_to_doc_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Name</th><th>Applies to</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for t in page_obj %}
+            <tr>
+                <td class="small"><a href="{% url 'dms:template_detail' t.pk %}">{{ t.code }}</a></td>
+                <td class="small fw-semibold">{{ t.name }}</td>
+                <td class="small">{{ t.get_applies_to_doc_type_display }}</td>
+                <td>{% if t.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'dms:template_detail' t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a>
+                    <a href="{% url 'dms:template_edit' t.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'dms:template_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Delete template {{ t.name }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No templates yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+{% endblock %}
