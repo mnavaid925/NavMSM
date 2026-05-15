@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Warranty Registrations{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Warranty Registrations</h4><div class="text-muted small">Registered product units under warranty.</div></div>
+    <a href="{% url 'rma:registration_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Registration</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code, serial, customer, product..."></div>
+        <div class="col-md-2"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><select name="expiring" class="form-select">
+            <option value="">Expiry (any)</option>
+            <option value="soon" {% if request.GET.expiring == 'soon' %}selected{% endif %}>Expiring within 30 days</option>
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Product</th><th>Customer</th><th>Serial</th><th>Start</th><th>End</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for w in page_obj %}
+            <tr class="{% if w.is_expiring_soon %}table-warning{% endif %}">
+                <td class="small fw-semibold"><a href="{% url 'rma:registration_detail' w.pk %}">{{ w.code }}</a></td>
+                <td class="small">{{ w.product.sku }} - {{ w.product.name|truncatechars:24 }}</td>
+                <td class="small">{{ w.customer.name }}</td>
+                <td class="small">{{ w.serial_number|default:"-" }}</td>
+                <td class="small">{{ w.start_date|date:"M j, Y" }}</td>
+                <td class="small">{{ w.end_date|date:"M j, Y" }}{% if w.is_expiring_soon %} <i class="ri-alarm-warning-line text-warning" title="Expiring soon"></i>{% endif %}</td>
+                <td><span class="badge bg-{% if w.status == 'active' %}success-subtle text-success{% elif w.status == 'expired' %}secondary-subtle text-secondary{% elif w.status == 'void' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %}">{{ w.get_status_display }}</span></td>
+                <td class="text-end">
+                    <a href="{% url 'rma:registration_detail' w.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-eye-line"></i></a>
+                    <a href="{% url 'rma:registration_edit' w.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}
+                    <form method="post" action="{% url 'rma:registration_delete' w.pk %}" style="display:inline" onsubmit="return confirm('Delete registration {{ w.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">No warranty registrations yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'rma/_pagination.html' %}
+</div></div>
+{% endblock %}
