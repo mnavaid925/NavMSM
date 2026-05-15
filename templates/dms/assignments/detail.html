@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }} - Assignment{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} - Document Assignment</h4>
+        <div class="text-muted small"><a href="{% url 'dms:document_detail' obj.document_id %}">{{ obj.document.code }} - {{ obj.document.title }}</a></div>
+    </div>
+    <a href="{% url 'dms:assignment_list' %}" class="btn btn-outline-secondary"><i class="ri-arrow-left-line me-1"></i> Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="card-title">Overview</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><span class="badge bg-{% if obj.status == 'active' %}primary-subtle text-primary{% elif obj.status == 'completed' %}success-subtle text-success{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span></dd>
+                <dt class="col-sm-3">Due date</dt><dd class="col-sm-9">{{ obj.due_date|date:"M j, Y"|default:"-" }}{% if obj.is_overdue %} <span class="badge bg-danger-subtle text-danger">Overdue</span>{% endif %}</dd>
+                <dt class="col-sm-3">Assigned by</dt><dd class="col-sm-9">{{ obj.assigned_by|default:"-" }} on {{ obj.assigned_at|date:"M j, Y H:i" }}</dd>
+                <dt class="col-sm-3">Instructions</dt><dd class="col-sm-9">{{ obj.instructions|linebreaksbr|default:"-" }}</dd>
+            </dl>
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">Targets</h5>
+                {% if is_admin %}<a href="{% url 'dms:target_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add target</a>{% endif %}
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>Kind</th><th>Principal</th><th class="text-end">Actions</th></tr></thead>
+                <tbody>
+                {% for t in targets %}
+                    <tr>
+                        <td class="small">{% if t.user %}User{% elif t.employee %}Employee{% elif t.position %}Position{% elif t.department %}Department{% elif t.role %}Role{% endif %}</td>
+                        <td class="small">{{ t.user|default:t.employee|default:t.position|default:t.department|default:t.get_role_display|default:"-" }}</td>
+                        <td class="text-end">{% if is_admin %}<form method="post" action="{% url 'dms:target_delete' t.pk %}" style="display:inline" onsubmit="return confirm('Remove target?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>{% endif %}</td>
+                    </tr>
+                {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No targets yet. Add at least one.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Acknowledgments ({{ acks.count }})</h5>
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>When</th><th>By</th><th>Version</th><th>Typed name</th></tr></thead>
+                <tbody>
+                {% for a in acks %}
+                    <tr><td class="small">{{ a.acknowledged_at|date:"Y-m-d H:i" }}</td><td class="small">{{ a.acknowledger }}</td><td class="small">{{ a.document_version.version }}</td><td class="small">{{ a.typed_name }}</td></tr>
+                {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No acknowledgments yet.</td></tr>{% endfor %}
+                </tbody>
+            </table></div>
+        </div></div>
+    </div>
+
+    <div class="col-lg-5">
+        {% if obj.status == 'active' and not has_acked %}
+        <div class="card mb-3 border-primary"><div class="card-body">
+            <h5 class="card-title">Acknowledge this document</h5>
+            <p class="small text-muted">Confirm you have read and understood the current version.</p>
+            <form method="post" action="{% url 'dms:assignment_ack' obj.pk %}" novalidate>{% csrf_token %}
+                {{ ack_form|crispy }}
+                <button class="btn btn-primary w-100"><i class="ri-checkbox-circle-line me-1"></i> Acknowledge</button>
+            </form>
+        </div></div>
+        {% elif has_acked %}
+        <div class="alert alert-success small"><i class="ri-check-double-line me-1"></i> You have acknowledged this assignment.</div>
+        {% endif %}
+
+        {% if is_admin %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Admin actions</h5>
+            <div class="d-grid gap-2">
+                <a href="{% url 'dms:assignment_edit' obj.pk %}" class="btn btn-outline-primary"><i class="ri-pencil-line me-1"></i> Edit</a>
+                {% if obj.status == 'active' %}
+                <form method="post" action="{% url 'dms:assignment_complete' obj.pk %}">{% csrf_token %}<button class="btn btn-outline-success w-100"><i class="ri-check-line me-1"></i> Mark complete</button></form>
+                <form method="post" action="{% url 'dms:assignment_cancel' obj.pk %}" onsubmit="return confirm('Cancel assignment?');">{% csrf_token %}<button class="btn btn-outline-warning w-100"><i class="ri-close-line me-1"></i> Cancel</button></form>
+                {% endif %}
+                <form method="post" action="{% url 'dms:assignment_delete' obj.pk %}" onsubmit="return confirm('Delete assignment {{ obj.code }}?');">{% csrf_token %}<button class="btn btn-outline-danger w-100"><i class="ri-delete-bin-line me-1"></i> Delete</button></form>
+            </div>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
