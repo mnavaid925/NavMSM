@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Approval Requests{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Document Approval Requests</h4><div class="text-muted small">Multi-stage review walks.</div></div>
+    <a href="{% url 'dms:approval_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Request</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-6"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code or document title..."></div>
+        <div class="col-md-3"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Document</th><th>Workflow</th><th>Stage</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for a in page_obj %}
+            <tr>
+                <td class="small"><a href="{% url 'dms:approval_detail' a.pk %}">{{ a.code }}</a></td>
+                <td class="small">{{ a.document.code }} - {{ a.document.title|truncatechars:30 }}</td>
+                <td class="small">{{ a.workflow.name }}</td>
+                <td class="small">{{ a.current_stage_no }} / {{ a.workflow.stages.count }}</td>
+                <td><span class="badge bg-{% if a.status == 'approved' %}success-subtle text-success{% elif a.status == 'rejected' or a.status == 'cancelled' %}danger-subtle text-danger{% elif a.status == 'in_progress' %}primary-subtle text-primary{% else %}warning-subtle text-warning{% endif %}">{{ a.get_status_display }}</span></td>
+                <td class="text-end">
+                    <a href="{% url 'dms:approval_detail' a.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a>
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}{% if not a.is_open %}
+                    <form method="post" action="{% url 'dms:approval_delete' a.pk %}" style="display:inline" onsubmit="return confirm('Delete request {{ a.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}{% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No approval requests yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+{% endblock %}
