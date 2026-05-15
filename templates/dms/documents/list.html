@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Documents{% endblock %}
+
+{% block content %}
+<div class="page-title d-flex justify-content-between align-items-center">
+    <div><h4 class="mb-1">Documents</h4><div class="text-muted small">Controlled document repository.</div></div>
+    <a href="{% url 'dms:document_create' %}" class="btn btn-primary"><i class="ri-add-line me-1"></i> New Document</a>
+</div>
+
+<div class="card"><div class="card-body">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="Code, title, keywords..."></div>
+        <div class="col-md-2"><select name="doc_type" class="form-select">
+            <option value="">Type (any)</option>
+            {% for v,l in doc_type_choices %}<option value="{{ v }}" {% if request.GET.doc_type == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><select name="status" class="form-select">
+            <option value="">Status (any)</option>
+            {% for v,l in status_choices %}<option value="{{ v }}" {% if request.GET.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-3"><select name="category" class="form-select">
+            <option value="">Category (any)</option>
+            {% for c in categories %}<option value="{{ c.pk }}" {% if request.GET.category == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100">Filter</button></div>
+    </form>
+
+    <div class="table-responsive"><table class="table table-hover align-middle">
+        <thead><tr><th>Code</th><th>Title</th><th>Type</th><th>Category</th><th>Status</th><th>Effective</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for d in page_obj %}
+            <tr class="{% if d.is_expiring_soon %}table-warning{% endif %}">
+                <td class="small"><a href="{% url 'dms:document_detail' d.pk %}">{{ d.code }}</a></td>
+                <td class="small">{{ d.title|truncatechars:40 }}{% if d.is_locked %} <i class="ri-lock-2-line text-danger" title="Legal hold"></i>{% endif %}</td>
+                <td class="small">{{ d.get_doc_type_display }}</td>
+                <td class="small">{{ d.category.name|default:"-" }}</td>
+                <td><span class="badge bg-{% if d.status == 'effective' %}success-subtle text-success{% elif d.status == 'in_review' or d.status == 'approved' %}warning-subtle text-warning{% elif d.status == 'archived' %}secondary-subtle text-secondary{% elif d.status == 'superseded' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ d.get_status_display }}</span></td>
+                <td class="small">{{ d.effective_date|date:"M j, Y"|default:"-" }}</td>
+                <td class="text-end">
+                    <a href="{% url 'dms:document_detail' d.pk %}" class="btn btn-sm btn-outline-secondary"><i class="ri-eye-line"></i></a>
+                    {% if d.is_editable %}<a href="{% url 'dms:document_edit' d.pk %}" class="btn btn-sm btn-outline-primary"><i class="ri-pencil-line"></i></a>{% endif %}
+                    {% if request.user.is_tenant_admin or request.user.is_superuser %}{% if not d.is_locked %}
+                    <form method="post" action="{% url 'dms:document_delete' d.pk %}" style="display:inline" onsubmit="return confirm('Delete {{ d.code }}?');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}{% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No documents yet.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+    {% include 'dms/_pagination.html' %}
+</div></div>
+{% endblock %}
