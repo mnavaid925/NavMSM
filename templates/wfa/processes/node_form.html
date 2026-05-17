@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit Node{% else %}Add Node{% endif %}{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">{% if is_edit %}Edit{% else %}Add{% endif %} Node - {{ definition.code }}</h4>
+<div class="card"><div class="card-body">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <button class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'wfa:process_detail' definition.pk %}" class="btn btn-light">Cancel</a>
+    </form>
+</div></div>
+{% endblock %}
