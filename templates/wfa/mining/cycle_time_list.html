@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Cycle Time Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Cycle Time Reports</h4>
+    <a href="{% url 'wfa:bottleneck_list' %}" class="btn btn-light btn-sm">Bottlenecks</a>
+</div>
+
+<div class="card mb-3"><div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-center">
+        <div class="col-md-3"><select name="definition" class="form-select form-select-sm">
+            <option value="">All processes</option>
+            {% for d in definitions %}<option value="{{ d.pk }}" {% if definition == d.pk|stringformat:"d" %}selected{% endif %}>{{ d.code }} - {{ d.name|truncatechars:24 }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-secondary btn-sm">Filter</button></div>
+    </form>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Code</th><th>Process</th><th>Period</th><th>Instances</th><th>Avg (s)</th><th>P95 (s)</th><th class="text-end"></th></tr></thead>
+        <tbody>
+        {% for r in page %}
+            <tr>
+                <td><a href="{% url 'wfa:cycle_time_detail' r.pk %}">{{ r.code }}</a></td>
+                <td class="small">{{ r.definition.name|truncatechars:28 }}</td>
+                <td class="small">{{ r.period_start|date:"M j" }} - {{ r.period_end|date:"M j" }}</td>
+                <td>{{ r.instance_count }}</td>
+                <td>{{ r.avg_cycle_seconds }}</td>
+                <td>{{ r.p95_cycle_seconds }}</td>
+                <td class="text-end">
+                    <a href="{% url 'wfa:cycle_time_detail' r.pk %}" class="btn btn-sm btn-light"><i class="ri-eye-line"></i></a>
+                    <form method="post" action="{% url 'wfa:cycle_time_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Delete this report?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No reports.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+<div class="mt-3">{% include 'wfa/_pagination.html' %}</div>
+{% endblock %}
