@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <small class="text-muted">{{ obj.name }}</small></h4>
+        <span class="badge bg-light text-dark">{{ obj.get_trigger_type_display }}</span>
+        {% if obj.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+    </div>
+    <div>
+        <form method="post" action="{% url 'wfa:flow_run' obj.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-success btn-sm"><i class="ri-play-line"></i> Run Now</button></form>
+        <a href="{% url 'wfa:flow_edit' obj.pk %}" class="btn btn-light btn-sm"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'wfa:flow_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this flow?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i></button></form>
+        <a href="{% url 'wfa:flow_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+{% if obj.description %}<p class="text-muted">{{ obj.description }}</p>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Steps</h5>
+            <a href="{% url 'wfa:step_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Step</a>
+        </div>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Endpoint</th><th>On Failure</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for s in steps %}
+                <tr>
+                    <td>{{ s.step_no }}</td>
+                    <td>{{ s.name }}</td>
+                    <td><span class="badge bg-light text-dark">{{ s.get_step_type_display }}</span></td>
+                    <td class="small">{% if s.endpoint %}{{ s.endpoint.connector.code }} / {{ s.endpoint.name }}{% else %}-{% endif %}</td>
+                    <td><span class="badge bg-light text-dark">{{ s.get_on_failure_display }}</span></td>
+                    <td class="text-end">
+                        <a href="{% url 'wfa:step_edit' s.pk %}" class="btn btn-sm btn-light"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'wfa:step_delete' s.pk %}" class="d-inline" onsubmit="return confirm('Delete this step?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">No steps yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Runs</h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Status</th><th>Started</th></tr></thead>
+            <tbody>
+            {% for r in runs %}
+                <tr>
+                    <td class="small"><a href="{% url 'wfa:run_detail' r.pk %}">{{ r.code }}</a></td>
+                    <td><span class="badge bg-{% if r.status == 'completed' %}success-subtle text-success{% elif r.status == 'failed' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ r.get_status_display }}</span></td>
+                    <td class="small">{{ r.started_at|date:"M j H:i" }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No runs yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+</div>
+{% endblock %}
