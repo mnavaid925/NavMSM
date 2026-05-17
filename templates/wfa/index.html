@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Workflow &amp; Business Process Automation{% endblock %}
+
+{% block content %}
+<div class="page-title">
+    <h4 class="mb-1">Workflow &amp; Business Process Automation</h4>
+    <div class="text-muted small">Visual designer, approval engine, notifications, integration, process mining.</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Active Processes</div>
+        <div class="h3 mb-0">{{ kpi.active_definitions|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Running Instances</div>
+        <div class="h3 mb-0 text-primary">{{ kpi.running_instances|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open Approvals</div>
+        <div class="h3 mb-0 text-warning">{{ kpi.pending_approvals|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">My Pending</div>
+        <div class="h3 mb-0 text-info">{{ kpi.my_pending|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Notifications Today</div>
+        <div class="h3 mb-0">{{ kpi.notifications_today|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Failed Integrations</div>
+        <div class="h3 mb-0 text-danger">{{ kpi.failed_integrations|default:0 }}</div>
+    </div></div></div>
+    <div class="col-md-3 col-6"><div class="card"><div class="card-body">
+        <div class="text-muted small">Open Suggestions</div>
+        <div class="h3 mb-0 text-success">{{ kpi.open_suggestions|default:0 }}</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Instances</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Process</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for i in recent_instances %}
+                <tr>
+                    <td class="small"><a href="{% url 'wfa:instance_detail' i.pk %}">{{ i.code }}</a></td>
+                    <td class="small">{{ i.definition.name|truncatechars:24 }}</td>
+                    <td><span class="badge bg-{% if i.status == 'completed' %}success-subtle text-success{% elif i.status == 'running' or i.status == 'pending' %}warning-subtle text-warning{% elif i.status == 'cancelled' %}secondary-subtle text-secondary{% elif i.status == 'error' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %}">{{ i.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No instances yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'wfa:instance_list' %}" class="small">All instances &rarr;</a></div>
+    </div></div></div>
+
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h5 class="card-title">Open Approvals</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Subject</th><th>Level</th></tr></thead>
+            <tbody>
+            {% for r in pending_approvals %}
+                <tr {% if r.is_overdue %}class="table-danger"{% endif %}>
+                    <td class="small"><a href="{% url 'wfa:request_detail' r.pk %}">{{ r.code }}</a></td>
+                    <td class="small">{{ r.subject|truncatechars:28 }}</td>
+                    <td class="small">L{{ r.current_level_no }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No open approvals.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'wfa:request_list' %}" class="small">All requests &rarr;</a></div>
+    </div></div></div>
+
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Integration Runs</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Flow</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for r in recent_runs %}
+                <tr>
+                    <td class="small"><a href="{% url 'wfa:run_detail' r.pk %}">{{ r.code }}</a></td>
+                    <td class="small">{{ r.flow.name|truncatechars:24 }}</td>
+                    <td><span class="badge bg-{% if r.status == 'completed' %}success-subtle text-success{% elif r.status == 'failed' %}danger-subtle text-danger{% elif r.status == 'running' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ r.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No runs yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+        <div class="text-end"><a href="{% url 'wfa:run_list' %}" class="small">All runs &rarr;</a></div>
+    </div></div></div>
+</div>
+{% endblock %}
