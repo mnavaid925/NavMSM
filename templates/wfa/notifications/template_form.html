@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Template{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">{% if is_edit %}Edit{% else %}New{% endif %} Notification Template</h4>
+<div class="card"><div class="card-body">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <small class="text-muted d-block mb-2">Templates use Django syntax. Available placeholders depend on the originating event (e.g. <code>{{ '{' }}{{ '{' }} request_code {{ '}' }}{{ '}' }}</code>, <code>{{ '{' }}{{ '{' }} subject {{ '}' }}{{ '}' }}</code>).</small>
+        <button class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'wfa:template_list' %}" class="btn btn-light">Cancel</a>
+    </form>
+</div></div>
+{% endblock %}
