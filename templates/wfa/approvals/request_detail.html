@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <small class="text-muted">{{ obj.subject }}</small></h4>
+        <span class="badge bg-{% if obj.status == 'approved' %}success-subtle text-success{% elif obj.status == 'rejected' %}danger-subtle text-danger{% elif obj.status == 'pending' or obj.status == 'in_progress' %}warning-subtle text-warning{% elif obj.status == 'escalated' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span>
+        <span class="badge bg-info-subtle text-info">L{{ obj.current_level_no }}{% if current_level %} - {{ current_level.name }}{% endif %}</span>
+        {% if obj.is_overdue %}<span class="badge bg-danger">OVERDUE</span>{% endif %}
+    </div>
+    <a href="{% url 'wfa:request_list' %}" class="btn btn-light btn-sm">Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Action Log</h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>When</th><th>Level</th><th>Decision</th><th>Actor</th><th>Notes</th></tr></thead>
+            <tbody>
+            {% for log in logs %}
+                <tr>
+                    <td class="small">{{ log.decided_at|date:"M j H:i" }}</td>
+                    <td>L{{ log.level_no }}</td>
+                    <td><span class="badge bg-{% if log.decision == 'approve' %}success-subtle text-success{% elif log.decision == 'reject' %}danger-subtle text-danger{% elif log.decision == 'escalate' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ log.get_decision_display }}</span></td>
+                    <td class="small">{{ log.actor|default:'-' }}</td>
+                    <td class="small">{{ log.notes|truncatechars:48 }}{% if log.delegated_to %}<br><span class="badge bg-light text-dark">to {{ log.delegated_to }}</span>{% endif %}</td>
+                </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No actions yet.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div>
+
+    <div class="card mt-3"><div class="card-body">
+        <h5 class="card-title">Business Object</h5>
+        <div class="small">Type: <code>{{ obj.business_object_type|default:'-' }}</code></div>
+        <div class="small">ID: <code>{{ obj.business_object_id|default:'-' }}</code></div>
+        {% if obj.notes %}<p class="small mt-2 mb-0">{{ obj.notes }}</p>{% endif %}
+    </div></div></div>
+
+    <div class="col-lg-5">
+        {% if obj.is_open %}
+        <div class="card"><div class="card-body">
+            <h5 class="card-title">Decide</h5>
+            <form method="post" action="{% url 'wfa:request_approve' obj.pk %}" class="mb-2">
+                {% csrf_token %}{{ decision_form|crispy }}
+                <button class="btn btn-success btn-sm w-100"><i class="ri-check-line"></i> Approve</button>
+            </form>
+            <hr>
+            <form method="post" action="{% url 'wfa:request_reject' obj.pk %}" class="mb-2">
+                {% csrf_token %}{{ reject_form|crispy }}
+                <button class="btn btn-danger btn-sm w-100"><i class="ri-close-line"></i> Reject</button>
+            </form>
+            <hr>
+            <form method="post" action="{% url 'wfa:request_delegate' obj.pk %}" class="mb-2">
+                {% csrf_token %}{{ delegate_form|crispy }}
+                <button class="btn btn-warning btn-sm w-100"><i class="ri-user-shared-line"></i> Delegate</button>
+            </form>
+            <hr>
+            <form method="post" action="{% url 'wfa:request_escalate' obj.pk %}" class="mb-2">
+                {% csrf_token %}<button class="btn btn-info btn-sm w-100"><i class="ri-alarm-warning-line"></i> Escalate</button>
+            </form>
+            {% if obj.requested_by_id == request.user.id %}
+            <form method="post" action="{% url 'wfa:request_recall' obj.pk %}">
+                {% csrf_token %}<button class="btn btn-light btn-sm w-100 text-secondary"><i class="ri-arrow-go-back-line"></i> Recall</button>
+            </form>
+            {% endif %}
+        </div></div>
+        {% else %}
+        <div class="card"><div class="card-body text-center text-muted">
+            <i class="ri-checkbox-circle-line h1"></i>
+            <p class="mb-0">This request is closed.</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
