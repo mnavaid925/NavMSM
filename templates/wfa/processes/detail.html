@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <small class="text-muted">{{ obj.name }} v{{ obj.version }}</small></h4>
+        <span class="badge bg-{% if obj.status == 'active' %}success-subtle text-success{% elif obj.status == 'draft' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span>
+        {% if obj.category %}<span class="badge bg-info-subtle text-info">{{ obj.category.name }}</span>{% endif %}
+    </div>
+    <div>
+        <a href="{% url 'wfa:process_diagram' obj.pk %}" class="btn btn-light btn-sm"><i class="ri-flow-chart"></i> Diagram</a>
+        {% if obj.status == 'draft' %}
+            <form method="post" action="{% url 'wfa:process_activate' obj.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-success btn-sm"><i class="ri-play-line"></i> Activate</button></form>
+            <a href="{% url 'wfa:process_edit' obj.pk %}" class="btn btn-light btn-sm"><i class="ri-pencil-line"></i> Edit</a>
+            <form method="post" action="{% url 'wfa:process_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this process?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i></button></form>
+        {% elif obj.status == 'active' %}
+            <form method="post" action="{% url 'wfa:process_archive' obj.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-light btn-sm text-warning"><i class="ri-archive-line"></i> Archive</button></form>
+        {% endif %}
+        <a href="{% url 'wfa:process_list' %}" class="btn btn-light btn-sm">Back to list</a>
+    </div>
+</div>
+
+{% if obj.description %}<p class="text-muted">{{ obj.description }}</p>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Nodes</h5>
+            {% if obj.status == 'draft' %}<a href="{% url 'wfa:node_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Node</a>{% endif %}
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Key</th><th>Type</th><th>Name</th><th>Lane</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            {% for n in nodes %}
+                <tr>
+                    <td><code>{{ n.node_key }}</code></td>
+                    <td><span class="badge bg-light text-dark">{{ n.get_node_type_display }}</span></td>
+                    <td>{{ n.name }}</td>
+                    <td>{{ n.lane|default:'-' }}</td>
+                    <td class="text-end">
+                        {% if obj.status == 'draft' %}
+                            <a href="{% url 'wfa:node_edit' n.pk %}" class="btn btn-sm btn-light"><i class="ri-pencil-line"></i></a>
+                            <form method="post" action="{% url 'wfa:node_delete' n.pk %}" class="d-inline" onsubmit="return confirm('Delete this node?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No nodes yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div>
+
+    <div class="card mt-3"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Transitions</h5>
+            {% if obj.status == 'draft' %}<a href="{% url 'wfa:transition_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Transition</a>{% endif %}
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>From</th><th>To</th><th>Name</th><th>Condition</th><th class="text-end"></th></tr></thead>
+            <tbody>
+            {% for t in transitions %}
+                <tr>
+                    <td><code>{{ t.from_node.node_key }}</code></td>
+                    <td><code>{{ t.to_node.node_key }}</code></td>
+                    <td>{{ t.name|default:'-' }}</td>
+                    <td class="small"><code>{{ t.condition_expr|truncatechars:30|default:'(always)' }}</code></td>
+                    <td class="text-end">
+                        {% if obj.status == 'draft' %}
+                            <form method="post" action="{% url 'wfa:transition_delete' t.pk %}" class="d-inline" onsubmit="return confirm('Delete this transition?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No transitions yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Recent Instances</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>Code</th><th>Started</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for i in instances %}
+                <tr>
+                    <td class="small"><a href="{% url 'wfa:instance_detail' i.pk %}">{{ i.code }}</a></td>
+                    <td class="small">{{ i.started_at|date:"M j H:i" }}</td>
+                    <td><span class="badge bg-{% if i.status == 'completed' %}success-subtle text-success{% elif i.status == 'running' or i.status == 'pending' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ i.get_status_display }}</span></td>
+                </tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No instances yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+</div>
+{% endblock %}
