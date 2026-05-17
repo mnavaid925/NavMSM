@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}New Bottleneck Analysis{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">New Bottleneck Analysis</h4>
+<div class="card"><div class="card-body">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <small class="text-muted d-block mb-2">The detector scans every completed instance in the period and surfaces the node with the highest average wait time.</small>
+        <button class="btn btn-primary"><i class="ri-search-line"></i> Analyze</button>
+        <a href="{% url 'wfa:bottleneck_list' %}" class="btn btn-light">Cancel</a>
+    </form>
+</div></div>
+{% endblock %}
