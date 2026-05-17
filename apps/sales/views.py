@@ -496,7 +496,7 @@ def pricelist_create_view(request):
 @login_required
 def pricelist_detail_view(request, pk):
     obj = get_object_or_404(PriceList, pk=pk, tenant=request.tenant)
-    items = obj.items.select_related('product').order_by('product__code', 'min_qty')
+    items = obj.items.select_related('product').order_by('product__sku', 'min_qty')
     return render(request, 'sales/pricelists/detail.html', {'obj': obj, 'items': items})
 
 
