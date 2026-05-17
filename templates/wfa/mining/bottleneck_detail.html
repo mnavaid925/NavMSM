@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="small text-muted">{{ obj.definition.name }} - {{ obj.period_start|date:"M j" }} - {{ obj.period_end|date:"M j Y" }}</div>
+        <span class="badge bg-{% if obj.severity == 'critical' %}danger-subtle text-danger{% elif obj.severity == 'high' %}warning-subtle text-warning{% elif obj.severity == 'medium' %}info-subtle text-info{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_severity_display }}</span>
+    </div>
+    <div>
+        <form method="post" action="{% url 'wfa:bottleneck_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this analysis?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i></button></form>
+        <a href="{% url 'wfa:bottleneck_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <div class="text-muted small">Bottleneck Node</div>
+        <div class="h5">{{ obj.bottleneck_node.name|default:'(no data)' }}</div>
+    </div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <div class="text-muted small">Avg Wait (seconds)</div>
+        <div class="h5">{{ obj.avg_wait_seconds }}</div>
+    </div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <div class="text-muted small">Instances Analyzed</div>
+        <div class="h5">{{ obj.instance_count }}</div>
+    </div></div></div>
+</div>
+
+{% if obj.notes %}
+<div class="card mt-3"><div class="card-body">
+    <h6>Notes</h6>
+    <p class="mb-0">{{ obj.notes }}</p>
+</div></div>
+{% endif %}
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title">Related Suggestions</h5>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Code</th><th>Type</th><th>Expected Savings</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for s in suggestions %}
+            <tr>
+                <td class="small"><a href="{% url 'wfa:suggestion_detail' s.pk %}">{{ s.code }}</a></td>
+                <td>{{ s.get_suggestion_type_display }}</td>
+                <td>{{ s.expected_savings_pct }}%</td>
+                <td><span class="badge bg-{% if s.status == 'applied' %}success-subtle text-success{% elif s.status == 'dismissed' %}secondary-subtle text-secondary{% elif s.status == 'new' %}warning-subtle text-warning{% else %}info-subtle text-info{% endif %}">{{ s.get_status_display }}</span></td>
+            </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No suggestions linked.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
+{% endblock %}
