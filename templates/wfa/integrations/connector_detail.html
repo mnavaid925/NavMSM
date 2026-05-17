@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <small class="text-muted">{{ obj.name }}</small></h4>
+        <span class="badge bg-info-subtle text-info">{{ obj.get_connector_type_display }}</span>
+        <span class="badge bg-light text-dark">{{ obj.get_auth_method_display }}</span>
+        {% if obj.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+    </div>
+    <div>
+        <a href="{% url 'wfa:connector_edit' obj.pk %}" class="btn btn-light btn-sm"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'wfa:connector_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this connector?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i></button></form>
+        <a href="{% url 'wfa:connector_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+{% if obj.description %}<p class="text-muted">{{ obj.description }}</p>{% endif %}
+{% if obj.base_url %}<div class="mb-3 small text-muted">Base URL: <code>{{ obj.base_url }}</code></div>{% endif %}
+
+<div class="card"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="card-title mb-0">Endpoints</h5>
+        <a href="{% url 'wfa:endpoint_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Endpoint</a>
+    </div>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Name</th><th>Method</th><th>Path</th><th>Active</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for e in endpoints %}
+            <tr>
+                <td>{{ e.name }}</td>
+                <td><span class="badge bg-light text-dark">{{ e.method }}</span></td>
+                <td class="small"><code>{{ e.path }}</code></td>
+                <td>{% if e.is_active %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+                <td class="text-end">
+                    <a href="{% url 'wfa:endpoint_edit' e.pk %}" class="btn btn-sm btn-light"><i class="ri-pencil-line"></i></a>
+                    <form method="post" action="{% url 'wfa:endpoint_delete' e.pk %}" class="d-inline" onsubmit="return confirm('Delete this endpoint?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No endpoints defined.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
+{% endblock %}
