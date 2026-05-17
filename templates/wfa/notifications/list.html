@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Notifications</h4>
+    <div>
+        <a href="{% url 'wfa:delivery_list' %}" class="btn btn-light btn-sm">Deliveries</a>
+        <a href="{% url 'wfa:sms_list' %}" class="btn btn-light btn-sm">SMS Log</a>
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-center">
+        <div class="col-md-3"><input type="text" name="event" value="{{ event }}" class="form-control form-control-sm" placeholder="Event type"></div>
+        <div class="col-md-2"><select name="status" class="form-select form-select-sm">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-secondary btn-sm">Filter</button></div>
+    </form>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Code</th><th>Event</th><th>Recipient</th><th>Subject</th><th>Status</th><th>When</th><th class="text-end"></th></tr></thead>
+        <tbody>
+        {% for n in page %}
+            <tr>
+                <td class="small"><a href="{% url 'wfa:notification_detail' n.pk %}">{{ n.code }}</a></td>
+                <td class="small"><code>{{ n.event_type }}</code></td>
+                <td class="small">{{ n.recipient }}</td>
+                <td class="small">{{ n.subject|truncatechars:32 }}</td>
+                <td><span class="badge bg-{% if n.status == 'sent' %}success-subtle text-success{% elif n.status == 'failed' %}danger-subtle text-danger{% elif n.status == 'pending' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ n.get_status_display }}</span></td>
+                <td class="small">{{ n.triggered_at|date:"M j H:i" }}</td>
+                <td class="text-end"><a href="{% url 'wfa:notification_detail' n.pk %}" class="btn btn-sm btn-light"><i class="ri-eye-line"></i></a></td>
+            </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No notifications.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+<div class="mt-3">{% include 'wfa/_pagination.html' %}</div>
+{% endblock %}
