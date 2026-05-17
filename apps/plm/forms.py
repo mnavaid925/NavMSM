@@ -48,11 +48,24 @@ class ProductCategoryForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._tenant = tenant
         if tenant is not None:
             qs = ProductCategory.objects.filter(tenant=tenant)
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             self.fields['parent'].queryset = qs
+
+    def clean_code(self):
+        code = self.cleaned_data.get('code')
+        if code and self._tenant is not None:
+            qs = ProductCategory.objects.filter(tenant=self._tenant, code=code)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    f'A category with code "{code}" already exists in this tenant.'
+                )
+        return code
 
 
 class ProductForm(forms.ModelForm):
@@ -66,10 +79,23 @@ class ProductForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._tenant = tenant
         if tenant is not None:
             self.fields['category'].queryset = ProductCategory.objects.filter(
                 tenant=tenant, is_active=True,
             )
+
+    def clean_sku(self):
+        sku = self.cleaned_data.get('sku')
+        if sku and self._tenant is not None:
+            qs = Product.objects.filter(tenant=self._tenant, sku=sku)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    f'A product with SKU "{sku}" already exists in this tenant.'
+                )
+        return sku
 
 
 class ProductRevisionForm(forms.ModelForm):
@@ -208,9 +234,22 @@ class CADDocumentForm(forms.ModelForm):
 
     def __init__(self, *args, tenant=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._tenant = tenant
         if tenant is not None:
             self.fields['product'].queryset = Product.objects.filter(tenant=tenant)
             self.fields['product'].required = False
+
+    def clean_drawing_number(self):
+        dn = self.cleaned_data.get('drawing_number')
+        if dn and self._tenant is not None:
+            qs = CADDocument.objects.filter(tenant=self._tenant, drawing_number=dn)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(
+                    f'A CAD document with drawing number "{dn}" already exists in this tenant.'
+                )
+        return dn
 
 
 class CADDocumentVersionForm(forms.ModelForm):
