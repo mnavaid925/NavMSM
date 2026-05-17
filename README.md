@@ -42,10 +42,11 @@ This repository contains **Phase 1** of the platform: the core foundation plus *
 32. [UI / Theme Customization](#ui--theme-customization)
 33. [Management Commands](#management-commands)
 34. [Payment Gateway Integration](#payment-gateway-integration)
-35. [Security Notes](#security-notes)
-36. [Roadmap](#roadmap)
-37. [Troubleshooting](#troubleshooting)
-38. [License](#license)
+35. [Manual-Test Walkthroughs](#manual-test-walkthroughs)
+36. [Security Notes](#security-notes)
+37. [Roadmap](#roadmap)
+38. [Troubleshooting](#troubleshooting)
+39. [License](#license)
 
 ---
 
@@ -3251,6 +3252,25 @@ Today `MockGateway` is the only implementation and always returns success. To wi
 > - Always verify webhook signatures with the gateway's shared secret.
 > - Store only tokenized references — never raw PANs.
 > - Run over HTTPS with `SESSION_COOKIE_SECURE=True` and `CSRF_COOKIE_SECURE=True` in production.
+
+---
+
+## Manual-Test Walkthroughs
+
+Per-module click-through plans live in [.claude/manual-tests/](.claude/manual-tests/) (`bi`, `bom`, `compliance`, `eam`, `inventory`, `labor`, `mes`, `mrp`, `plm`, `qms`, `sales`). Four modules ship with stand-alone driver scripts that exercise the URL surface against seeded MySQL data and write JSON result digests:
+
+- `python .claude/manual-tests/eam_walkthrough.py`
+- `python .claude/manual-tests/inventory_walkthrough.py`
+- `python .claude/manual-tests/plm_runner.py`
+- `python .claude/manual-tests/qms_runner.py`
+
+Cross-module smoke runner — `python .claude/manual-tests/smoke_all_modules.py` — enumerates every named URL across all 11 modules (zero-arg list + create-form GETs, single-pk detail/edit pages, and list pages under filter querystrings) and flags any 5xx / unexpected response. Writes `.claude/manual-tests/smoke_all_modules_results.json`.
+
+Validation guards added during 2026-05-17 manual-test pass:
+- [apps/plm/forms.py](apps/plm/forms.py) — `ProductCategoryForm.clean_code`, `ProductForm.clean_sku`, `CADDocumentForm.clean_drawing_number` surface tenant-scoped `unique_together` duplicates as friendly form errors instead of 500 IntegrityError.
+- [apps/sales/views.py](apps/sales/views.py) + [apps/sales/admin.py](apps/sales/admin.py) — pricelist queries now order by `product__sku` (was `product__code`, which fails because Product has no `code` field).
+- [apps/iot/models.py](apps/iot/models.py), [apps/iot/views.py](apps/iot/views.py), [apps/iot/management/commands/seed_iot.py](apps/iot/management/commands/seed_iot.py), [apps/bi/services/registry.py](apps/bi/services/registry.py), [apps/bi/services/predictions.py](apps/bi/services/predictions.py) — replaced stale `asset.asset_number` / `asset__asset_number` references with `asset.tag` / `asset__tag` so OEE `__str__` rendering, downtime charts, BI report-builder columns, and predictive analytics no longer raise `AttributeError` / `FieldError`.
+- [apps/inventory/management/commands/seed_inventory.py](apps/inventory/management/commands/seed_inventory.py) — `--flush` now clears `compliance.RecallAffectedLot` rows before flushing `inventory.Lot`, so the cleanup no longer raises `ProtectedError` when `seed_compliance` has been run beforehand.
 
 ---
 
