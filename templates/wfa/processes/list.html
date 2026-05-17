@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Processes{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Process Definitions</h4>
+    <div>
+        <a href="{% url 'wfa:category_list' %}" class="btn btn-light btn-sm"><i class="ri-folder-line"></i> Categories</a>
+        <a href="{% url 'wfa:process_create' %}" class="btn btn-primary btn-sm"><i class="ri-add-line"></i> New Process</a>
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-center">
+        <div class="col-md-3"><input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Search code or name"></div>
+        <div class="col-md-2"><select name="status" class="form-select form-select-sm">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select></div>
+        <div class="col-md-3"><select name="category" class="form-select form-select-sm">
+            <option value="">All categories</option>
+            {% for c in categories %}<option value="{{ c.pk }}" {% if category == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select></div>
+        <div class="col-md-2"><button class="btn btn-secondary btn-sm">Filter</button></div>
+    </form>
+</div></div>
+
+<div class="card"><div class="card-body p-0">
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Code</th><th>Name</th><th>Version</th><th>Category</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for d in page %}
+            <tr>
+                <td><a href="{% url 'wfa:process_detail' d.pk %}">{{ d.code }}</a></td>
+                <td>{{ d.name }}{% if d.is_default %} <span class="badge bg-info-subtle text-info">Default</span>{% endif %}</td>
+                <td>{{ d.version }}</td>
+                <td>{{ d.category.name|default:'-' }}</td>
+                <td><span class="badge bg-{% if d.status == 'active' %}success-subtle text-success{% elif d.status == 'draft' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ d.get_status_display }}</span></td>
+                <td class="text-end">
+                    <a href="{% url 'wfa:process_detail' d.pk %}" class="btn btn-sm btn-light"><i class="ri-eye-line"></i></a>
+                    {% if d.status == 'draft' %}
+                        <a href="{% url 'wfa:process_edit' d.pk %}" class="btn btn-sm btn-light"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'wfa:process_delete' d.pk %}" class="d-inline" onsubmit="return confirm('Delete this process?')">
+                            {% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No process definitions.</td></tr>{% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+<div class="mt-3">{% include 'wfa/_pagination.html' %}</div>
+{% endblock %}
