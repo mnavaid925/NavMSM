@@ -94,7 +94,7 @@ REGISTERED_SOURCES = OrderedDict([
         'description': 'EAM failure-prediction ledger.',
         'model_label': 'eam.FailurePrediction',
         'allowed_fields': [
-            'id', 'asset__asset_number', 'asset__name',
+            'id', 'asset__tag', 'asset__name',
             'predicted_failure_date', 'confidence_pct', 'status',
             'detected_at', 'resolved_at',
         ],
@@ -104,7 +104,7 @@ REGISTERED_SOURCES = OrderedDict([
         'description': 'Computed OEE rollups per asset per shift per day.',
         'model_label': 'iot.OEEPeriod',
         'allowed_fields': [
-            'id', 'period_number', 'asset__asset_number', 'period_date',
+            'id', 'period_number', 'asset__tag', 'period_date',
             'shift', 'availability_pct', 'performance_pct',
             'quality_pct', 'oee_pct',
         ],
