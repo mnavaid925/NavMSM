@@ -459,6 +459,29 @@
                 </li>
                 {% endif %}
 
+                {% if request.user.role != 'supplier' and request.user.role != 'customer' %}
+                <li class="nav-item">
+                    <a class="nav-link menu-link" href="#sidebarWfa" data-bs-toggle="collapse" role="button" aria-expanded="false">
+                        <i class="ri-route-line"></i> <span>Workflow &amp; Automation</span>
+                    </a>
+                    <div class="collapse menu-dropdown" id="sidebarWfa" data-bs-parent="#navbar-nav">
+                        <ul class="nav nav-sm flex-column">
+                            <li class="nav-item"><a href="{% url 'wfa:index' %}" class="nav-link">WFA Dashboard</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:process_list' %}" class="nav-link">Processes</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:instance_list' %}" class="nav-link">Instances</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:policy_list' %}" class="nav-link">Approval Policies</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:request_list' %}" class="nav-link">Approval Requests</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:my_requests' %}" class="nav-link">My Approvals</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:rule_list' %}" class="nav-link">Notification Rules</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:notification_list' %}" class="nav-link">Notifications</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:connector_list' %}" class="nav-link">Connectors</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:flow_list' %}" class="nav-link">Integration Flows</a></li>
+                            <li class="nav-item"><a href="{% url 'wfa:suggestion_list' %}" class="nav-link">Optimization Suggestions</a></li>
+                        </ul>
+                    </div>
+                </li>
+                {% endif %}
+
                 {% if request.user.role == 'customer' %}
                 <li class="nav-item">
                     <a class="nav-link menu-link" href="#sidebarCustomerPortal" data-bs-toggle="collapse" role="button" aria-expanded="true">
