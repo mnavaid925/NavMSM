@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="small text-muted">{{ obj.flow.name }}</div>
+        <span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% elif obj.status == 'failed' %}danger-subtle text-danger{% elif obj.status == 'running' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span>
+    </div>
+    <a href="{% url 'wfa:run_list' %}" class="btn btn-light btn-sm">Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6>Started</h6>
+        <p class="mb-2">{{ obj.started_at|date:"Y-m-d H:i:s" }}</p>
+        <h6>Finished</h6>
+        <p class="mb-2">{{ obj.finished_at|date:"Y-m-d H:i:s"|default:"-" }}</p>
+        <h6>Triggered by</h6>
+        <p class="mb-0">{{ obj.triggered_by|default:'system' }}</p>
+    </div></div></div>
+    <div class="col-md-6"><div class="card"><div class="card-body">
+        <h6>Error</h6>
+        <p class="text-danger small mb-0">{{ obj.error_message|default:'-' }}</p>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title">Result</h5>
+    <pre style="white-space:pre-wrap; max-height:50vh; overflow:auto" class="small mb-0">{{ obj.result_json }}</pre>
+</div></div>
+{% endblock %}
