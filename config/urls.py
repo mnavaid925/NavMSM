@@ -27,6 +27,7 @@ urlpatterns = [
     path('sales/', include('apps.sales.urls')),
     path('rma/', include('apps.rma.urls')),
     path('dms/', include('apps.dms.urls')),
+    path('wfa/', include('apps.wfa.urls')),
 ]
 
 if settings.DEBUG:
