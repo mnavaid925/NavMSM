@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="small text-muted">{{ obj.definition.name }}</div>
+        <span class="badge bg-light text-dark">{{ obj.get_suggestion_type_display }}</span>
+        <span class="badge bg-{% if obj.status == 'applied' %}success-subtle text-success{% elif obj.status == 'dismissed' %}secondary-subtle text-secondary{% elif obj.status == 'new' %}warning-subtle text-warning{% else %}info-subtle text-info{% endif %}">{{ obj.get_status_display }}</span>
+    </div>
+    <a href="{% url 'wfa:suggestion_list' %}" class="btn btn-light btn-sm">Back</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <h5 class="card-title">Description</h5>
+    <p class="mb-2">{{ obj.description }}</p>
+    <div class="text-muted small">Expected savings: <strong>{{ obj.expected_savings_pct }}%</strong></div>
+    {% if obj.acknowledged_by %}<div class="text-muted small">Acknowledged by {{ obj.acknowledged_by }} {{ obj.acknowledged_at|date:"M j H:i" }}</div>{% endif %}
+    {% if obj.notes %}<hr><p class="mb-0 small">{{ obj.notes }}</p>{% endif %}
+</div></div>
+
+{% if obj.status == 'new' or obj.status == 'acknowledged' %}
+<div class="row g-3">
+    {% if obj.status == 'new' %}
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6>Acknowledge</h6>
+        <form method="post" action="{% url 'wfa:suggestion_ack' obj.pk %}">{% csrf_token %}<button class="btn btn-info btn-sm w-100"><i class="ri-eye-line"></i> Mark as Acknowledged</button></form>
+    </div></div></div>
+    {% endif %}
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6>Apply</h6>
+        <form method="post" action="{% url 'wfa:suggestion_apply' obj.pk %}">{% csrf_token %}<button class="btn btn-success btn-sm w-100" onclick="return confirm('Mark this suggestion as applied?')"><i class="ri-check-line"></i> Mark as Applied</button></form>
+    </div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body">
+        <h6>Dismiss</h6>
+        <form method="post" action="{% url 'wfa:suggestion_dismiss' obj.pk %}">{% csrf_token %}{{ dismiss_form|crispy }}<button class="btn btn-warning btn-sm w-100"><i class="ri-close-circle-line"></i> Dismiss</button></form>
+    </div></div></div>
+</div>
+{% endif %}
+{% endblock %}
