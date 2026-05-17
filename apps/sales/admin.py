@@ -50,7 +50,7 @@ class PriceListAdmin(admin.ModelAdmin):
 class PriceListItemAdmin(admin.ModelAdmin):
     list_display = ('price_list', 'product', 'unit_price', 'min_qty', 'discount_pct')
     list_filter = ('price_list', 'tenant')
-    search_fields = ('price_list__name', 'product__name', 'product__code')
+    search_fields = ('price_list__name', 'product__name', 'product__sku')
     autocomplete_fields = ('product', 'price_list')
 
 
