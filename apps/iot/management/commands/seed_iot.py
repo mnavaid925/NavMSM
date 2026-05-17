@@ -128,7 +128,7 @@ class Command(BaseCommand):
     def _devices(self, tenant, brokers):
         try:
             from apps.eam.models import Asset
-            assets = list(Asset.objects.filter(tenant=tenant).order_by('asset_number')[:6])
+            assets = list(Asset.objects.filter(tenant=tenant).order_by('tag')[:6])
         except Exception:  # noqa: BLE001
             assets = []
         mqtt_b, opcua_b = brokers[0], brokers[1]
