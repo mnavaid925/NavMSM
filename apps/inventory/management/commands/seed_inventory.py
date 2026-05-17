@@ -327,6 +327,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options.get('flush'):
             self.stdout.write('flushing all inventory data...')
+            # Dependent rows that PROTECT inventory.Lot must be cleared first.
+            # apps.compliance.RecallAffectedLot.lot is PROTECT-coupled to Lot;
+            # without this step `--flush` raises ProtectedError whenever
+            # seed_compliance has been run beforehand.
+            try:
+                from apps.compliance.models import RecallAffectedLot
+                RecallAffectedLot.all_objects.all().delete()
+            except Exception:  # noqa: BLE001 — compliance app may be absent
+                pass
             for model in (
                 StockMovement, StockItem, PutawayTask, GRNLine, GoodsReceiptNote,
                 StockTransferLine, StockTransfer,
