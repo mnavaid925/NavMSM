@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Diagram - {{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">{{ obj.code }} - Diagram</h4>
+    <a href="{% url 'wfa:process_detail' obj.pk %}" class="btn btn-light btn-sm">Back</a>
+</div>
+
+<div class="card"><div class="card-body p-2">
+    <div class="text-muted small mb-2">Read-only SVG. Re-positioning lives in the node edit form.</div>
+    <div style="overflow:auto; max-height:75vh">
+        <svg xmlns="http://www.w3.org/2000/svg" width="{{ svg_w }}" height="{{ svg_h }}" style="background:#fafafa">
+            <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#444" />
+                </marker>
+            </defs>
+            {% for t in transitions %}
+                {% with from_xy=layout|get_item:t.from_node.pk to_xy=layout|get_item:t.to_node.pk %}{% endwith %}
+            {% endfor %}
+            <!-- Transitions -->
+            {% for t in transitions %}
+                {% with fx=t.from_node.position_x fy=t.from_node.position_y tx=t.to_node.position_x ty=t.to_node.position_y %}
+                <line x1="{{ fx|add:box_w }}" y1="{{ fy|add:25 }}" x2="{{ tx }}" y2="{{ ty|add:25 }}"
+                      stroke="#888" stroke-width="1.6" marker-end="url(#arrow)" />
+                {% if t.name %}<text x="{{ fx|add:box_w|add:8 }}" y="{{ fy|add:15 }}" font-size="10" fill="#666">{{ t.name|truncatechars:18 }}</text>{% endif %}
+                {% endwith %}
+            {% endfor %}
+            <!-- Nodes -->
+            {% for n in nodes %}
+                <g>
+                    <rect x="{{ n.position_x }}" y="{{ n.position_y }}" width="{{ box_w }}" height="{{ box_h }}" rx="8"
+                          fill="{% if n.node_type == 'start' %}#d4edda{% elif n.node_type == 'end' %}#f8d7da{% elif n.node_type|slice:':7' == 'gateway' %}#fff3cd{% else %}#e3f2fd{% endif %}"
+                          stroke="#555" stroke-width="1" />
+                    <text x="{{ n.position_x|add:8 }}" y="{{ n.position_y|add:20 }}" font-size="12" font-weight="bold" fill="#222">{{ n.name|truncatechars:18 }}</text>
+                    <text x="{{ n.position_x|add:8 }}" y="{{ n.position_y|add:38 }}" font-size="10" fill="#666">{{ n.get_node_type_display }}</text>
+                </g>
+            {% endfor %}
+        </svg>
+    </div>
+</div></div>
+{% endblock %}
