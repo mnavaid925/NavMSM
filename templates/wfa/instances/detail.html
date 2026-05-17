@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="text-muted small">{{ obj.definition.name }} v{{ obj.definition.version }}</div>
+        <span class="badge bg-{% if obj.status == 'completed' %}success-subtle text-success{% elif obj.status == 'running' or obj.status == 'pending' %}warning-subtle text-warning{% elif obj.status == 'cancelled' %}secondary-subtle text-secondary{% elif obj.status == 'error' %}danger-subtle text-danger{% else %}info-subtle text-info{% endif %}">{{ obj.get_status_display }}</span>
+        {% if obj.current_node %}<span class="badge bg-info-subtle text-info">At: {{ obj.current_node.name }}</span>{% endif %}
+    </div>
+    <div>
+        {% if obj.is_active %}
+            <form method="post" action="{% url 'wfa:instance_advance' obj.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-success btn-sm"><i class="ri-skip-forward-line"></i> Advance</button></form>
+            <a href="{% url 'wfa:instance_cancel' obj.pk %}" class="btn btn-warning btn-sm"><i class="ri-stop-line"></i> Cancel</a>
+        {% else %}
+            <form method="post" action="{% url 'wfa:instance_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this instance?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i> Delete</button></form>
+        {% endif %}
+        <a href="{% url 'wfa:instance_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <h5 class="card-title">Activity Log</h5>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>When</th><th>Node</th><th>Event</th><th>Actor</th><th>Notes</th></tr></thead>
+            <tbody>
+            {% for a in activities %}
+                <tr>
+                    <td class="small">{{ a.recorded_at|date:"M j H:i:s" }}</td>
+                    <td class="small">{{ a.node.name|default:'-' }}</td>
+                    <td><span class="badge bg-light text-dark">{{ a.get_event_display }}</span></td>
+                    <td class="small">{{ a.actor|default:'system' }}</td>
+                    <td class="small">{{ a.notes|truncatechars:40 }}</td>
+                </tr>
+            {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No activity yet.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div></div></div>
+
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <h5 class="card-title">Variables</h5>
+        <table class="table table-sm">
+            <thead><tr><th>Name</th><th>Type</th><th>Value</th></tr></thead>
+            <tbody>
+            {% for v in variables %}
+                <tr><td><code>{{ v.name }}</code></td><td>{{ v.get_value_type_display }}</td><td class="small">{{ v.value_text|truncatechars:32 }}</td></tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No variables.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div>
+
+    <div class="card mt-3"><div class="card-body">
+        <h5 class="card-title">Metrics</h5>
+        <table class="table table-sm">
+            <thead><tr><th>Type</th><th>Node</th><th>Seconds</th></tr></thead>
+            <tbody>
+            {% for m in metrics %}<tr><td>{{ m.get_metric_type_display }}</td><td class="small">{{ m.node.name|default:'-' }}</td><td>{{ m.value_seconds }}</td></tr>
+            {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No metrics.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title mb-1">Business Object Link</h5>
+    <div class="small text-muted">Type: <code>{{ obj.business_object_type|default:'-' }}</code> &nbsp; ID: <code>{{ obj.business_object_id|default:'-' }}</code></div>
+    {% if obj.notes %}<p class="small mt-2 mb-0">{{ obj.notes }}</p>{% endif %}
+</div></div>
+{% endblock %}
