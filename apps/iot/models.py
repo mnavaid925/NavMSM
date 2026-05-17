@@ -795,7 +795,7 @@ class MachineStateLog(TenantAwareModel, TimeStampedModel):
         ]
 
     def __str__(self):
-        return f'{self.asset.asset_number}/{self.state} @ {self.started_at:%Y-%m-%d %H:%M}'
+        return f'{self.asset.tag}/{self.state} @ {self.started_at:%Y-%m-%d %H:%M}'
 
     def save(self, *args, **kwargs):
         if not self.tenant_id:
@@ -870,7 +870,7 @@ class OEEPeriod(TenantAwareModel, TimeStampedModel):
         ]
 
     def __str__(self):
-        return f'{self.period_number} | {self.asset.asset_number} | {self.period_date}'
+        return f'{self.period_number} | {self.asset.tag} | {self.period_date}'
 
     def _safe_div(self, numer, denom):
         if denom is None or denom == 0:
