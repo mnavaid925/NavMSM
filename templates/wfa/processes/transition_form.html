@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}Add Transition{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">Add Transition - {{ definition.code }}</h4>
+<div class="card"><div class="card-body">
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <small class="text-muted d-block mb-2">Condition uses a safe whitelist: <code>varname == 'value'</code>, <code>amount > 1000</code>, boolean operators, and a few math helpers. Leave empty to always fire.</small>
+        <button class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'wfa:process_detail' definition.pk %}" class="btn btn-light">Cancel</a>
+    </form>
+</div></div>
+{% endblock %}
