@@ -34,6 +34,14 @@ $registry = [ordered]@{
     '10_equipment_asset_management'     = @('eam',         'eam',         '10. Equipment & Asset Management (EAM)')
     '11_labor_workforce_management'     = @('labor',       'labor',       '11. Labor & Workforce Management')
     '12_cost_management_accounting'     = @('cost',        'cost',        '12. Cost Management & Accounting')
+    '13_compliance_regulatory'          = @('compliance',  'compliance',  '13. Compliance & Regulatory Management')
+    '14_energy_utility_management'      = @('utility',     'utility',     '14. Energy & Utility Management')
+    '15_iot_scada_integration'          = @('iot',         'iot',         '15. IoT & SCADA Integration')
+    '16_business_intelligence_analytics' = @('bi',         'bi',          '16. Business Intelligence & Analytics')
+    '17_sales_customer_order'           = @('sales',       'sales',       '17. Sales & Customer Order Management')
+    '18_returns_rma_management'         = @('rma',         'rma',         '18. Returns & RMA Management')
+    '19_document_knowledge_management'  = @('dms',         'dms',         '19. Document & Knowledge Management')
+    '20_workflow_automation'            = @('wfa',         'wfa',         '20. Workflow & Business Process Automation')
 }
 
 # Friendly aliases -> registry key
@@ -60,6 +68,14 @@ $aliases = @{
     '10' = '10_equipment_asset_management'
     '11' = '11_labor_workforce_management'
     '12' = '12_cost_management_accounting'
+    '13' = '13_compliance_regulatory'
+    '14' = '14_energy_utility_management'
+    '15' = '15_iot_scada_integration'
+    '16' = '16_business_intelligence_analytics'
+    '17' = '17_sales_customer_order'
+    '18' = '18_returns_rma_management'
+    '19' = '19_document_knowledge_management'
+    '20' = '20_workflow_automation'
     # app folder names
     'tenants'     = '01_tenant_subscription_management'
     'tenant'      = '01_tenant_subscription_management'
@@ -79,6 +95,23 @@ $aliases = @{
     'workforce'   = '11_labor_workforce_management'
     'cost'        = '12_cost_management_accounting'
     'accounting'  = '12_cost_management_accounting'
+    'compliance'  = '13_compliance_regulatory'
+    'regulatory'  = '13_compliance_regulatory'
+    'utility'     = '14_energy_utility_management'
+    'energy'      = '14_energy_utility_management'
+    'iot'         = '15_iot_scada_integration'
+    'scada'       = '15_iot_scada_integration'
+    'bi'          = '16_business_intelligence_analytics'
+    'analytics'   = '16_business_intelligence_analytics'
+    'sales'       = '17_sales_customer_order'
+    'customer'    = '17_sales_customer_order'
+    'rma'         = '18_returns_rma_management'
+    'returns'     = '18_returns_rma_management'
+    'dms'         = '19_document_knowledge_management'
+    'document'    = '19_document_knowledge_management'
+    'knowledge'   = '19_document_knowledge_management'
+    'wfa'         = '20_workflow_automation'
+    'workflow'    = '20_workflow_automation'
 }
 
 # -------- Resolve which keys to process --------
