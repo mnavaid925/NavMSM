@@ -16,9 +16,6 @@
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#444" />
                 </marker>
             </defs>
-            {% for t in transitions %}
-                {% with from_xy=layout|get_item:t.from_node.pk to_xy=layout|get_item:t.to_node.pk %}{% endwith %}
-            {% endfor %}
             <!-- Transitions -->
             {% for t in transitions %}
                 {% with fx=t.from_node.position_x fy=t.from_node.position_y tx=t.to_node.position_x ty=t.to_node.position_y %}
