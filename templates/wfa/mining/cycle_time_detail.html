@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="small text-muted">{{ obj.definition.name }} - {{ obj.period_start|date:"M j" }} - {{ obj.period_end|date:"M j Y" }}</div>
+    </div>
+    <a href="{% url 'wfa:cycle_time_list' %}" class="btn btn-light btn-sm">Back</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Instances</div>
+        <div class="h4 mb-0">{{ obj.instance_count }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Avg Cycle (s)</div>
+        <div class="h4 mb-0">{{ obj.avg_cycle_seconds }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">P95 (s)</div>
+        <div class="h4 mb-0 text-warning">{{ obj.p95_cycle_seconds }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card"><div class="card-body">
+        <div class="text-muted small">Min / Max (s)</div>
+        <div class="h6 mb-0">{{ obj.min_cycle_seconds }} / {{ obj.max_cycle_seconds }}</div>
+    </div></div></div>
+</div>
+{% endblock %}
