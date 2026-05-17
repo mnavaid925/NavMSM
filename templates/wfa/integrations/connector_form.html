@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Connector{% endblock %}
+
+{% block content %}
+<h4 class="mb-3">{% if is_edit %}Edit{% else %}New{% endif %} Connector</h4>
+<div class="card"><div class="card-body">
+    <div class="alert alert-warning small mb-3">
+        <i class="ri-shield-keyhole-line"></i> <strong>Security note:</strong> <code>auth_secret_hash</code> is stored as a stable token in this build (mirrors <code>iot.DeviceBroker.password_hash</code>). Rotate to KMS / Vault-backed storage before production.
+    </div>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <button class="btn btn-primary"><i class="ri-save-line"></i> Save</button>
+        <a href="{% url 'wfa:connector_list' %}" class="btn btn-light">Cancel</a>
+    </form>
+</div></div>
+{% endblock %}
