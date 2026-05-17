@@ -973,7 +973,7 @@ class OEEDashboardView(TenantRequiredMixin, View):
         )
         chart = [
             {
-                'asset': r.asset.asset_number if hasattr(r.asset, 'asset_number') else str(r.asset),
+                'asset': r.asset.tag if hasattr(r.asset, 'tag') else str(r.asset),
                 'date': r.period_date.strftime('%m-%d'),
                 'availability': float(r.availability_pct),
                 'performance': float(r.performance_pct),
