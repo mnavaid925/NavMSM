@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }} - {{ obj.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }} <small class="text-muted">{{ obj.name }}</small></h4>
+        {% if obj.applies_to_type %}<span class="badge bg-info-subtle text-info">{{ obj.applies_to_type }}</span>{% endif %}
+        {% if obj.is_active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Inactive</span>{% endif %}
+    </div>
+    <div>
+        <a href="{% url 'wfa:policy_edit' obj.pk %}" class="btn btn-light btn-sm"><i class="ri-pencil-line"></i> Edit</a>
+        <form method="post" action="{% url 'wfa:policy_delete' obj.pk %}" class="d-inline" onsubmit="return confirm('Delete this policy?')">{% csrf_token %}<button class="btn btn-light btn-sm text-danger"><i class="ri-delete-bin-line"></i></button></form>
+        <a href="{% url 'wfa:policy_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+{% if obj.description %}<p class="text-muted">{{ obj.description }}</p>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Approval Levels</h5>
+            <a href="{% url 'wfa:level_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Level</a>
+        </div>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>#</th><th>Name</th><th>Role</th><th>Min</th><th>SLA hrs</th><th>Delegation</th><th class="text-end"></th></tr></thead>
+            <tbody>
+            {% for l in levels %}
+                <tr>
+                    <td>{{ l.level_no }}</td>
+                    <td>{{ l.name }}</td>
+                    <td>{{ l.get_approver_role_display }}</td>
+                    <td>{{ l.min_approvers }}</td>
+                    <td>{{ l.sla_hours }}</td>
+                    <td>{% if l.allow_delegation %}<span class="badge bg-success-subtle text-success">Yes</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">No</span>{% endif %}</td>
+                    <td class="text-end">
+                        <a href="{% url 'wfa:level_edit' l.pk %}" class="btn btn-sm btn-light"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="{% url 'wfa:level_delete' l.pk %}" class="d-inline" onsubmit="return confirm('Delete this level?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form>
+                    </td>
+                </tr>
+            {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">No levels.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+
+    <div class="col-lg-5"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="card-title mb-0">Escalation Rules</h5>
+            <a href="{% url 'wfa:escalation_create' obj.pk %}" class="btn btn-sm btn-primary"><i class="ri-add-line"></i> Add Rule</a>
+        </div>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Level</th><th>After</th><th>Escalate to</th><th class="text-end"></th></tr></thead>
+            <tbody>
+            {% for r in rules %}
+                <tr>
+                    <td>L{{ r.level_no }}</td>
+                    <td>+{{ r.trigger_hours_overdue }}h</td>
+                    <td>{{ r.get_escalate_to_role_display }}</td>
+                    <td class="text-end"><form method="post" action="{% url 'wfa:escalation_delete' r.pk %}" class="d-inline" onsubmit="return confirm('Delete this rule?')">{% csrf_token %}<button class="btn btn-sm btn-light text-danger"><i class="ri-delete-bin-line"></i></button></form></td>
+                </tr>
+            {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No rules.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div></div>
+</div>
+
+<div class="card mt-3"><div class="card-body">
+    <h5 class="card-title">Recent Requests</h5>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>Code</th><th>Subject</th><th>Status</th><th>Submitted</th></tr></thead>
+        <tbody>
+        {% for r in requests_qs %}
+            <tr>
+                <td class="small"><a href="{% url 'wfa:request_detail' r.pk %}">{{ r.code }}</a></td>
+                <td class="small">{{ r.subject|truncatechars:40 }}</td>
+                <td><span class="badge bg-{% if r.status == 'approved' %}success-subtle text-success{% elif r.status == 'rejected' %}danger-subtle text-danger{% elif r.status == 'pending' or r.status == 'in_progress' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ r.get_status_display }}</span></td>
+                <td class="small">{{ r.requested_at|date:"M j H:i" }}</td>
+            </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">No requests.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
+{% endblock %}
