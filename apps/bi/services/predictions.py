@@ -224,7 +224,7 @@ def run_failure_likelihood(predictive_model, tenant) -> List[dict]:
         results.append({
             'target_type': 'asset',
             'target_pk': asset.pk,
-            'target_label': asset.asset_number or '',
+            'target_label': asset.tag or '',
             'period_date': today + timedelta(days=horizon),
             'predicted_value': likelihood.quantize(Decimal('0.01')),
             'lower_bound': (likelihood * Decimal('0.7')).quantize(Decimal('0.01')),
