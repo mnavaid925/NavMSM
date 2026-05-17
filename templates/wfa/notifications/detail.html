@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ obj.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-1">{{ obj.code }}</h4>
+        <div class="small text-muted">{{ obj.event_type }} - triggered {{ obj.triggered_at|date:"M j H:i" }}</div>
+        <span class="badge bg-{% if obj.status == 'sent' %}success-subtle text-success{% elif obj.status == 'failed' %}danger-subtle text-danger{% elif obj.status == 'pending' %}warning-subtle text-warning{% else %}secondary-subtle text-secondary{% endif %}">{{ obj.get_status_display }}</span>
+    </div>
+    <div>
+        {% if obj.status != 'sent' %}
+        <form method="post" action="{% url 'wfa:notification_dispatch' obj.pk %}" class="d-inline">{% csrf_token %}<button class="btn btn-primary btn-sm"><i class="ri-send-plane-line"></i> Dispatch</button></form>
+        {% endif %}
+        <a href="{% url 'wfa:notification_list' %}" class="btn btn-light btn-sm">Back</a>
+    </div>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <h5 class="card-title">{{ obj.subject }}</h5>
+    <pre class="mb-0" style="white-space:pre-wrap; font-family:inherit">{{ obj.body }}</pre>
+</div></div>
+
+<div class="card"><div class="card-body">
+    <h5 class="card-title">Deliveries</h5>
+    <table class="table table-sm align-middle">
+        <thead><tr><th>When</th><th>Channel</th><th>Status</th><th>Ref</th><th>Error</th></tr></thead>
+        <tbody>
+        {% for d in deliveries %}
+            <tr>
+                <td class="small">{{ d.attempted_at|date:"M j H:i" }}</td>
+                <td>{{ d.channel.code }}</td>
+                <td><span class="badge bg-{% if d.status == 'sent' %}success-subtle text-success{% elif d.status == 'failed' %}danger-subtle text-danger{% else %}secondary-subtle text-secondary{% endif %}">{{ d.get_status_display }}</span></td>
+                <td class="small">{{ d.external_ref|default:'-' }}</td>
+                <td class="small text-danger">{{ d.error_message|truncatechars:48 }}</td>
+            </tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">No delivery attempts yet.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div></div>
+{% endblock %}
